@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Wiki Note</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'><rect x='6' y='2' width='24' height='32' rx='3' fill='%233B82F6'/><rect x='11' y='8' width='14' height='2' rx='1' fill='white'/><rect x='11' y='13' width='14' height='2' rx='1' fill='white'/><rect x='11' y='18' width='10' height='2' rx='1' fill='white'/><rect x='11' y='23' width='12' height='2' rx='1' fill='white'/><path d='M21 0L21 7H28L21 0Z' fill='%232563EB'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <style>
+    .emoji-icon{display:inline-block;width:1em;height:1em;vertical-align:-0.125em;object-fit:contain}
+    .emoji-icon-sm{width:14px;height:14px}
+    .emoji-icon-md{width:18px;height:18px}
+    .emoji-icon-lg{width:22px;height:22px}
+    .emoji-icon-xl{width:28px;height:28px}
+    .emoji-spin{animation:emoji-spin 1s linear infinite}
+    @keyframes emoji-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    </style>
+    <script src="{{ url_for('static', filename='lib/chart.js') }}"></script>
+</head>
+<body>
+    <div class="index-root">
+        <div class="index-aside">
+            <div class="index-aside-root">
+                <div class="aside-item-container">
+                    <div class="item-menu-container">
+                        <div class="aside-item item-user top-user">
+                            <div class="user-avatar" onclick="location.href='/settings'" style="cursor:pointer" role="button" tabindex="0" aria-label="用户头像，前往设置">
+                                <svg id="sidebar-avatar" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                        </div>
+                        <a href="/" data-nav class="item-menu {% if active_view == 'home' %}is-active{% endif %}" aria-label="工作台">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            <span>工作台</span>
+                        </a>
+                        <a href="/chat" data-nav class="item-menu {% if active_view == 'chat' %}is-active{% endif %}" aria-label="对话">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span>对话</span>
+                        </a>
+                        <a href="/article" data-nav class="item-menu {% if active_view == 'article' %}is-active{% endif %}" aria-label="文章">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                            <span>文章</span>
+                        </a>
+                        <a href="/todo" data-nav class="item-menu {% if active_view == 'todo' %}is-active{% endif %}" aria-label="任务">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            <span>任务</span>
+                        </a>
+                        <a href="/wiki" data-nav class="item-menu {% if active_view == 'wiki' %}is-active{% endif %}" aria-label="Wiki">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                            <span>Wiki</span>
+                        </a>
+                        <a href="/picture" data-nav class="item-menu {% if active_view == 'picture' %}is-active{% endif %}" aria-label="图片">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                            <span>图片</span>
+                        </a>
+                        <a href="/automation" data-nav class="item-menu {% if active_view == 'automation' %}is-active{% endif %}" aria-label="控制台">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                            <span>控制台</span>
+                        </a>
+                    </div>
+                    <a href="/settings" data-nav class="aside-item item-setting {% if active_view == 'settings' %}is-active{% endif %}" aria-label="设置">
+                        <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="index-main-container">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <script>
+    window.onPageReady = function(fn) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fn);
+        } else {
+            fn();
+        }
+    };
+    </script>
+
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/md.js') }}"></script>
+
+    <style>
+    .custom-confirm-overlay {
+        position: fixed; inset: 0; z-index: 100000;
+        background: rgba(0,0,0,0.35);
+        display: none; align-items: center; justify-content: center;
+    }
+    .custom-confirm-overlay.open { display: flex; }
+
+    .toast-tip {
+        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(10px);
+        background: rgba(33,33,33,0.92); color: #fff; padding: 8px 18px; border-radius: 8px;
+        font-size: 13px; z-index: 100001; opacity: 0; transition: opacity 200ms ease, transform 200ms ease;
+        pointer-events: none; white-space: nowrap;
+    }
+    .toast-tip.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .custom-confirm-box {
+        background: #fff; border-radius: 12px; padding: 24px;
+        max-width: 360px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        animation: cc-in 200ms ease-out;
+    }
+    @keyframes cc-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .custom-confirm-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a; }
+    .custom-confirm-msg { font-size: 14px; color: #6B7280; line-height: 1.5; margin-bottom: 20px; }
+    .custom-confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+    .cc-btn { padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 150ms ease; }
+    .cc-btn-cancel { background: #F3F4F6; color: #6B7280; }
+    .cc-btn-cancel:hover { background: #E5E7EB; }
+    .cc-btn-ok { background: #EF4444; color: #fff; }
+    .cc-btn-ok:hover { background: #DC2626; }
+    .cc-btn-ok.cc-btn-primary { background: #0d9488; }
+    .cc-btn-ok.cc-btn-primary:hover { background: #0f766e; }
+    </style>
+
+    <script>
+    /**
+     * 全局自定义确认弹窗（替代原生 confirm）
+     * 用法: if (await customConfirm('确定删除？')) { ... }
+     */
+    function customConfirm(message, title, options) {
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('custom-confirm-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'custom-confirm-overlay';
+                overlay.className = 'custom-confirm-overlay';
+                overlay.innerHTML =
+                    '<div class="custom-confirm-box">' +
+                    '<div class="custom-confirm-title" id="cc-title"></div>' +
+                    '<div class="custom-confirm-msg" id="cc-msg"></div>' +
+                    '<div class="custom-confirm-btns">' +
+                    '<button class="cc-btn cc-btn-cancel" id="cc-cancel">取消</button>' +
+                    '<button class="cc-btn cc-btn-ok" id="cc-ok">确定</button>' +
+                    '</div></div>';
+                document.body.appendChild(overlay);
+            }
+
+            var titleEl = overlay.querySelector('#cc-title');
+            var msgEl = overlay.querySelector('#cc-msg');
+            var okBtn = overlay.querySelector('#cc-ok');
+            var cancelBtn = overlay.querySelector('#cc-cancel');
+
+            titleEl.textContent = title || '确认操作';
+            msgEl.textContent = message || '';
+
+            // 按钮样式（危险/主色）
+            okBtn.className = 'cc-btn cc-btn-ok' + (options && options.primary ? ' cc-btn-primary' : '');
+            okBtn.textContent = (options && options.okText) || '确定';
+            cancelBtn.textContent = (options && options.cancelText) || '取消';
+            cancelBtn.style.display = '';
+
+            overlay.classList.add('open');
+
+            function close(val) {
+                overlay.classList.remove('open');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+                overlay.onclick = null;
+                resolve(val);
+            }
+
+            okBtn.onclick = function() { close(true); };
+            cancelBtn.onclick = function() { close(false); };
+            overlay.onclick = function(e) { if (e.target === overlay) close(false); };
+        });
+    }
+
+    /**
+     * 全局自定义提示弹窗（替代原生 alert）
+     */
+    function customAlert(message, title) {
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('custom-confirm-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'custom-confirm-overlay';
+                overlay.className = 'custom-confirm-overlay';
+                overlay.innerHTML =
+                    '<div class="custom-confirm-box">' +
+                    '<div class="custom-confirm-title" id="cc-title"></div>' +
+                    '<div class="custom-confirm-msg" id="cc-msg"></div>' +
+                    '<div class="custom-confirm-btns">' +
+                    '<button class="cc-btn cc-btn-ok cc-btn-primary" id="cc-ok">确定</button>' +
+                    '</div></div>';
+                document.body.appendChild(overlay);
+            }
+
+            // 确保 cancel 按钮存在（alert 模式下隐藏）
+            var cancelBtn = overlay.querySelector('#cc-cancel');
+            if (!cancelBtn) {
+                cancelBtn = document.createElement('button');
+                cancelBtn.id = 'cc-cancel';
+                cancelBtn.className = 'cc-btn cc-btn-cancel';
+                cancelBtn.textContent = '取消';
+                var btns = overlay.querySelector('.custom-confirm-btns');
+                btns.insertBefore(cancelBtn, btns.firstChild);
+            }
+            cancelBtn.style.display = 'none';
+
+            var titleEl = overlay.querySelector('#cc-title');
+            var msgEl = overlay.querySelector('#cc-msg');
+            var okBtn = overlay.querySelector('#cc-ok');
+
+            titleEl.textContent = title || '提示';
+            msgEl.textContent = message || '';
+            okBtn.className = 'cc-btn cc-btn-ok cc-btn-primary';
+            okBtn.textContent = '确定';
+
+            overlay.classList.add('open');
+
+            function close() {
+                overlay.classList.remove('open');
+                okBtn.onclick = null;
+                overlay.onclick = null;
+                resolve();
+            }
+
+            okBtn.onclick = close;
+            overlay.onclick = function(e) { if (e.target === overlay) close(); };
+        });
+    }
+
+    function showToast(message) {
+        var t = document.querySelector('.toast-tip');
+        if (!t) {
+            t = document.createElement('div');
+            t.className = 'toast-tip';
+            document.body.appendChild(t);
+        }
+        t.textContent = message;
+        t.classList.add('show');
+        clearTimeout(t._timer);
+        t._timer = setTimeout(function() { t.classList.remove('show'); }, 1500);
+    }
+    </script>
+
+    {% block scripts %}{% endblock %}
+
+    <script data-spa-router>
+    (function() {
+        var currentPage = location.pathname;
+        var mainContainer = document.querySelector('.index-main-container');
+
+        function updateActiveNav(path) {
+            document.querySelectorAll('[data-nav]').forEach(function(a) {
+                a.classList.remove('is-active');
+                var href = a.getAttribute('href');
+                if (href === path || (path !== '/' && href !== '/' && path.startsWith(href))) {
+                    a.classList.add('is-active');
+                }
+            });
+        }
+
+        function navigateTo(url, push) {
+            if (url === currentPage) return;
+
+            document.dispatchEvent(new CustomEvent('spa:navigate'));
+
+            mainContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--color-muted);gap:8px"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="emoji-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>加载中...</span></div>';
+            fetch(url, {headers: {'X-Requested-With': 'SPA'}})
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                })
+                .then(function(html) {
+                    // Use a real DOM element (not DOMParser) for reliable parsing
+                    var temp = document.createElement('div');
+                    temp.style.display = 'none';
+                    temp.innerHTML = html;
+                    var newMain = temp.querySelector('.index-main-container');
+                    if (newMain) {
+                        mainContainer.innerHTML = newMain.innerHTML;
+                    }
+                    // Re-load external scripts first, then execute inline scripts
+                    var srcScripts = Array.from(temp.querySelectorAll('script[src]'));
+                    var inlineScripts = Array.from(temp.querySelectorAll('script:not([src]):not([data-spa-router])'));
+                    var loadPromises = srcScripts.map(function(s) {
+                        return new Promise(function(resolve) {
+                            var src = s.getAttribute('src');
+                            var existing = document.querySelector('script[src="' + src + '"]');
+                            if (existing) {
+                                resolve();
+                                return;
+                            }
+                            var ns = document.createElement('script');
+                            ns.onload = resolve;
+                            ns.onerror = resolve;
+                            ns.src = src;
+                            document.body.appendChild(ns);
+                        });
+                    });
+                    Promise.all(loadPromises).then(function() {
+                        inlineScripts.forEach(function(s) {
+                            try {
+                                var ns = document.createElement('script');
+                                ns.textContent = s.textContent;
+                                document.body.appendChild(ns);
+                                ns.remove();
+                            } catch(e) {}
+                        });
+                    });
+                })
+                .catch(function() {
+                    mainContainer.innerHTML = '<div style="padding:40px;color:var(--color-muted)">加载失败</div>';
+                });
+
+            currentPage = url;
+            updateActiveNav(url);
+            if (push !== false) history.pushState(null, '', url);
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('button')) return;
+            var link = e.target.closest('[data-nav]');
+            if (!link) return;
+            e.preventDefault();
+            navigateTo(link.getAttribute('href'));
+        });
+
+        window.addEventListener('popstate', function() {
+            var url = location.pathname;
+            if (url !== currentPage) {
+                navigateTo(url, false);
+            }
+        });
+    })();
+    </script>
+    <script>
+        window.AVATAR_SVGS = {
+            'user': '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+            'star': '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+            'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41"/>',
+            'moon': '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+            'cloud': '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/>',
+            'laptop': '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="2" y1="20" x2="22" y2="20"/>',
+            'sparkle': '<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M6 15l.75 2.25L9 18l-2.25.75L6 21l-.75-2.25L3 18l2.25-.75z"/>',
+            'heart': '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+            'zap': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+            'leaf': '<path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 17 2c.5 5.5-2 8-6 8.5M11 18c.5 1 3.5 3 3.5-3"/>',
+            'compass': '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+            'lightbulb': '<path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+            'book': '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+            'globe': '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+            'crown': '<path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zM3 20h18"/>',
+            'flame': '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.62 1-6 .47-.53 2 1 2 3.5a4 4 0 0 0 1 3c.75.75 2 1.72 2 3a5.5 5.5 0 0 1-10 1.5"/>'
+        };
+        window.renderAvatarSVG = function(key, size) {
+            size = size || 32;
+            return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (window.AVATAR_SVGS[key] || window.AVATAR_SVGS['user']) + '</svg>';
+        };
+        (function() {
+            var saved = localStorage.getItem('blossom-avatar') || 'user';
+            var el = document.getElementById('sidebar-avatar');
+            if (el) { el.innerHTML = window.AVATAR_SVGS[saved] || window.AVATAR_SVGS['user']; }
+        })();
+    </script>
+</body>
+</html>

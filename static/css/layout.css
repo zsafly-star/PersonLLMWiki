@@ -1,0 +1,62 @@
+/**
+ * 布局样式
+ */
+
+.index-root {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    position: relative;
+}
+
+.index-aside {
+    width: var(--sidebar-width);
+    height: 100%;
+    z-index: var(--z-sidebar);
+    flex-shrink: 0;
+}
+
+.index-aside-root {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.index-main-container {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 主视图容器 */
+.main-view {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.main-view.hidden {
+    display: none;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+    .index-aside {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        transition: transform var(--transition-normal);
+        box-shadow: var(--shadow-lg);
+    }
+    
+    .index-aside.mobile-open {
+        transform: translateX(0);
+    }
+    
+    .index-main-container {
+        width: 100%;
+    }
+}

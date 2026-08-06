@@ -1,0 +1,198 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MCP 组件共享样式 — 内置 & 自定义 MCP 统一设计词汇表
+   修改此文件即可同时影响两侧，避免风格分裂。
+
+   设计令牌来源: base.css
+     --font-sans, --font-mono, --color-primary, --color-primary-50,
+     --color-surface, --color-foreground, --color-muted,
+     --color-border, --color-border-light, --color-background
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Card ── */
+.am-mcp-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 16px 18px;
+    transition: border-color 180ms ease;
+}
+
+.am-mcp-card:hover {
+    border-color: var(--color-border);
+}
+
+/* ── Head ── */
+.am-mcp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+/* ── Chevron ── */
+.am-mcp-chevron {
+    flex-shrink: 0;
+    color: var(--color-muted);
+    transition: transform 200ms ease;
+}
+
+.am-mcp-expanded .am-mcp-chevron {
+    transform: rotate(180deg);
+}
+
+/* ── Info (name + subtitle) ── */
+.am-mcp-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* ── Name Row ── */
+.am-mcp-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Primary Name ── */
+.am-mcp-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-foreground);
+}
+
+/* ── Secondary Text (description / URL / etc.) ── */
+.am-mcp-sub {
+    font-size: 12px;
+    color: var(--color-muted);
+    line-height: 1.4;
+}
+
+/* ── Tool Count Badge ── */
+.am-mcp-badge {
+    font-size: 11px;
+    color: var(--color-muted);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Status ── */
+.am-mcp-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 100px;
+    flex-shrink: 0;
+}
+
+.am-mcp-status-on {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+}
+
+.am-mcp-status-off {
+    background: var(--color-border-light);
+    color: var(--color-muted);
+}
+
+.am-mcp-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.am-mcp-status-on .am-mcp-status-dot {
+    background: #059669;
+    box-shadow: 0 0 4px rgba(5, 150, 105, 0.4);
+}
+
+.am-mcp-status-off .am-mcp-status-dot {
+    background: var(--color-muted);
+}
+
+/* ── Version / Hint Capsule ── */
+.am-mcp-hint {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-muted);
+    background: var(--color-surface-alt, #edf0f5);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+/* ── Tool Panel (expandable) ── */
+.am-mcp-tools-panel {
+    overflow: hidden;
+    animation: amMcpSlide 200ms ease;
+}
+
+@keyframes amMcpSlide {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 500px; }
+}
+
+.am-mcp-tools-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: 4px;
+}
+
+/* ── Tool Item ── */
+.am-mcp-tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background 120ms ease;
+}
+
+.am-mcp-tool:hover {
+    background: var(--color-background);
+}
+
+/* ── Tool Name (pill) ── */
+.am-mcp-tool-name {
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--color-primary);
+    background: var(--color-primary-50);
+    padding: 2px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+}
+
+/* ── Tool Description ── */
+.am-mcp-tool-desc {
+    color: var(--color-muted);
+    font-size: 12px;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Tool Cost Badge ── */
+.am-mcp-tool-cost {
+    font-size: 11px;
+    color: #d97706;
+    background: #fef3c7;
+    padding: 1px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+    text-transform: uppercase;
+}

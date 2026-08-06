@@ -1,0 +1,17 @@
+flask>=2.0
+flask-sqlalchemy>=3.0
+flask-cors>=4.0
+python-dotenv>=1.0
+openai>=1.0
+requests>=2.31
+greenlet==3.1.1
+markdown>=3.0
+jieba>=0.42
+rank_bm25>=0.2
+APScheduler>=3.10
+pymupdf>=1.24
+fastembed>=0.8
+fastmcp>=3.0
+pywebview>=5.0
+pystray>=0.19
+Pillow>=10.0

@@ -1,0 +1,213 @@
+/**
+ * 侧边栏组件样式 — Modern SVG Icon Navigation
+ * Clean icon-rail design with active indicator bar.
+ */
+
+.aside-item-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border-light);
+    padding: 12px 0 8px;
+}
+
+.item-menu-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding-top: 8px;
+    flex: 1;
+}
+
+/* ═══ Nav Item ═══ */
+.item-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    color: var(--color-muted);
+    position: relative;
+    gap: 2px;
+    cursor: pointer;
+}
+
+.nav-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    transition: transform 180ms ease;
+}
+
+.item-menu span {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+
+/* Hover state */
+.item-menu:hover {
+    background: var(--color-primary-50);
+    color: var(--color-primary);
+}
+
+.item-menu:hover .nav-icon {
+    transform: scale(1.05);
+}
+
+/* Active state — active indicator bar on left + filled background */
+.item-menu.is-active {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+}
+
+.item-menu.is-active .nav-icon {
+    transform: scale(1);
+}
+
+.item-menu.is-active::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 24px;
+    background: var(--color-primary);
+    border-radius: 0 3px 3px 0;
+}
+
+/* Remove old emoji icon styling for backward compat */
+.item-menu .menu-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.item-menu i {
+    font-size: 18px;
+}
+
+/* ═══ User Avatar ═══ */
+.aside-item.item-user {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.top-user {
+    padding: 4px 0 12px;
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--color-primary-lighter);
+    transition: border-color var(--transition-fast);
+    position: relative;
+}
+
+.user-avatar:hover {
+    border-color: var(--color-primary);
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 0;
+}
+
+.user-avatar-bottom img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    opacity: 0.6;
+}
+
+.user-avatar-bottom .user-name {
+    font-size: 9px;
+    color: var(--color-muted);
+    font-weight: 500;
+}
+
+/* ═══ Settings Item (bottom) ═══ */
+.item-setting {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--color-muted);
+    transition: all var(--transition-fast);
+    border-top: 1px solid var(--color-border-light);
+    margin-top: auto;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.item-setting .nav-icon,
+.item-setting .menu-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.item-setting:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-50);
+}
+
+.item-setting.is-active {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+}
+
+/* ═══ Focus & A11y ═══ */
+.item-menu:focus-visible,
+.item-setting:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* ═══ Responsive ═══ */
+@media (max-width: 768px) {
+    .item-menu {
+        width: 44px;
+        height: 44px;
+    }
+    .nav-icon {
+        width: 18px;
+        height: 18px;
+    }
+    .item-menu span {
+        font-size: 9px;
+    }
+}
+
+/* ═══ Reduced Motion ═══ */
+@media (prefers-reduced-motion: reduce) {
+    .nav-icon { transition: none; }
+    .item-menu:hover .nav-icon { transform: none; }
+}

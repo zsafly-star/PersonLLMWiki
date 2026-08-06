@@ -1,0 +1,12 @@
+{
+    "latest": "1.0.0",
+    "versions": {
+        "1.0.0": {
+            "url": "https://your-server.com/personllmwiki/PersonLLMWiki-1.0.0-update.zip",
+            "date": "2026-08-06",
+            "notes": "首个正式发布版本",
+            "min_runtime": "1.0.0",
+            "size_mb": 15
+        }
+    }
+}

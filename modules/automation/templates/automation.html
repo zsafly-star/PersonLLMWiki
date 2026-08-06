@@ -1,0 +1,1289 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="am-page" id="am-page">
+
+    <!-- ═══ Top Bar ═══ -->
+    <header class="am-top">
+        <div class="am-top-left">
+            <h1 class="am-h1">控制台</h1>
+            <span class="am-sched-badge" id="scheduler-badge">
+                <span class="am-sched-dot"></span>
+                <span id="scheduler-badge-text">加载中</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- ═══ Tab Bar ═══ -->
+    <nav class="am-tabs" id="am-tabs">
+        <button class="am-tab am-tab-active" data-tab="automation" onclick="switchTab('automation')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            自动化
+        </button>
+        <button class="am-tab" data-tab="mcp" onclick="switchTab('mcp')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h6v6H9z"/><path d="M3 9h2"/><path d="M3 15h2"/><path d="M19 9h2"/><path d="M19 15h2"/><path d="M9 3v2"/><path d="M15 3v2"/><path d="M9 19v2"/><path d="M15 19v2"/></svg>
+            MCP
+        </button>
+        <button class="am-tab" data-tab="skill" onclick="switchTab('skill')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
+            Skill
+        </button>
+    </nav>
+
+    <!-- ═══ Tab Pane: Automation ═══ -->
+    <div class="am-pane am-pane-active" id="pane-automation">
+
+        <!-- Automation Task List -->
+        <section class="am-card">
+            <div class="am-card-head">
+                <h2 class="am-card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    自动化任务
+                </h2>
+                <div class="am-card-actions">
+                    <button class="am-btn-primary am-btn-sm" onclick="showTaskModal()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        新建任务
+                    </button>
+                </div>
+            </div>
+            <div class="am-task-list" id="task-list">
+                <div class="am-loading">加载中…</div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ═══ Tab Pane: MCP ═══ -->
+    <div class="am-pane" id="pane-mcp" style="display:none">
+
+        <!-- MCP 服务（内置 + 自定义统一列表） -->
+        <section class="am-card">
+            <div class="am-card-head">
+                <h2 class="am-card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+                    MCP 服务
+                </h2>
+                <div class="am-card-actions">
+                    <button class="am-btn-primary am-btn-sm" onclick="showAddServerModal()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        添加服务器
+                    </button>
+                </div>
+            </div>
+            <div class="am-mcp-list" id="mcp-server-list">
+                <div class="am-loading">加载中…</div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ═══ Add Server Modal ═══ -->
+    <div class="am-modal-overlay" id="add-server-modal" style="display:none" onclick="if(event.target===this)hideAddServerModal()">
+        <div class="am-modal">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title">添加自定义 MCP 服务</h3>
+                <button class="am-modal-close" onclick="hideAddServerModal()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body">
+                <p class="am-modal-hint">粘贴远程 MCP 服务配置（JSON 格式），支持一次添加多个。内置服务请通过 <code>bin/mcp/</code> 目录管理。</p>
+                <textarea id="server-json-input" class="am-json-input" spellcheck="false" placeholder='{
+  "mcpServers": {
+    "sap-mcp": {
+      "type": "sse",
+      "url": "http://192.168.195.191:8001/mcp",
+      "timeout": 600000
+    },
+    "zssnote": {
+      "url": "http://localhost:5000/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}'></textarea>
+                <div class="am-modal-error" id="server-json-error"></div>
+            </div>
+            <div class="am-modal-foot">
+                <button class="am-btn-ghost" onclick="hideAddServerModal()">取消</button>
+                <button class="am-btn-primary" onclick="submitServerJson()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Task Modal ═══ -->
+    <div class="am-modal-overlay" id="task-modal" style="display:none" onclick="if(event.target===this)hideTaskModal()">
+        <div class="am-modal">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title" id="task-modal-title">新建自动化任务</h3>
+                <button class="am-modal-close" onclick="hideTaskModal()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body">
+                <input type="hidden" id="task-edit-id" value="">
+                <div class="am-form-group">
+                    <label class="am-form-label">任务名称</label>
+                    <input type="text" class="am-form-input" id="task-name" placeholder="例如：每日SAP库存盘点">
+                </div>
+                <div class="am-form-group">
+                    <label class="am-form-label">提示词</label>
+                    <textarea class="am-form-textarea" id="task-prompt" rows="5" placeholder="描述 AI 需要执行的任务，例如：查询 SAP 中所有库存不足的物料并生成报告…"></textarea>
+                </div>
+                <div class="am-form-group">
+                    <label class="am-form-label">MCP 工具</label>
+                    <div class="am-form-hint">选择任务可调用的 MCP 服务器（不选则全部可用）</div>
+                    <div class="am-mcp-checks" id="task-mcp-checks">
+                        <span class="am-form-hint">加载中…</span>
+                    </div>
+                </div>
+                <div class="am-form-group">
+                    <label class="am-form-label">执行频率</label>
+                    <div class="am-sched-modes" id="sched-modes">
+                        <label class="am-sched-mode"><input type="radio" name="schedule-mode" value="periodic" checked onchange="onSchedModeChange()"> 周期</label>
+                        <label class="am-sched-mode"><input type="radio" name="schedule-mode" value="interval" onchange="onSchedModeChange()"> 按间隔</label>
+                        <label class="am-sched-mode"><input type="radio" name="schedule-mode" value="once" onchange="onSchedModeChange()"> 单次</label>
+                    </div>
+                </div>
+                <!-- 周期 -->
+                <div id="sched-periodic">
+                    <div class="am-form-row">
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">频率</label>
+                            <select class="am-form-input" id="sched-frequency" onchange="onFreqChange()">
+                                <option value="daily">每天</option>
+                                <option value="weekly">每周</option>
+                                <option value="biweekly">双周</option>
+                                <option value="monthly">每月</option>
+                                <option value="yearly">每年</option>
+                            </select>
+                        </div>
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">时间</label>
+                            <input type="time" class="am-form-input" id="sched-time" value="09:00">
+                        </div>
+                    </div>
+                    <div class="am-form-group" id="sched-weekdays-group" style="display:none">
+                        <label class="am-form-label">星期</label>
+                        <div class="am-sched-days" id="sched-weekdays"></div>
+                    </div>
+                    <div class="am-form-row" id="sched-monthly-group" style="display:none">
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">日期</label>
+                            <input type="number" class="am-form-input" id="sched-month-day" min="1" max="31" value="1">
+                        </div>
+                    </div>
+                    <div class="am-form-row" id="sched-yearly-group" style="display:none">
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">月份</label>
+                            <input type="number" class="am-form-input" id="sched-year-month" min="1" max="12" value="1">
+                        </div>
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">日期</label>
+                            <input type="number" class="am-form-input" id="sched-year-day" min="1" max="31" value="1">
+                        </div>
+                    </div>
+                </div>
+                <!-- 按间隔 -->
+                <div id="sched-interval" style="display:none">
+                    <div class="am-form-row">
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">每 N 小时</label>
+                            <input type="number" class="am-form-input" id="sched-interval-hours" min="1" max="168" value="1">
+                        </div>
+                    </div>
+                    <div class="am-form-group">
+                        <label class="am-form-label">生效星期</label>
+                        <div class="am-sched-days" id="sched-interval-days"></div>
+                    </div>
+                </div>
+                <!-- 单次 -->
+                <div id="sched-once" style="display:none">
+                    <div class="am-form-row">
+                        <div class="am-form-group am-form-flex">
+                            <label class="am-form-label">执行时间</label>
+                            <input type="datetime-local" class="am-form-input" id="sched-once-datetime">
+                        </div>
+                    </div>
+                </div>
+                <div class="am-form-row">
+                    <div class="am-form-group am-form-flex">
+                        <label class="am-form-label">生效开始日期</label>
+                        <input type="date" class="am-form-input" id="task-start-date">
+                    </div>
+                    <div class="am-form-group am-form-flex">
+                        <label class="am-form-label">生效结束日期</label>
+                        <input type="date" class="am-form-input" id="task-end-date">
+                    </div>
+                </div>
+                <div class="am-modal-error" id="task-form-error"></div>
+            </div>
+            <div class="am-modal-foot">
+                <button class="am-btn-ghost" onclick="hideTaskModal()">取消</button>
+                <button class="am-btn-primary" id="task-submit-btn" onclick="submitTask()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab Pane: Skill ═══ -->
+    <div class="am-pane" id="pane-skill" style="display:none">
+
+        <!-- Skills 列表 -->
+        <section class="am-card">
+            <div class="am-card-head">
+                <h2 class="am-card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
+                    Skills
+                </h2>
+                <span class="am-card-badge" id="skill-count">0</span>
+            </div>
+            <div class="am-skill-list" id="skill-list">
+                <div class="am-loading">加载中…</div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ═══ Run History Modal ═══ -->
+    <div class="am-modal-overlay" id="run-history-modal" style="display:none" onclick="if(event.target===this)hideRunHistory()">
+        <div class="am-modal" style="max-width:700px">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title" id="run-history-title">运行记录</h3>
+                <button class="am-modal-close" onclick="hideRunHistory()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body" id="run-history-body">
+                <div class="am-loading">加载中…</div>
+            </div>
+            <div class="am-modal-foot" style="justify-content:space-between">
+                <button class="am-btn-ghost am-btn-xs am-btn-danger" id="run-clear-btn" onclick="clearRuns()">清空记录</button>
+                <button class="am-btn-ghost" onclick="hideRunHistory()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+onPageReady(function() {
+    loadSchedulerStatus();
+    loadMcpServers();
+    loadSkills();
+    loadTasks();
+});
+
+/* ═══ Tab Switching ═══ */
+function switchTab(tab) {
+    document.querySelectorAll('.am-pane').forEach(function(p) { p.style.display = 'none'; p.classList.remove('am-pane-active'); });
+    document.querySelectorAll('.am-tab').forEach(function(t) { t.classList.remove('am-tab-active'); });
+    var pane = document.getElementById('pane-' + tab);
+    pane.style.display = '';
+    pane.classList.add('am-pane-active');
+    document.querySelector('[data-tab="' + tab + '"]').classList.add('am-tab-active');
+    if (tab === 'mcp') { loadMcpServers(); }
+}
+
+/* ═══ Scheduler Status ═══ */
+function loadSchedulerStatus() {
+    fetch('/api/scheduler/status')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) return;
+            var data = result.data;
+            var running = data.running;
+            var badge = document.getElementById('scheduler-badge');
+            var badgeText = document.getElementById('scheduler-badge-text');
+            badgeText.textContent = running ? '调度器运行中' : '调度器已停止';
+            badge.className = 'am-sched-badge ' + (running ? 'am-sched-on' : 'am-sched-off');
+        })
+        .catch(function() {
+            document.getElementById('scheduler-badge-text').textContent = '未启用';
+            document.getElementById('scheduler-badge').className = 'am-sched-badge am-sched-off';
+        });
+}
+
+/* ═══ MCP Servers ═══ */
+function loadMcpServers() {
+    fetch('/api/mcp/services')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) return;
+            renderMcpServers((result.data && result.data.services) || []);
+        })
+        .catch(function() {
+            document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">无法加载 MCP 服务</div>';
+        })
+        .finally(function() {
+            var el = document.getElementById('mcp-server-list');
+            if (el && el.querySelector('.am-loading')) {
+                el.innerHTML = '<div class="am-empty">暂无 MCP 服务</div>';
+            }
+        });
+}
+
+function renderMcpServers(servers) {
+    var container = document.getElementById('mcp-server-list');
+    if (!servers || servers.length === 0) {
+        container.innerHTML = '<div class="am-empty">尚未连接任何 MCP 服务</div>';
+        return;
+    }
+    container.innerHTML = servers.map(function(s) {
+        var connected = s.connected || s.status === 'connected';
+        var toolCount = s.tool_count || (s.tools ? s.tools.length : 0);
+        var hasError = s.error && s.error.length > 0;
+        var statusClass = connected ? (hasError ? 'am-srv-warn' : 'am-srv-on') : 'am-srv-off';
+        var statusText = !connected ? '未连接' : (hasError ? '异常' : '已连接');
+        var chevron = connected ? '<svg class="am-mcp-chevron am-srv-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '';
+        var clickable = connected ? ' am-mcp-card' : '';
+        // 标签：来源 + 位置
+        var sourceTag = s.source === 'builtin'
+            ? '<span class="am-tag am-tag-builtin">内置</span>'
+            : '<span class="am-tag am-tag-custom">自定义</span>';
+        var locationTag = s.location === 'local'
+            ? '<span class="am-tag am-tag-local">本地</span>'
+            : '<span class="am-tag am-tag-remote">远程</span>';
+        // 操作按钮：内置不可删除，仅 subprocess 可重连
+        var actions = '';
+        if (s.can_reconnect) {
+            actions += '<button class="am-btn-ghost am-btn-xs" onclick="event.stopPropagation();reconnectServer(\'' + esc(s.name) + '\')">重连</button>';
+        }
+        if (s.can_delete) {
+            actions += '<button class="am-btn-ghost am-btn-xs am-btn-danger" onclick="event.stopPropagation();removeServer(\'' + esc(s.name) + '\')">移除</button>';
+        }
+        return '<div class="am-mcp-card am-srv-card' + clickable + '" data-name="' + esc(s.name) + '">'
+             + '<div class="am-mcp-head am-srv-head"' + (connected ? ' onclick="toggleServerTools(\'' + esc(s.name) + '\')"' : '') + '>'
+             + '<div class="am-mcp-info am-srv-info">'
+             + '<div class="am-mcp-name-row am-srv-name-row">'
+             + chevron
+             + '<span class="am-mcp-name am-srv-name">' + esc(s.name) + '</span>'
+             + sourceTag + locationTag
+             + '<span class="am-mcp-badge am-srv-tool-badge">' + toolCount + ' 工具</span>'
+             + '</div>'
+             + '<span class="am-mcp-sub am-srv-url">' + esc(s.url || s.description || '') + '</span>'
+             + '</div>'
+             + '<span class="am-mcp-status am-srv-status ' + statusClass + '">'
+             + '<span class="am-mcp-status-dot am-srv-dot"></span>' + statusText
+             + '</span>'
+             + '</div>'
+             + '<div class="am-srv-tools-panel" id="tools-' + esc(s.name) + '" style="display:none">'
+             + '<div class="am-srv-tools-loading">加载工具列表…</div>'
+             + '</div>'
+             + (actions ? '<div class="am-srv-actions">' + actions + '</div>' : '')
+             + '</div>';
+    }).join('');
+}
+
+function toggleServerTools(name) {
+    var panel = document.getElementById('tools-' + name);
+    if (!panel) return;
+    var card = panel.closest('.am-srv-card');
+    if (panel.style.display === 'none') {
+        panel.style.display = '';
+        card.classList.add('am-mcp-expanded');
+        card.querySelector('.am-srv-chevron').style.transform = 'rotate(180deg)';
+        // Lazy load tools if not yet loaded
+        if (!panel.dataset.loaded) {
+            loadServerTools(name);
+        }
+    } else {
+        panel.style.display = 'none';
+        card.classList.remove('am-mcp-expanded');
+        card.querySelector('.am-srv-chevron').style.transform = '';
+    }
+}
+
+function loadServerTools(name) {
+    var panel = document.getElementById('tools-' + name);
+    if (!panel) return;
+    fetch('/api/mcp/servers/' + encodeURIComponent(name) + '/tools')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            panel.dataset.loaded = '1';
+            if (res.code !== 200 || !res.data || res.data.length === 0) {
+                // Check for server error
+                fetch('/api/mcp/servers')
+                    .then(function(r2) { return r2.json(); })
+                    .then(function(srvRes) {
+                        var srv = (srvRes.data || []).find(function(x) { return x.name === name; });
+                        if (srv && srv.error) {
+                            panel.innerHTML = '<div class="am-srv-tools-error">' + esc(srv.error) + '</div>';
+                        } else {
+                            panel.innerHTML = '<div class="am-srv-tools-empty">暂无工具</div>';
+                        }
+                    });
+                return;
+            }
+            panel.innerHTML = res.data.map(function(t) {
+                var origName = t._original_name || t.name;
+                var desc = t.description || '无描述';
+                return '<div class="am-mcp-tool am-srv-tool" title="' + escAttr(desc) + '">'
+                     + '<code class="am-mcp-tool-name am-srv-tool-name">' + esc(origName) + '</code>'
+                     + '</div>';
+            }).join('');
+        })
+        .catch(function() {
+            panel.innerHTML = '<div class="am-srv-tools-empty">加载失败</div>';
+        });
+}
+
+function showAddServerModal() {
+    document.getElementById('add-server-modal').style.display = '';
+    document.getElementById('server-json-input').value = '';
+    document.getElementById('server-json-error').textContent = '';
+    setTimeout(function() { document.getElementById('server-json-input').focus(); }, 100);
+}
+
+function hideAddServerModal() {
+    document.getElementById('add-server-modal').style.display = 'none';
+}
+
+function submitServerJson() {
+    var raw = document.getElementById('server-json-input').value.trim();
+    var errEl = document.getElementById('server-json-error');
+    errEl.textContent = '';
+
+    if (!raw) {
+        errEl.textContent = '请输入 JSON 配置';
+        return;
+    }
+
+    var config;
+    try {
+        config = JSON.parse(raw);
+    } catch (e) {
+        errEl.textContent = 'JSON 解析失败: ' + e.message;
+        return;
+    }
+
+    // Extract servers — support both "mcpServers" wrapper and flat object
+    var servers = {};
+    if (config.mcpServers && typeof config.mcpServers === 'object') {
+        servers = config.mcpServers;
+    } else {
+        // Try flat format: { "name": { "url": "..." } }
+        servers = config;
+    }
+
+    var entries = [];
+    Object.keys(servers).forEach(function(name) {
+        var s = servers[name];
+        if (!s || typeof s !== 'object') return;
+        if (s.disabled === true) return;
+        var url = s.url || s.endpoint || s.serverUrl;
+        if (!url) return;
+        entries.push({
+            name: name,
+            url: url.trim(),
+            token: s.token || s.headers && s.headers.Authorization || '',
+            description: s.description || s.type || s.transport || ''
+        });
+    });
+
+    if (entries.length === 0) {
+        errEl.textContent = '未找到有效的服务器配置（需要 name 和 url）';
+        return;
+    }
+
+    // Submit all servers sequentially
+    var completed = 0;
+    var success = 0;
+    var errors = [];
+
+    function submitNext() {
+        if (completed >= entries.length) {
+            if (errors.length > 0) {
+                errEl.textContent = '部分失败: ' + errors.join('; ');
+            } else {
+                hideAddServerModal();
+                loadMcpServers();
+                addLog('已添加 ' + success + ' 个 MCP 服务器', 'ok');
+            }
+            return;
+        }
+
+        var entry = entries[completed];
+        fetch('/api/mcp/servers', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(entry)
+        }).then(function(r) { return r.json(); })
+          .then(function(res) {
+              completed++;
+              if (res.code === 200) { success++; }
+              else { errors.push(entry.name + ': ' + (res.message || '失败')); }
+              submitNext();
+          })
+          .catch(function(e) {
+              completed++;
+              errors.push(entry.name + ': ' + e);
+              submitNext();
+          });
+    }
+
+    submitNext();
+}
+
+function reconnectServer(name) {
+    // 视觉反馈：按钮禁用 + "重连中..."
+    var card = document.querySelector('.am-srv-card[data-name="' + CSS.escape(name) + '"]');
+    var btn = card ? card.querySelector('button') : null;
+    var statusEl = card ? card.querySelector('.am-mcp-status') : null;
+    var origBtnText = btn ? btn.textContent : '重连';
+    var origStatusHTML = statusEl ? statusEl.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = '重连中...'; }
+    if (statusEl) {
+        statusEl.className = 'am-mcp-status am-srv-status am-srv-warn';
+        statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>重连中...';
+    }
+
+    fetch('/api/mcp/servers/' + encodeURIComponent(name) + '/reconnect', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) {
+                // 短暂显示断开再刷新
+                if (statusEl) {
+                    statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
+                    statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>已断开';
+                }
+                setTimeout(function() { loadMcpServers(); }, 600);
+                addLog('MCP 服务器 ' + name + ' 重连成功', 'ok');
+            } else {
+                if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+                if (statusEl) { statusEl.innerHTML = origStatusHTML; statusEl.className = origStatusHTML.includes('am-srv-on') ? 'am-mcp-status am-srv-status am-srv-on' : 'am-mcp-status am-srv-status'; }
+                addLog('重连失败: ' + (res.message || ''), 'err');
+            }
+        })
+        .catch(function() {
+            if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+            if (statusEl) { statusEl.innerHTML = origStatusHTML; }
+            addLog('重连请求失败', 'err');
+        });
+}
+
+function removeServer(name) {
+    customConfirm('确定移除服务器 ' + name + '？', '移除服务器').then(function(ok) {
+        if (!ok) return;
+        _doRemoveServer(name);
+    });
+}
+function _doRemoveServer(name) {
+    fetch('/api/mcp/servers/' + encodeURIComponent(name), { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) { loadMcpServers(); addLog('MCP 服务器 ' + name + ' 已移除', 'ok'); }
+        });
+}
+
+/* ═══ Skills ═══ */
+function loadSkills() {
+    fetch('/api/skills')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) return;
+            var skills = (result.data && result.data.skills) || [];
+            renderSkills(skills);
+        })
+        .catch(function() {
+            document.getElementById('skill-list').innerHTML = '<div class="am-empty">无法加载 Skills</div>';
+        })
+        .finally(function() {
+            var el = document.getElementById('skill-list');
+            if (el && el.querySelector('.am-loading')) {
+                el.innerHTML = '<div class="am-empty">暂无 Skills</div>';
+            }
+        });
+}
+
+function renderSkills(skills) {
+    var container = document.getElementById('skill-list');
+    var countEl = document.getElementById('skill-count');
+    if (countEl) countEl.textContent = skills.length;
+
+    if (!skills || skills.length === 0) {
+        container.innerHTML = '<div class="am-empty">暂无 Skills，在 bin/skills/ 下创建 SKILL.md 即可添加</div>';
+        return;
+    }
+
+    container.innerHTML = skills.map(function(s) {
+        return '<div class="am-mcp-card am-skill-card-item" data-name="' + esc(s.name) + '">'
+             + '<div class="am-mcp-head am-srv-head" onclick="toggleSkillDetail(\'' + esc(s.name) + '\')">'
+             + '<div class="am-mcp-info am-srv-info">'
+             + '<div class="am-mcp-name-row am-srv-name-row">'
+             + '<svg class="am-mcp-chevron am-srv-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+             + '<span class="am-mcp-name am-srv-name">' + esc(s.name) + '</span>'
+             + '<span class="am-tag am-tag-builtin">内置</span>'
+             + '<span class="am-tag am-tag-local">本地</span>'
+             + '</div>'
+             + '<span class="am-mcp-sub am-srv-url">' + esc(s.description || '无描述') + '</span>'
+             + '</div>'
+             + '</div>'
+             + '<div class="am-skill-detail-panel" id="skill-detail-' + esc(s.name) + '">'
+             + '<div class="am-skill-detail-loading">加载中…</div>'
+             + '</div>'
+             + '</div>';
+    }).join('');
+}
+
+function toggleSkillDetail(name) {
+    var panel = document.getElementById('skill-detail-' + name);
+    if (!panel) return;
+    var card = panel.closest('.am-mcp-card');
+    var expanded = card.classList.contains('am-mcp-expanded');
+    if (!expanded) {
+        card.classList.add('am-mcp-expanded');
+        if (!panel.dataset.loaded) {
+            loadSkillDetail(name);
+        }
+    } else {
+        card.classList.remove('am-mcp-expanded');
+    }
+}
+
+function loadSkillDetail(name) {
+    var panel = document.getElementById('skill-detail-' + name);
+    if (!panel) return;
+    fetch('/api/skills/' + encodeURIComponent(name))
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            panel.dataset.loaded = '1';
+            if (res.code !== 200) {
+                panel.innerHTML = '<div class="am-empty">加载失败</div>';
+                return;
+            }
+            var skill = res.data;
+            // 渲染 body（按 Markdown 渲染为 HTML）
+            var bodyHtml = skill.body
+                ? '<div class="am-skill-body">' + simpleMarkdown(skill.body) + '</div>'
+                : '<div class="am-empty">暂无内容</div>';
+            var pathTag = skill.path
+                ? '<div class="am-skill-path">路径: <code>' + esc(skill.path) + '</code></div>'
+                : '';
+            panel.innerHTML = pathTag + bodyHtml;
+        })
+        .catch(function() {
+            panel.innerHTML = '<div class="am-empty">加载失败</div>';
+        });
+}
+
+/** 简单的 Markdown → HTML 转换（仅用于 Skill body 展示） */
+function simpleMarkdown(md) {
+    var html = md
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Process block-by-block (separated by double newlines)
+    var blocks = html.split(/\n\n+/);
+    html = blocks.map(function(block) {
+        block = block.trim();
+        if (!block) return '';
+
+        // Headings
+        if (/^#{1,3} /.test(block)) {
+            return block.replace(/^### (.+)$/gm, '<h4>$1</h4>')
+                        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+                        .replace(/^# (.+)$/gm, '<h2>$1</h2>');
+        }
+
+        // Unordered list
+        if (/^- /.test(block)) {
+            var items = block.split(/\n/);
+            return '<ul>' + items.map(function(l) {
+                return '<li>' + l.replace(/^- /, '') + '</li>';
+            }).join('') + '</ul>';
+        }
+
+        // Ordered list
+        if (/^\d+\. /.test(block)) {
+            var items = block.split(/\n/);
+            return '<ol>' + items.map(function(l) {
+                return '<li>' + l.replace(/^\d+\. /, '') + '</li>';
+            }).join('') + '</ol>';
+        }
+
+        // Paragraph (preserve single newlines as <br>)
+        return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+    }).join('');
+
+    // Inline formatting (applied globally after block-level processing)
+    html = html
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    return html;
+}
+
+/* ═══ Automation Tasks ═══ */
+function loadTasks() {
+    fetch('/api/automation/tasks')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) return;
+            renderTasks(result.data || []);
+        })
+        .catch(function() {
+            document.getElementById('task-list').innerHTML = '<div class="am-empty">加载失败</div>';
+        })
+        .finally(function() {
+            var el = document.getElementById('task-list');
+            if (el && el.querySelector('.am-loading')) {
+                el.innerHTML = '<div class="am-empty">暂无自动化任务</div>';
+            }
+        });
+}
+
+function renderTasks(tasks) {
+    var container = document.getElementById('task-list');
+    if (!tasks || tasks.length === 0) {
+        container.innerHTML = '<div class="am-empty">暂无自动化任务，点击右上角「新建任务」创建</div>';
+        return;
+    }
+    container.innerHTML = tasks.map(function(t) {
+        var activeClass = t.is_active ? 'am-tsk-on' : 'am-tsk-off';
+        var activeText = t.is_active ? '启用' : '停用';
+        var lastRun = t.last_run ? formatTime(t.last_run) : '从未';
+        var schedLabel = getSchedLabel(t.schedule_config, t.cron_expression);
+        var isRunning = _runningTasks[t.id] === true;
+        var btnHtml = isRunning
+            ? '<button class="am-btn-ghost am-btn-xs am-btn-spinning" disabled><span class="am-spinner"></span> 执行中</button>'
+            : '<button class="am-btn-ghost am-btn-xs" onclick="runTask(' + t.id + ')">执行</button>';
+        return '<div class="am-task-item' + (isRunning ? ' am-task-running' : '') + '">'
+             + '<div class="am-task-main">'
+             + '<div class="am-task-info">'
+             + '<div class="am-task-name">' + (isRunning ? '<span class="am-spinner am-spinner-sm"></span> ' : '') + esc(t.name) + '</div>'
+             + '<div class="am-task-meta">'
+             + '<span class="am-task-meta-tag">' + esc(schedLabel) + '</span>'
+             + (t.mcp_servers ? '<span class="am-task-meta-tag">' + esc(t.mcp_servers) + '</span>' : '<span class="am-task-meta-tag">全部工具</span>')
+             + (t.start_date || t.end_date ? '<span class="am-task-meta-tag">' + (t.start_date || '...') + ' ~ ' + (t.end_date || '...') + '</span>' : '')
+             + '</div>'
+             + '<div class="am-task-prompt">' + esc(t.prompt.substring(0, 120)) + (t.prompt.length > 120 ? '…' : '') + '</div>'
+             + '<div class="am-task-result">上次: ' + lastRun + '</div>'
+             + '</div>'
+             + '<div class="am-task-actions">'
+             + '<span class="am-task-status ' + activeClass + '" onclick="toggleTask(' + t.id + ')" title="切换状态">' + activeText + '</span>'
+             + btnHtml
+             + '<button class="am-btn-ghost am-btn-xs" onclick="showRunHistory(' + t.id + ')">记录</button>'
+             + '<button class="am-btn-ghost am-btn-xs" onclick="editTask(' + t.id + ')">编辑</button>'
+             + '<button class="am-btn-ghost am-btn-xs am-btn-danger" onclick="deleteTask(' + t.id + ')">删除</button>'
+             + '</div>'
+             + '</div>'
+             + '</div>';
+    }).join('');
+}
+
+function showTaskModal() {
+    document.getElementById('task-modal').style.display = '';
+    document.getElementById('task-modal-title').textContent = '新建自动化任务';
+    document.getElementById('task-submit-btn').textContent = '创建';
+    document.getElementById('task-edit-id').value = '';
+    document.getElementById('task-name').value = '';
+    document.getElementById('task-prompt').value = '';
+    document.getElementById('task-start-date').value = '';
+    document.getElementById('task-end-date').value = '';
+    document.getElementById('task-form-error').textContent = '';
+    initWeekdayCheckboxes();
+    resetScheduleUI();
+    loadMcpCheckboxes([]);
+    setTimeout(function() { document.getElementById('task-name').focus(); }, 100);
+}
+
+function hideTaskModal() {
+    document.getElementById('task-modal').style.display = 'none';
+}
+
+function editTask(id) {
+    fetch('/api/automation/tasks')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            var task = (result.data || []).find(function(t) { return t.id === id; });
+            if (!task) return;
+            document.getElementById('task-modal').style.display = '';
+            document.getElementById('task-modal-title').textContent = '编辑自动化任务';
+            document.getElementById('task-submit-btn').textContent = '保存';
+            document.getElementById('task-edit-id').value = task.id;
+            document.getElementById('task-name').value = task.name;
+            document.getElementById('task-prompt').value = task.prompt;
+            document.getElementById('task-start-date').value = task.start_date || '';
+            document.getElementById('task-end-date').value = task.end_date || '';
+            document.getElementById('task-form-error').textContent = '';
+            initWeekdayCheckboxes();
+            applyScheduleConfig(task.schedule_config || '');
+            var servers = task.mcp_servers ? task.mcp_servers.split(',').map(function(s) { return s.trim(); }) : [];
+            loadMcpCheckboxes(servers);
+        });
+}
+
+function submitTask() {
+    var id = document.getElementById('task-edit-id').value;
+    var name = document.getElementById('task-name').value.trim();
+    var prompt = document.getElementById('task-prompt').value.trim();
+    var startDate = document.getElementById('task-start-date').value;
+    var endDate = document.getElementById('task-end-date').value;
+    var errEl = document.getElementById('task-form-error');
+    errEl.textContent = '';
+
+    if (!name) { errEl.textContent = '请输入任务名称'; return; }
+    if (!prompt) { errEl.textContent = '请输入提示词'; return; }
+
+    var schedConfig = buildScheduleConfig();
+    var cronExpr = configToCron(schedConfig);
+
+    var checks = document.querySelectorAll('#task-mcp-checks input[type="checkbox"]:checked');
+    var mcpServers = [];
+    checks.forEach(function(cb) { mcpServers.push(cb.value); });
+
+    var body = {
+        name: name,
+        prompt: prompt,
+        mcp_servers: mcpServers.join(','),
+        cron_expression: cronExpr,
+        schedule_config: JSON.stringify(schedConfig),
+        start_date: startDate || null,
+        end_date: endDate || null,
+    };
+
+    var url = '/api/automation/tasks';
+    var method = 'POST';
+    if (id) {
+        url += '/' + id;
+        method = 'PUT';
+    }
+
+    var btn = document.getElementById('task-submit-btn');
+    btn.disabled = true;
+
+    fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) {
+                hideTaskModal();
+                loadTasks();
+                loadSchedulerStatus();
+            } else {
+                errEl.textContent = res.message || '操作失败';
+            }
+        })
+        .catch(function(e) { errEl.textContent = '请求失败: ' + e; })
+        .finally(function() { btn.disabled = false; });
+}
+
+function deleteTask(id) {
+    customConfirm('删除后无法恢复，是否继续？', '删除任务').then(function(ok) {
+        if (!ok) return;
+        _doDeleteTask(id);
+    });
+}
+function _doDeleteTask(id) {
+    fetch('/api/automation/tasks/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) {
+                loadTasks();
+                loadSchedulerStatus();
+                addLog('任务已删除', 'ok');
+            }
+        });
+}
+
+// Track running tasks
+var _runningTasks = {};
+var _pollInterval = null;
+
+function runTask(id) {
+    if (_runningTasks[id]) return; // already running
+
+    _runningTasks[id] = true;
+    loadTasks(); // re-render with spinning state
+
+    fetch('/api/automation/tasks/' + id + '/run', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code !== 200) {
+                _runningTasks[id] = false;
+                loadTasks();
+                alert(res.message || '触发失败');
+                return;
+            }
+            // Start polling
+            startPoll(id);
+        })
+        .catch(function(e) {
+            _runningTasks[id] = false;
+            loadTasks();
+            alert('触发失败: ' + e);
+        });
+}
+
+function startPoll(taskId) {
+    if (_pollInterval) clearInterval(_pollInterval);
+    _pollInterval = setInterval(function() {
+        fetch('/api/automation/tasks/' + taskId + '/runs?per_page=1')
+            .then(function(r) { return r.json(); })
+            .then(function(result) {
+                var items = (result.data || {}).items || [];
+                if (items.length > 0 && items[0].status !== 'running') {
+                    _runningTasks[taskId] = false;
+                    loadTasks();
+                    clearInterval(_pollInterval);
+                    _pollInterval = null;
+                }
+            })
+            .catch(function() {
+                _runningTasks[taskId] = false;
+                loadTasks();
+                clearInterval(_pollInterval);
+                _pollInterval = null;
+            });
+    }, 2000);
+}
+
+/* ═══ Run History ═══ */
+var _runHistoryTaskId = null;
+
+function showRunHistory(taskId) {
+    _runHistoryTaskId = taskId;
+    document.getElementById('run-history-modal').style.display = '';
+    document.getElementById('run-history-title').textContent = '运行记录';
+    document.getElementById('run-history-body').innerHTML = '<div class="am-loading">加载中…</div>';
+    fetch('/api/automation/tasks/' + taskId + '/runs')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            var runs = (result.data || {}).items || [];
+            renderRunHistory(taskId, runs);
+        })
+        .catch(function(e) {
+            document.getElementById('run-history-body').innerHTML = '<div class="am-empty">加载失败: ' + e + '</div>';
+        });
+}
+
+function hideRunHistory() {
+    document.getElementById('run-history-modal').style.display = 'none';
+    _runHistoryTaskId = null;
+}
+
+function renderRunHistory(taskId, runs) {
+    var body = document.getElementById('run-history-body');
+    if (!runs || runs.length === 0) {
+        body.innerHTML = '<div class="am-empty">暂无运行记录</div>';
+        return;
+    }
+    body.innerHTML = runs.map(function(run) {
+        var statusHtml = '';
+        var statusClass = '';
+        if (run.status === 'ok') { statusHtml = '成功'; statusClass = 'am-run-ok'; }
+        else if (run.status === 'error') { statusHtml = '失败'; statusClass = 'am-run-err'; }
+        else if (run.status === 'running') { statusHtml = '<span class="am-spinner am-spinner-sm"></span> 执行中'; statusClass = 'am-run-running'; }
+        var triggerLabel = run.trigger === 'manual' ? '手动' : '定时';
+        return '<div class="am-run-item">'
+             + '<div class="am-run-head" onclick="toggleRunDetail(' + run.id + ')" style="cursor:pointer">'
+             + '<span class="am-run-status ' + statusClass + '">' + statusHtml + '</span>'
+             + '<span class="am-run-time">' + (run.started_at ? formatTime(run.started_at) : '—') + '</span>'
+             + '<span class="am-run-trigger">' + triggerLabel + '</span>'
+             + '<span class="am-run-chevron" id="run-chevron-' + run.id + '">▼</span>'
+             + '</div>'
+             + '<div class="am-run-detail" id="run-detail-' + run.id + '" style="display:none"></div>'
+             + '</div>';
+    }).join('');
+}
+
+function toggleRunDetail(runId) {
+    var el = document.getElementById('run-detail-' + runId);
+    var chevron = document.getElementById('run-chevron-' + runId);
+    if (el.style.display === 'none' || !el.style.display) {
+        if (!el.dataset.loaded) {
+            el.innerHTML = '<div class="am-loading">加载中…</div>';
+            fetch('/api/automation/tasks/' + _runHistoryTaskId + '/runs/' + runId)
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.code === 200) {
+                        el.innerHTML = formatRunDetail(result.data);
+                        el.dataset.loaded = '1';
+                    } else {
+                        el.innerHTML = '<div class="am-empty">加载失败</div>';
+                    }
+                })
+                .catch(function() {
+                    el.innerHTML = '<div class="am-empty">加载失败</div>';
+                });
+        }
+        el.style.display = '';
+        chevron.textContent = '▲';
+    } else {
+        el.style.display = 'none';
+        chevron.textContent = '▼';
+    }
+}
+
+function formatRunDetail(data) {
+    var html = '';
+    if (!data) return '<div class="am-empty">无数据</div>';
+    try {
+        var result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+        if (result.error) {
+            html += '<div class="am-run-error">错误: ' + esc(result.error) + '</div>';
+        }
+        if (result.response) {
+            html += '<div class="am-run-response">' + esc(result.response) + '</div>';
+        }
+        if (result.tool_calls && result.tool_calls.length > 0) {
+            html += '<div class="am-run-tools-label">工具调用 (' + result.tool_calls.length + ' 轮)</div>';
+            result.tool_calls.forEach(function(tc) {
+                html += '<div class="am-run-tool">'
+                    + '<span class="am-run-tool-name">' + esc(tc.name) + '</span>'
+                    + '<span class="am-run-tool-args">' + esc(JSON.stringify(tc.arguments).substring(0, 100)) + '</span>'
+                    + '</div>';
+            });
+        }
+    } catch(e) {
+        html = '<pre class="am-run-raw">' + esc(data.result || '') + '</pre>';
+    }
+    return html || '<div class="am-empty">无详情</div>';
+}
+
+function clearRuns() {
+    customConfirm('将清空所有运行记录，是否继续？', '清空记录').then(function(ok) {
+        if (!ok) return;
+        _doClearRuns();
+    });
+}
+function _doClearRuns() {
+    fetch('/api/automation/tasks/' + _runHistoryTaskId + '/runs', { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code === 200) {
+                document.getElementById('run-history-body').innerHTML = '<div class="am-empty">暂无运行记录</div>';
+                loadTasks();
+            }
+        });
+}
+
+function toggleTask(id) {
+    fetch('/api/automation/tasks/' + id + '/toggle', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) {
+                loadTasks();
+                loadSchedulerStatus();
+                addLog('任务状态已切换', 'ok');
+            }
+        });
+}
+
+function loadMcpCheckboxes(selected) {
+    var container = document.getElementById('task-mcp-checks');
+    fetch('/api/mcp/servers')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            var servers = (result.data || []).filter(function(s) { return s.connected || s.status === 'connected'; });
+            if (servers.length === 0) {
+                container.innerHTML = '<span class="am-form-hint">暂无已连接的 MCP 服务器</span>';
+                return;
+            }
+            container.innerHTML = servers.map(function(s) {
+                var checked = selected.indexOf(s.name) > -1 ? ' checked' : '';
+                return '<label class="am-check-label">'
+                     + '<input type="checkbox" value="' + escAttr(s.name) + '"' + checked + '> '
+                     + esc(s.name) + ' (' + (s.tool_count || 0) + ' 工具)'
+                     + '</label>';
+            }).join('');
+        })
+        .catch(function() {
+            container.innerHTML = '<span class="am-form-hint">加载失败</span>';
+        });
+}
+
+/* ═══ Schedule Helpers ═══ */
+var WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+function initWeekdayCheckboxes() {
+    var html = '';
+    for (var i = 0; i < 7; i++) {
+        html += '<label class="am-day-btn"><input type="checkbox" value="' + i + '">' + WEEKDAY_LABELS[i] + '</label>';
+    }
+    document.getElementById('sched-weekdays').innerHTML = html;
+    document.getElementById('sched-interval-days').innerHTML = html;
+}
+
+function resetScheduleUI() {
+    document.querySelector('input[name="schedule-mode"][value="periodic"]').checked = true;
+    document.getElementById('sched-frequency').value = 'daily';
+    document.getElementById('sched-time').value = '09:00';
+    document.getElementById('sched-interval-hours').value = '1';
+    document.getElementById('sched-once-datetime').value = '';
+    document.getElementById('sched-month-day').value = '1';
+    document.getElementById('sched-year-month').value = '1';
+    document.getElementById('sched-year-day').value = '1';
+    // Clear weekday checkboxes
+    document.querySelectorAll('#sched-weekdays input, #sched-interval-days input').forEach(function(cb) { cb.checked = false; });
+    onSchedModeChange();
+}
+
+function onSchedModeChange() {
+    var mode = document.querySelector('input[name="schedule-mode"]:checked').value;
+    document.getElementById('sched-periodic').style.display = mode === 'periodic' ? '' : 'none';
+    document.getElementById('sched-interval').style.display = mode === 'interval' ? '' : 'none';
+    document.getElementById('sched-once').style.display = mode === 'once' ? '' : 'none';
+    if (mode === 'periodic') onFreqChange();
+}
+
+function onFreqChange() {
+    var freq = document.getElementById('sched-frequency').value;
+    document.getElementById('sched-weekdays-group').style.display = (freq === 'weekly' || freq === 'biweekly') ? '' : 'none';
+    document.getElementById('sched-monthly-group').style.display = freq === 'monthly' ? '' : 'none';
+    document.getElementById('sched-yearly-group').style.display = freq === 'yearly' ? '' : 'none';
+}
+
+function buildScheduleConfig() {
+    var mode = document.querySelector('input[name="schedule-mode"]:checked').value;
+    var config = { mode: mode };
+
+    if (mode === 'periodic') {
+        config.frequency = document.getElementById('sched-frequency').value;
+        config.time = document.getElementById('sched-time').value;
+        if (config.frequency === 'weekly' || config.frequency === 'biweekly') {
+            config.days = [];
+            document.querySelectorAll('#sched-weekdays input:checked').forEach(function(cb) { config.days.push(parseInt(cb.value)); });
+        }
+        if (config.frequency === 'monthly') {
+            config.day = parseInt(document.getElementById('sched-month-day').value) || 1;
+        }
+        if (config.frequency === 'yearly') {
+            config.month = parseInt(document.getElementById('sched-year-month').value) || 1;
+            config.day = parseInt(document.getElementById('sched-year-day').value) || 1;
+        }
+    } else if (mode === 'interval') {
+        config.hours = parseInt(document.getElementById('sched-interval-hours').value) || 1;
+        config.days = [];
+        document.querySelectorAll('#sched-interval-days input:checked').forEach(function(cb) { config.days.push(parseInt(cb.value)); });
+    } else if (mode === 'once') {
+        config.datetime = document.getElementById('sched-once-datetime').value;
+    }
+
+    return config;
+}
+
+function configToCron(config) {
+    if (!config || !config.mode) return '0 9 * * *';
+
+    if (config.mode === 'periodic') {
+        var time = (config.time || '09:00').split(':');
+        var min = time[1] || '0';
+        var hour = time[0] || '9';
+
+        switch (config.frequency) {
+            case 'daily':
+                return min + ' ' + hour + ' * * *';
+            case 'weekly':
+                var days = (config.days || []).length ? config.days.join(',') : '*';
+                return min + ' ' + hour + ' * * ' + days;
+            case 'biweekly':
+                var days = (config.days || []).length ? config.days.join(',') : '1';
+                return min + ' ' + hour + ' * * ' + days;
+            case 'monthly':
+                var day = config.day || 1;
+                return min + ' ' + hour + ' ' + day + ' * *';
+            case 'yearly':
+                var m = config.month || 1;
+                var d = config.day || 1;
+                return min + ' ' + hour + ' ' + d + ' ' + m + ' *';
+        }
+    } else if (config.mode === 'interval') {
+        var h = config.hours || 1;
+        var days = (config.days || []).length ? config.days.join(',') : '*';
+        return '0 */' + h + ' * * ' + days;
+    } else if (config.mode === 'once') {
+        return 'once';
+    }
+
+    return '0 9 * * *';
+}
+
+function getSchedLabel(scheduleConfigJson, cronExpr) {
+    // Try to parse schedule_config first
+    if (scheduleConfigJson) {
+        try {
+            var cfg = JSON.parse(scheduleConfigJson);
+            if (cfg.mode === 'periodic') {
+                var freqMap = {daily: '每天', weekly: '每周', biweekly: '双周', monthly: '每月', yearly: '每年'};
+                var label = freqMap[cfg.frequency] || cfg.frequency;
+                if (cfg.time) label += ' ' + cfg.time;
+                if (cfg.frequency === 'weekly' || cfg.frequency === 'biweekly') {
+                    if (cfg.days && cfg.days.length) {
+                        label += ' (' + cfg.days.map(function(d) { return '周' + WEEKDAY_LABELS[d]; }).join(',') + ')';
+                    }
+                }
+                if (cfg.frequency === 'monthly' && cfg.day) label += ' ' + cfg.day + '号';
+                if (cfg.frequency === 'yearly' && cfg.month && cfg.day) label += ' ' + cfg.month + '月' + cfg.day + '日';
+                return label;
+            } else if (cfg.mode === 'interval') {
+                var label = '每' + (cfg.hours || 1) + '小时';
+                if (cfg.days && cfg.days.length) {
+                    label += ' (' + cfg.days.map(function(d) { return '周' + WEEKDAY_LABELS[d]; }).join(',') + ')';
+                }
+                return label;
+            } else if (cfg.mode === 'once') {
+                return '单次 ' + (cfg.datetime || '未设置');
+            }
+        } catch(e) {}
+    }
+    // Fallback: show raw cron
+    return cronExpr || '0 9 * * *';
+}
+
+function applyScheduleConfig(jsonStr) {
+    resetScheduleUI();
+    if (!jsonStr) return;
+    try {
+        var cfg = JSON.parse(jsonStr);
+        var modeRadio = document.querySelector('input[name="schedule-mode"][value="' + (cfg.mode || 'periodic') + '"]');
+        if (modeRadio) modeRadio.checked = true;
+        onSchedModeChange();
+
+        if (cfg.mode === 'periodic') {
+            if (cfg.frequency) document.getElementById('sched-frequency').value = cfg.frequency;
+            if (cfg.time) document.getElementById('sched-time').value = cfg.time;
+            if (cfg.days && cfg.days.length) {
+                cfg.days.forEach(function(d) {
+                    var cb = document.querySelector('#sched-weekdays input[value="' + d + '"]');
+                    if (cb) cb.checked = true;
+                });
+            }
+            if (cfg.day) document.getElementById('sched-month-day').value = cfg.day;
+            if (cfg.month) document.getElementById('sched-year-month').value = cfg.month;
+            if (cfg.day) document.getElementById('sched-year-day').value = cfg.day;
+            onFreqChange();
+        } else if (cfg.mode === 'interval') {
+            if (cfg.hours) document.getElementById('sched-interval-hours').value = cfg.hours;
+            if (cfg.days && cfg.days.length) {
+                cfg.days.forEach(function(d) {
+                    var cb = document.querySelector('#sched-interval-days input[value="' + d + '"]');
+                    if (cb) cb.checked = true;
+                });
+            }
+        } else if (cfg.mode === 'once') {
+            if (cfg.datetime) document.getElementById('sched-once-datetime').value = cfg.datetime;
+        }
+    } catch(e) {}
+}
+
+/* ═══ Utils ═══ */
+function formatTime(isoStr) {
+    if (!isoStr) return '—';
+    try {
+        var d = new Date(isoStr + 'Z');  // UTC → 本地时间
+        var p = function(n) { return n < 10 ? '0' + n : n; };
+        return p(d.getMonth()+1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    } catch(e) { return isoStr; }
+}
+
+var logCount = 0;
+function addLog(msg, type) { /* no-op: log UI removed */ }
+function clearLog() { /* no-op: log UI removed */ }
+
+function esc(str) { var d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+function escAttr(str) { return (str || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+</script>
+{% endblock %}
