@@ -25,9 +25,15 @@ import secrets
 import atexit
 import threading
 import subprocess
+import sys
 
 # bin/mcp/ 目录绝对路径（内置 MCP 服务统一存放点）
-_SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 打包模式：bin/ 在 exe 同级，sys._MEIPASS 指向 _internal/，取其上级
+# 开发模式：bin/ 在 src/ 下，__file__ 在 src/common/，向上两级
+if getattr(sys, 'frozen', False):
+    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
+else:
+    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _BIN_MCP_DIR = os.path.join(_SRC_ROOT, 'bin', 'mcp')
 
 # 运行时状态

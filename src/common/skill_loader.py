@@ -23,9 +23,15 @@ Agent 工作流程：
 """
 import os
 import re
+import sys
 
 # bin/skills/ 目录绝对路径
-_SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 打包模式：bin/ 在 exe 同级，sys._MEIPASS 指向 _internal/，取其上级
+# 开发模式：bin/ 在 src/ 下，__file__ 在 src/common/，向上两级
+if getattr(sys, 'frozen', False):
+    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
+else:
+    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SKILLS_DIR = os.path.join(_SRC_ROOT, 'bin', 'skills')
 
 

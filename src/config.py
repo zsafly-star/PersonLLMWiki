@@ -4,14 +4,21 @@ from dotenv import load_dotenv
 # 查找 .env：依次检查 app 同级目录（embedded 部署）、app 上级、当前目录
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_THIS_DIR)
-_DEFAULT_RESOURCE_PATH = os.path.join(_PROJECT_ROOT, 'resource')
+_DEFAULT_RESOURCE_PATH = os.path.join(os.path.dirname(_PROJECT_ROOT), 'resource')
 
 # 尝试多个位置的 .env
-for _env_candidate in [
+import sys as _sys
+_env_candidates = [
     os.path.join(_PROJECT_ROOT, '.env'),          # embedded: app/../.env
     os.path.join(_THIS_DIR, '.env'),               # 开发模式: src/.env
     os.path.join(os.getcwd(), '.env'),             # 当前目录
-]:
+]
+# 打包模式（PyInstaller）：优先检查 %APPDATA%\PersonLLMWiki\.env
+if getattr(_sys, 'frozen', False):
+    _appdata_env = os.path.join(
+        os.getenv('APPDATA', ''), 'PersonLLMWiki', '.env')
+    _env_candidates.insert(0, _appdata_env)
+for _env_candidate in _env_candidates:
     if os.path.isfile(_env_candidate):
         load_dotenv(_env_candidate)
         break

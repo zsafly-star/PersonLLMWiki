@@ -25,7 +25,7 @@ a = Analysis(
         # 模块级模板目录（Flask blueprint template_folder）
         (os.path.join(src_dir, 'modules'), 'modules'),
         # 图标文件（desktop.pyw 托盘/窗口图标）
-        (os.path.join(src_dir, 'static', 'img', 'AIChat.png'), 'static/img'),
+        (os.path.join(src_dir, 'static', 'img', 'app.ico'), 'static/img'),
     ],
     hiddenimports=[
         'flask',
@@ -66,7 +66,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,  # 无控制台窗口
-    icon=os.path.join(src_dir, 'static', 'img', 'AIChat.png'),
+    icon=os.path.join(src_dir, 'static', 'img', 'app.ico'),
 )
 
 coll = COLLECT(

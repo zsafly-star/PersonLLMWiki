@@ -39,11 +39,13 @@ def is_common_enabled():
 
 def _run_git(args, cwd):
     """执行 git 命令，返回 (returncode, stdout, stderr)"""
+    import sys
     result = subprocess.run(
         ['git'] + args,
         cwd=cwd,
         capture_output=True,
         text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         timeout=120,
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()

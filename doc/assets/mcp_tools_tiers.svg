@@ -1,0 +1,162 @@
+<svg viewBox="0 0 900 560" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>ZSSNote MCP 工具分层（4 Tier / 24 工具）</title>
+  <desc>四层工具架构：Tier 1 只读(7)、Tier 2 检索(1)、Tier 3 写入(7)、Tier 4 OfficeCLI(9)。按成本和风险递进排列。</desc>
+  <defs>
+    <style>
+      .t    { font: 400 12px sans-serif; fill: #222; }
+      .ts   { font: 400 10.5px sans-serif; fill: #666; }
+      .th   { font: 600 13px sans-serif; fill: #222; }
+      .tlab { font: 500 12px sans-serif; fill: #5F5E5A; }
+      .badge{ font: 600 10px sans-serif; }
+      .sep  { stroke: #D3D1C7; stroke-width: 0.5; stroke-dasharray: 5 4; fill: none; }
+    </style>
+  </defs>
+
+  <!-- ===== Tier 1: 只读 ===== -->
+  <text class="tlab" x="20" y="24" dominant-baseline="central">Tier 1 — 只读</text>
+  <rect x="100" y="14" width="56" height="18" rx="9" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="badge" x="128" y="24" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">7 工具</text>
+  <text class="ts" x="166" y="24" dominant-baseline="central">· 无成本 · 无副作用 · 安全</text>
+
+  <rect x="20" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="82" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">list_folders</text>
+  <text class="ts" x="82" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">文章目录结构</text>
+  <text class="ts" x="82" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">顶层 + 笔记数</text>
+
+  <rect x="152" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="214" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">read_note</text>
+  <text class="ts" x="214" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">按路径读文章</text>
+  <text class="ts" x="214" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">full=true 全文</text>
+
+  <rect x="284" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="346" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">list_wiki_pages</text>
+  <text class="ts" x="346" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">已审批概念页</text>
+  <text class="ts" x="346" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">limit/offset</text>
+
+  <rect x="416" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="478" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">read_wiki_page</text>
+  <text class="ts" x="478" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">单页正文 + 来源</text>
+  <text class="ts" x="478" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">by slug</text>
+
+  <rect x="548" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="610" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">get_graph</text>
+  <text class="ts" x="610" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">知识星链图谱</text>
+  <text class="ts" x="610" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">硬上限 80 节点</text>
+
+  <rect x="680" y="38" width="125" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="742" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">get_compile_status</text>
+  <text class="ts" x="742" y="76" text-anchor="middle" dominant-baseline="central" font-size="9">轮询编译进度</text>
+  <text class="ts" x="742" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">替代 SSE 推送</text>
+
+  <rect x="812" y="38" width="68" height="62" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="846" y="58" text-anchor="middle" dominant-baseline="central" font-size="11">list_can-</text>
+  <text class="th" x="846" y="76" text-anchor="middle" dominant-baseline="central" font-size="11">didates</text>
+  <text class="ts" x="846" y="90" text-anchor="middle" dominant-baseline="central" font-size="9">待审批</text>
+
+  <!-- ===== Separator ===== -->
+  <line x1="20" y1="112" x2="880" y2="112" class="sep"/>
+  <text class="tlab" x="20" y="130" dominant-baseline="central">Tier 2 — 检索</text>
+  <rect x="100" y="120" width="56" height="18" rx="9" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="badge" x="128" y="130" text-anchor="middle" dominant-baseline="central" fill="#185FA5">1 工具</text>
+  <text class="ts" x="166" y="130" dominant-baseline="central">· 消耗 OpenAI Embedding 配额</text>
+
+  <rect x="20" y="144" width="860" height="62" rx="7" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="th" x="450" y="165" text-anchor="middle" dominant-baseline="central" font-size="12">search_kb</text>
+  <text class="ts" x="450" y="184" text-anchor="middle" dominant-baseline="central" font-size="10">向量检索 (0.7) + BM25 (0.3) 混合排序 · 返回 Top-K 相关片段 + 来源路径 · top_k 上限 10</text>
+
+  <!-- ===== Separator ===== -->
+  <line x1="20" y1="218" x2="880" y2="218" class="sep"/>
+  <text class="tlab" x="20" y="236" dominant-baseline="central">Tier 3 — 写入</text>
+  <rect x="100" y="226" width="56" height="18" rx="9" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="badge" x="128" y="236" text-anchor="middle" dominant-baseline="central" fill="#854F0B">7 工具</text>
+  <text class="ts" x="166" y="236" dominant-baseline="central">· 变更数据 · 需谨慎 · 含 LLM 成本敏感操作</text>
+
+  <!-- Row 1 -->
+  <rect x="20" y="250" width="165" height="62" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="102" y="270" text-anchor="middle" dominant-baseline="central" font-size="11">write_note</text>
+  <text class="ts" x="102" y="288" text-anchor="middle" dominant-baseline="central" font-size="9">创建/覆盖文章</text>
+  <text class="ts" x="102" y="302" text-anchor="middle" dominant-baseline="central" font-size="9">含内联图片提取</text>
+
+  <rect x="194" y="250" width="165" height="62" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="276" y="270" text-anchor="middle" dominant-baseline="central" font-size="11">create_folder</text>
+  <text class="ts" x="276" y="288" text-anchor="middle" dominant-baseline="central" font-size="9">新建文件夹</text>
+  <text class="ts" x="276" y="302" text-anchor="middle" dominant-baseline="central" font-size="9">可选 Emoji 图标</text>
+
+  <rect x="368" y="250" width="165" height="62" rx="7" fill="#FAECE7" stroke="#993C1D" stroke-width="0.4"/>
+  <text class="th" x="450" y="270" text-anchor="middle" dominant-baseline="central" font-size="11">compile_wiki</text>
+  <text class="ts" x="450" y="288" text-anchor="middle" dominant-baseline="central" font-size="9">触发 Wiki 编译</text>
+  <text class="ts" x="450" y="302" text-anchor="middle" dominant-baseline="central" font-size="9" fill="#993C1D">消耗 LLM · 不自动审批</text>
+
+  <rect x="542" y="250" width="165" height="62" rx="7" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.4"/>
+  <text class="th" x="624" y="270" text-anchor="middle" dominant-baseline="central" font-size="11">approve_candidate</text>
+  <text class="ts" x="624" y="288" text-anchor="middle" dominant-baseline="central" font-size="9">通过候选页入库</text>
+  <text class="ts" x="624" y="302" text-anchor="middle" dominant-baseline="central" font-size="9" fill="#534AB7">LLM 不可自审批</text>
+
+  <rect x="716" y="250" width="164" height="62" rx="7" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.4"/>
+  <text class="th" x="798" y="270" text-anchor="middle" dominant-baseline="central" font-size="11">reject_candidate</text>
+  <text class="ts" x="798" y="288" text-anchor="middle" dominant-baseline="central" font-size="9">拒绝并删除</text>
+  <text class="ts" x="798" y="302" text-anchor="middle" dominant-baseline="central" font-size="9">仅删未入库候选</text>
+
+  <!-- Row 2 -->
+  <rect x="20" y="320" width="280" height="50" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="160" y="340" text-anchor="middle" dominant-baseline="central" font-size="11">submit_to_public</text>
+  <text class="ts" x="160" y="356" text-anchor="middle" dominant-baseline="central" font-size="9">提交知识到公共库审批队列</text>
+
+  <rect x="310" y="320" width="280" height="50" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="450" y="340" text-anchor="middle" dominant-baseline="central" font-size="11">create_todo</text>
+  <text class="ts" x="450" y="356" text-anchor="middle" dominant-baseline="central" font-size="9">创建待办任务 · title + priority</text>
+
+  <!-- ===== Separator ===== -->
+  <line x1="20" y1="384" x2="880" y2="384" class="sep"/>
+  <text class="tlab" x="20" y="402" dominant-baseline="central">Tier 4 — OfficeCLI 文档办公</text>
+  <rect x="196" y="392" width="56" height="18" rx="9" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="badge" x="224" y="402" text-anchor="middle" dominant-baseline="central" fill="#185FA5">9 工具</text>
+  <text class="ts" x="262" y="402" dominant-baseline="central">· .NET 内嵌二进制 · subprocess 调用 · 6 平台预打包</text>
+
+  <!-- Row 1: Read -->
+  <rect x="20" y="416" width="205" height="58" rx="7" fill="#F1EFFB" stroke="#7C3AED" stroke-width="0.4"/>
+  <text class="th" x="122" y="436" text-anchor="middle" dominant-baseline="central" font-size="11">read_document</text>
+  <text class="ts" x="122" y="454" text-anchor="middle" dominant-baseline="central" font-size="9">读取 → HTML 渲染</text>
+  <text class="ts" x="122" y="466" text-anchor="middle" dominant-baseline="central" font-size="9">Word/Excel/PPT</text>
+
+  <rect x="235" y="416" width="205" height="58" rx="7" fill="#F1EFFB" stroke="#7C3AED" stroke-width="0.4"/>
+  <text class="th" x="337" y="436" text-anchor="middle" dominant-baseline="central" font-size="11">get_document_structure</text>
+  <text class="ts" x="337" y="454" text-anchor="middle" dominant-baseline="central" font-size="9">JSON 结构化数据</text>
+  <text class="ts" x="337" y="466" text-anchor="middle" dominant-baseline="central" font-size="9">selector 定位</text>
+
+  <rect x="450" y="416" width="205" height="58" rx="7" fill="#F1EFFB" stroke="#7C3AED" stroke-width="0.4"/>
+  <text class="th" x="552" y="436" text-anchor="middle" dominant-baseline="central" font-size="11">get_document_outline</text>
+  <text class="ts" x="552" y="454" text-anchor="middle" dominant-baseline="central" font-size="9">文档大纲</text>
+  <text class="ts" x="552" y="466" text-anchor="middle" dominant-baseline="central" font-size="9">PPT标题/Word段落</text>
+
+  <rect x="665" y="416" width="215" height="58" rx="7" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="th" x="772" y="436" text-anchor="middle" dominant-baseline="central" font-size="11">create_document</text>
+  <text class="ts" x="772" y="454" text-anchor="middle" dominant-baseline="central" font-size="9">创建空白 Office 文档</text>
+  <text class="ts" x="772" y="466" text-anchor="middle" dominant-baseline="central" font-size="9">.docx / .xlsx / .pptx</text>
+
+  <!-- Row 2: Write/Modify + Excel -->
+  <rect x="20" y="484" width="205" height="56" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="122" y="504" text-anchor="middle" dominant-baseline="central" font-size="11">add_element</text>
+  <text class="ts" x="122" y="520" text-anchor="middle" dominant-baseline="central" font-size="9">添加文本/表格/图片等</text>
+  <text class="ts" x="122" y="532" text-anchor="middle" dominant-baseline="central" font-size="9">target + type + props</text>
+
+  <rect x="235" y="484" width="205" height="56" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="337" y="504" text-anchor="middle" dominant-baseline="central" font-size="11">set_element</text>
+  <text class="ts" x="337" y="520" text-anchor="middle" dominant-baseline="central" font-size="9">修改元素属性</text>
+  <text class="ts" x="337" y="532" text-anchor="middle" dominant-baseline="central" font-size="9">selector + props</text>
+
+  <rect x="450" y="484" width="205" height="56" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="552" y="504" text-anchor="middle" dominant-baseline="central" font-size="11">list_sheets</text>
+  <text class="ts" x="552" y="520" text-anchor="middle" dominant-baseline="central" font-size="9">列出 Excel 工作表</text>
+
+  <rect x="665" y="484" width="105" height="56" rx="7" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="th" x="717" y="504" text-anchor="middle" dominant-baseline="central" font-size="11">read_sheet</text>
+  <text class="ts" x="717" y="520" text-anchor="middle" dominant-baseline="central" font-size="9">读取数据</text>
+  <text class="ts" x="717" y="532" text-anchor="middle" dominant-baseline="central" font-size="9">sheet + range</text>
+
+  <rect x="778" y="484" width="102" height="56" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="th" x="829" y="504" text-anchor="middle" dominant-baseline="central" font-size="11">write_cells</text>
+  <text class="ts" x="829" y="520" text-anchor="middle" dominant-baseline="central" font-size="9">批量写入</text>
+  <text class="ts" x="829" y="532" text-anchor="middle" dominant-baseline="central" font-size="9">逐单元格</text>
+
+</svg>

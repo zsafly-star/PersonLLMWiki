@@ -13,5 +13,5 @@
     "WEBSEARCH_MCP_HTTP_HOST": "127.0.0.1",
     "WEBSEARCH_MCP_HTTP_PORT": "17655"
   },
-  "description": "联网搜索（DuckDuckGo），免费无需 API Key"
+  "description": "联网搜索（Bing RSS），免费无需 API Key"
 }

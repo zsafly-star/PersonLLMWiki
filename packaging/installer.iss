@@ -45,3 +45,20 @@ Filename: "{app}\{#MyAppExeName}"; Description: "立即启动 PersonLLMWiki"; Fl
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+const
+  SHCNE_ASSOCCHANGED = $08000000;
+  SHCNF_IDLIST = $0000;
+
+procedure SHChangeNotify(wEventId: LongWord; uFlags: Cardinal; dwItem1: LongInt; dwItem2: LongInt);
+  external 'SHChangeNotify@shell32.dll stdcall';
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // 通知 Shell 刷新图标缓存，确保桌面快捷方式和详细信息页图标正确
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0);
+  end;
+end;

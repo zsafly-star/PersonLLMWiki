@@ -90,8 +90,6 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-doc/
-
 # PyInstaller output
 packaging/build/
 release/

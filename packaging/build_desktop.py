@@ -6,7 +6,7 @@
 流程：
   1. 调用 PyInstaller（用 desktop.spec）打 EXE
   2. 调用 Inno Setup（ISCC.exe）打安装包
-  3. 产出 PersonLLMWiki-Setup-{version}.exe
+  3. 产出到 release/ 目录
 """
 
 import os
@@ -43,6 +43,24 @@ def run_pyinstaller():
         print(f"[build] 未找到产出 EXE: {exe_path}")
         sys.exit(1)
     print(f"[build] EXE 已生成: {exe_path}")
+
+
+def copy_bin_to_output():
+    """将 bin/ 复制到输出目录（EXE 同级，而非 _internal 内）"""
+    print("[build] === 复制 bin/ 到输出目录 ===")
+    bin_src = os.path.join(SRC_DIR, 'bin')
+    bin_dst = os.path.join(RELEASE_DIR, "dist", "PersonLLMWiki", "bin")
+
+    if not os.path.isdir(bin_src):
+        print(f"[build] 警告: 未找到 bin 目录: {bin_src}")
+        return
+
+    if os.path.isdir(bin_dst):
+        print(f"[build] 移除旧 bin: {bin_dst}")
+        shutil.rmtree(bin_dst)
+
+    shutil.copytree(bin_src, bin_dst)
+    print(f"[build] bin/ 已复制到: {bin_dst}")
 
 
 def find_iscc():
@@ -101,11 +119,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     version = sys.argv[1]
+
     print(f"PersonLLMWiki 桌面版打包工具")
     print(f"版本: {version}")
     print()
 
     run_pyinstaller()
+    copy_bin_to_output()
     installer_path = run_inno_setup(version)
 
     print(f"\n[build] 完成！安装包: {installer_path}")

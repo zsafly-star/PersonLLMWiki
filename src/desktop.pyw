@@ -59,9 +59,9 @@ def _start_flask(port):
 
 
 def _get_icon_path():
-    icon = os.path.join(_THIS_DIR, 'static', 'img', 'AIChat.png')
+    """获取窗口图标路径"""
+    icon = os.path.join(_THIS_DIR, 'static', 'img', 'app.ico')
     return icon if os.path.isfile(icon) else None
-
 
 def _get_resource_path():
     from config import Config
@@ -78,6 +78,11 @@ def _ensure_first_launch_setup(resource_path):
         os.makedirs(os.path.join(resource_path, subdir), exist_ok=True)
 
     env_path = os.path.join(os.path.dirname(_THIS_DIR), '.env')
+    if getattr(sys, 'frozen', False):
+        # 打包后安装目录无写入权限，放到 %APPDATA%
+        env_dir = os.path.join(os.getenv('APPDATA', ''), 'PersonLLMWiki')
+        os.makedirs(env_dir, exist_ok=True)
+        env_path = os.path.join(env_dir, '.env')
     if not os.path.isfile(env_path):
         with open(env_path, 'w', encoding='utf-8') as f:
             f.write(f"RESOURCE_BASE_PATH={resource_path}\n")
@@ -87,8 +92,38 @@ def _ensure_first_launch_setup(resource_path):
     return True
 
 
+def _check_single_instance():
+    """检查是否已有实例运行。有则激活已有窗口并返回 False，否则返回 True。"""
+    import ctypes.wintypes
+
+    kernel32 = ctypes.windll.kernel32
+    user32 = ctypes.windll.user32
+
+    mutex_name = "PersonLLMWiki_SingleInstance_Mutex"
+    mutex = kernel32.CreateMutexW(None, False, mutex_name)
+    if not mutex:
+        return True  # 连 mutex 都创建不了，继续启动
+
+    if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        # 找到已有窗口并激活
+        hwnd = user32.FindWindowW(None, "PersonLLMWiki")
+        if hwnd:
+            # 如果最小化了，先恢复
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+        return False
+
+    return True
+
+
 def main():
     import webview
+
+    # ========== 单实例检查 ==========
+    if not _check_single_instance():
+        print("[Desktop] 已有实例运行，退出")
+        sys.exit(0)
 
     # ========== 一次性初始化 ==========
 
@@ -127,12 +162,28 @@ def main():
     WM_CLOSE = 0x0010
     WM_SETICON = 0x0080
     GWL_WNDPROC = -4
+    SW_HIDE = 0
     SW_MINIMIZE = 6
     SW_RESTORE = 9
     ICON_SMALL = 0
     ICON_BIG = 1
 
     user32 = ctypes.windll.user32
+
+    # 确保 64 位兼容：显式声明常用 Win32 API 的参数/返回类型
+    user32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+    user32.FindWindowW.restype = ctypes.c_void_p
+    user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint,
+                                   ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    user32.LoadImageW.restype = ctypes.c_void_p
+    user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_ulonglong, ctypes.c_void_p]
+    user32.SendMessageW.restype = ctypes.c_longlong
+    user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    user32.ShowWindow.restype = ctypes.c_bool
+    user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+    user32.SetForegroundWindow.restype = ctypes.c_bool
+    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_ulonglong, ctypes.c_longlong]
+    user32.PostMessageW.restype = ctypes.c_bool
 
     WNDPROC = ctypes.WINFUNCTYPE(
         ctypes.c_longlong,          # LRESULT
@@ -150,9 +201,9 @@ def main():
     user32.CallWindowProcW.restype = ctypes.c_longlong
 
     def _wndproc(hwnd, msg, wparam, lparam):
-        """子类化窗口过程：WM_CLOSE → 最小化，除非 _allow_close 为 True。"""
+        """子类化窗口过程：WM_CLOSE → 隐藏到托盘，除非 _allow_close 为 True。"""
         if msg == WM_CLOSE and not _allow_close[0]:
-            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            user32.ShowWindow(hwnd, SW_HIDE)
             return 0
         return user32.CallWindowProcW(
             _original_wndproc[0], hwnd, msg, wparam, lparam

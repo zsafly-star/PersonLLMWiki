@@ -14,6 +14,11 @@ import platform
 
 _BIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'bin', 'mcp', 'officecli'))
 
+# 打包模式：bin/ 在 _internal/ 同级，而非 _internal/ 内部
+if getattr(sys, 'frozen', False):
+    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
+    _BIN_DIR = os.path.join(_SRC_ROOT, 'bin', 'mcp', 'officecli')
+
 
 def _get_platform_id():
     """返回 OfficeCLI 的平台标识（如 linux-x64, win-x64, mac-arm64）"""
@@ -70,8 +75,8 @@ def _run_officecli(args, timeout=120):
     """
     cli_path = _get_officecli_path()
     if not cli_path:
-        return -1, '', f'OfficeCLI 不可用（平台: {_get_platform_id()}），'
-        f'请将对应二进制放入 bin/officecli/ 目录'
+        return -1, '', (f'OfficeCLI 不可用（平台: {_get_platform_id()}），'
+                        f'请将对应二进制放入 bin/mcp/officecli/ 目录')
 
     try:
         result = subprocess.run(
@@ -80,6 +85,7 @@ def _run_officecli(args, timeout=120):
             text=True,
             timeout=timeout,
             encoding='utf-8',
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         )
         return result.returncode, result.stdout.strip(), result.stderr.strip()
     except FileNotFoundError:
@@ -290,6 +296,7 @@ def is_officecli_available():
         result = subprocess.run(
             [cli_path, '--version'], capture_output=True, text=True, timeout=5,
             encoding='utf-8',
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         )
         return result.returncode == 0 and bool(result.stdout)
     except Exception:

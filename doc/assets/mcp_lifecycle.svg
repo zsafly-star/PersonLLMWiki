@@ -1,0 +1,136 @@
+<svg viewBox="0 0 800 640" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>ZSSNote MCP 请求生命周期</title>
+  <desc>从 MCP 客户端发起 initialize 握手到工具调用与错误处理的完整 JSON-RPC 2.0 流程，含鉴权、分发、service 调用、异常回滚。</desc>
+  <defs>
+    <marker id="arrow-req" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrow-resp" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M8 1L2 5L8 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t     { font: 400 13px sans-serif; fill: #222; }
+      .ts    { font: 400 11px sans-serif; fill: #666; }
+      .th    { font: 600 14px sans-serif; fill: #222; }
+      .code  { font: 400 11px 'Cascadia Code', 'Consolas', monospace; fill: #444; }
+      .phase { font: 600 11px sans-serif; fill: #5F5E5A; letter-spacing: 0.5px; }
+      .req   { stroke: #888; stroke-width: 1.5; fill: none; stroke-dasharray: 6 4; }
+      .resp  { stroke: #555; stroke-width: 1.8; fill: none; }
+      .life  { stroke: #D0CEC8; stroke-width: 1; fill: none; }
+      .errt  { font: 400 10px monospace; fill: #DC2626; }
+    </style>
+  </defs>
+
+  <!-- ========== Actor Headers ========== -->
+  <rect x="50" y="16" width="140" height="36" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text class="th" x="120" y="36" text-anchor="middle" dominant-baseline="central" font-size="12">MCP 客户端</text>
+
+  <rect x="610" y="16" width="140" height="36" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text class="th" x="680" y="36" text-anchor="middle" dominant-baseline="central" font-size="12">ZSSNote /mcp</text>
+
+  <!-- ========== Lifelines ========== -->
+  <line x1="120" y1="58" x2="120" y2="590" class="life"/>
+  <line x1="680" y1="58" x2="680" y2="590" class="life"/>
+
+  <!-- ========== Phase 1: 握手 ========== -->
+  <rect x="20" y="68" width="760" height="140" rx="8" fill="#F8F7FC" stroke="#D0CCE8" stroke-width="0.4"/>
+  <text class="phase" x="34" y="86">握手 (Handshake)</text>
+
+  <!-- 1. initialize -->
+  <path class="req" d="M120 100 L680 100" marker-end="url(#arrow-req)"/>
+  <text class="code" x="400" y="92" text-anchor="middle" font-size="10">POST /mcp  {"method":"initialize", "params":{...}}</text>
+
+  <!-- Server processing: 生成 session -->
+  <rect x="590" y="108" width="180" height="24" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="ts" x="680" y="121" text-anchor="middle" dominant-baseline="central" font-size="9">生成 Mcp-Session-Id (uuid4)</text>
+
+  <!-- Response -->
+  <path class="resp" d="M680 136 L120 136" marker-end="url(#arrow-resp)"/>
+  <text class="code" x="400" y="128" text-anchor="middle" font-size="10">200  {"serverInfo", "protocolVersion", "capabilities"}</text>
+
+  <!-- 2. notifications/initialized -->
+  <path class="req" d="M120 152 L680 152" marker-end="url(#arrow-req)"/>
+  <text class="code" x="400" y="144" text-anchor="middle" font-size="10">POST  {"method":"notifications/initialized"}  (无响应)</text>
+
+  <!-- 3. tools/list -->
+  <path class="req" d="M120 172 L680 172" marker-end="url(#arrow-req)"/>
+  <text class="code" x="400" y="164" text-anchor="middle" font-size="10">POST  {"method":"tools/list"}</text>
+
+  <path class="resp" d="M680 196 L120 196" marker-end="url(#arrow-resp)"/>
+  <text class="code" x="400" y="188" text-anchor="middle" font-size="10">200  {"tools": [24 工具...]}</text>
+
+  <!-- ========== Phase 2: 工具调用 ========== -->
+  <rect x="20" y="218" width="760" height="270" rx="8" fill="#FFFBF5" stroke="#E8D8B8" stroke-width="0.4"/>
+  <text class="phase" x="34" y="236">工具调用 (tools/call)</text>
+
+  <!-- 4. tools/call -->
+  <path class="req" d="M120 250 L680 250" marker-end="url(#arrow-req)"/>
+  <text class="code" x="400" y="242" text-anchor="middle" font-size="10">POST  {"method":"tools/call", "params":{"name":"search_kb","arguments":{...}}}</text>
+
+  <!-- Processing steps on server side -->
+  <rect x="590" y="258" width="180" height="22" rx="5" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.3"/>
+  <text class="ts" x="680" y="270" text-anchor="middle" dominant-baseline="central" font-size="9">① Token 鉴权 (可选, -32001)</text>
+
+  <rect x="590" y="284" width="180" height="22" rx="5" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.3"/>
+  <text class="ts" x="680" y="296" text-anchor="middle" dominant-baseline="central" font-size="9">② JSON-RPC 解析 (-32700/-32600)</text>
+
+  <rect x="590" y="310" width="180" height="22" rx="5" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.3"/>
+  <text class="ts" x="680" y="322" text-anchor="middle" dominant-baseline="central" font-size="9">③ 查 TOOL_REGISTRY (-32601)</text>
+
+  <rect x="590" y="336" width="180" height="22" rx="5" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.3"/>
+  <text class="ts" x="680" y="348" text-anchor="middle" dominant-baseline="central" font-size="9">④ JSON Schema 参数校验</text>
+
+  <rect x="590" y="362" width="180" height="22" rx="5" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.3"/>
+  <text class="ts" x="680" y="374" text-anchor="middle" dominant-baseline="central" font-size="9">⑤ handler(arguments) → service</text>
+
+  <rect x="590" y="388" width="180" height="22" rx="5" fill="#FAECE7" stroke="#993C1D" stroke-width="0.3"/>
+  <text class="ts" x="680" y="400" text-anchor="middle" dominant-baseline="central" font-size="9">⑥ service → FS / SQLite / OpenAI</text>
+
+  <!-- 内部数据流箭头 -->
+  <path d="M680 280 L680 284" stroke="#AAA" stroke-width="0.8" fill="none" marker-end="url(#arrow-resp)"/>
+  <path d="M680 306 L680 310" stroke="#AAA" stroke-width="0.8" fill="none" marker-end="url(#arrow-resp)"/>
+  <path d="M680 332 L680 336" stroke="#AAA" stroke-width="0.8" fill="none" marker-end="url(#arrow-resp)"/>
+  <path d="M680 358 L680 362" stroke="#AAA" stroke-width="0.8" fill="none" marker-end="url(#arrow-resp)"/>
+  <path d="M680 384 L680 388" stroke="#AAA" stroke-width="0.8" fill="none" marker-end="url(#arrow-resp)"/>
+
+  <!-- Success response -->
+  <rect x="590" y="416" width="180" height="22" rx="5" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="ts" x="680" y="428" text-anchor="middle" dominant-baseline="central" font-size="9">⑦ 成功 → db.session.commit()</text>
+
+  <path class="resp" d="M680 450 L120 450" marker-end="url(#arrow-resp)"/>
+  <text class="code" x="400" y="442" text-anchor="middle" font-size="10">200  {"content":[{"type":"text","text":"..."}]}</text>
+
+  <!-- Error path (alternative) -->
+  <rect x="590" y="460" width="180" height="22" rx="5" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.4"/>
+  <text class="ts" x="680" y="472" text-anchor="middle" dominant-baseline="central" font-size="9" fill="#991B1B">异常 → rollback + isError:true</text>
+
+  <!-- Error response arrow (shown as fork) -->
+  <path class="resp" d="M680 478 L680 484 L120 484" marker-end="url(#arrow-resp)" stroke="#DC2626"/>
+  <text class="errt" x="400" y="476" text-anchor="middle" font-size="10">200  {"isError":true, "content":[{"type":"text","text":"错误原因"}]}</text>
+
+  <!-- ========== Phase 3: 会话终止 ========== -->
+  <rect x="20" y="498" width="760" height="70" rx="8" fill="#F5F5F4" stroke="#E0DED8" stroke-width="0.4"/>
+  <text class="phase" x="34" y="516">会话终止</text>
+
+  <path class="req" d="M120 534 L680 534" marker-end="url(#arrow-req)"/>
+  <text class="code" x="400" y="526" text-anchor="middle" font-size="10">DELETE /mcp  (Mcp-Session-Id header)</text>
+
+  <rect x="590" y="542" width="180" height="20" rx="5" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.3"/>
+  <text class="ts" x="680" y="553" text-anchor="middle" dominant-baseline="central" font-size="9">清除 session → 内存 set.remove</text>
+
+  <!-- ========== 图例 ========== -->
+  <rect x="20" y="580" width="760" height="48" rx="8" fill="#F9F9F8" stroke="#E0DED8" stroke-width="0.4"/>
+  <line x1="36" y1="596" x2="66" y2="596" stroke="#888" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text class="ts" x="74" y="597" dominant-baseline="central" font-size="9">请求 (JSON-RPC)</text>
+  <line x1="160" y1="596" x2="190" y2="596" stroke="#555" stroke-width="1.8"/>
+  <text class="ts" x="198" y="597" dominant-baseline="central" font-size="9">响应</text>
+  <rect x="270" y="588" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="ts" x="290" y="596" dominant-baseline="central" font-size="9">成功</text>
+  <rect x="346" y="588" width="14" height="14" rx="3" fill="#FEE2E2" stroke="#DC2626" stroke-width="0.4"/>
+  <text class="ts" x="366" y="596" dominant-baseline="central" font-size="9">错误</text>
+  <rect x="416" y="588" width="14" height="14" rx="3" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="ts" x="436" y="596" dominant-baseline="central" font-size="9">内部处理</text>
+  <text class="errt" x="520" y="597" dominant-baseline="central" font-size="9">(-32001) = JSON-RPC 错误码</text>
+  <text class="ts" x="680" y="597" dominant-baseline="central" font-size="9">⚠ 工具错误不抛 RPC error，走 isError:true</text>
+
+</svg>

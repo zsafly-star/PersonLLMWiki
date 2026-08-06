@@ -29,11 +29,13 @@ def _get_pip_command(req_path):
 
 def _run_git(args, cwd):
     """执行 git 命令"""
+    import sys
     result = subprocess.run(
         ['git'] + args,
         cwd=cwd,
         capture_output=True,
         text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
         timeout=60,
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()
@@ -78,11 +80,13 @@ def _check_and_install_deps():
         return False, '依赖无变化'
 
     print('[SelfUpdate] 检测到 requirements.txt 变化，执行 pip install...')
+    import sys
     result = subprocess.run(
         _get_pip_command(req_path),
         capture_output=True,
         text=True,
         timeout=300,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
     )
 
     if result.returncode == 0:

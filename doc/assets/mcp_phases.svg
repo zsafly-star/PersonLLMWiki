@@ -1,0 +1,128 @@
+<svg viewBox="0 0 900 380" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>ZSSNote MCP 实现历程（6 Phase）</title>
+  <desc>从 Phase 1 最小闭环到 Phase 6 OfficeCLI 的完整实现路线，所有阶段均已交付。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t    { font: 400 12px sans-serif; fill: #222; }
+      .ts   { font: 400 10.5px sans-serif; fill: #666; }
+      .th   { font: 600 13px sans-serif; fill: #222; }
+      .tw   { font: 600 12px sans-serif; fill: #fff; }
+      .td   { font: 400 12px sans-serif; fill: #222; }
+      .done { font: 700 18px sans-serif; fill: #0F6E56; }
+      .arr  { stroke: #888; stroke-width: 1.5; fill: none; }
+    </style>
+  </defs>
+
+  <!-- ===== Phase 1 ===== -->
+  <rect x="14" y="20" width="130" height="110" rx="9" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text class="done" x="79" y="44" text-anchor="middle" dominant-baseline="central">P1</text>
+  <text class="ts" x="79" y="64" text-anchor="middle" dominant-baseline="central">最小闭环</text>
+  <line x1="30" y1="74" x2="128" y2="74" stroke="#0F6E56" stroke-width="0.3"/>
+  <text class="ts" x="79" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">list_folders</text>
+  <text class="ts" x="79" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">read_note</text>
+  <text class="ts" x="79" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">write_note</text>
+
+  <path class="arr" d="M144 75 L162 75" marker-end="url(#arrow)"/>
+
+  <!-- ===== Phase 2 ===== -->
+  <rect x="165" y="20" width="130" height="110" rx="9" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text class="done" x="230" y="44" text-anchor="middle" dominant-baseline="central">P2</text>
+  <text class="ts" x="230" y="64" text-anchor="middle" dominant-baseline="central">检索能力</text>
+  <line x1="181" y1="74" x2="279" y2="74" stroke="#185FA5" stroke-width="0.3"/>
+  <text class="ts" x="230" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">search_kb</text>
+  <text class="ts" x="230" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">list_wiki_pages</text>
+  <text class="ts" x="230" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">read_wiki_page</text>
+
+  <path class="arr" d="M295 75 L313 75" marker-end="url(#arrow)"/>
+
+  <!-- ===== Phase 3 ===== -->
+  <rect x="316" y="20" width="130" height="110" rx="9" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text class="done" x="381" y="44" text-anchor="middle" dominant-baseline="central">P3</text>
+  <text class="ts" x="381" y="64" text-anchor="middle" dominant-baseline="central">编译与审批</text>
+  <line x1="332" y1="74" x2="430" y2="74" stroke="#854F0B" stroke-width="0.3"/>
+  <text class="ts" x="381" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">compile_wiki</text>
+  <text class="ts" x="381" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">get_compile_status</text>
+  <text class="ts" x="381" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">approve / reject / list</text>
+
+  <path class="arr" d="M446 75 L464 75" marker-end="url(#arrow)"/>
+
+  <!-- ===== Phase 4 ===== -->
+  <rect x="467" y="20" width="130" height="110" rx="9" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text class="done" x="532" y="44" text-anchor="middle" dominant-baseline="central">P4</text>
+  <text class="ts" x="532" y="64" text-anchor="middle" dominant-baseline="central">图谱 + 外部MCP</text>
+  <line x1="483" y1="74" x2="581" y2="74" stroke="#534AB7" stroke-width="0.3"/>
+  <text class="ts" x="532" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">get_graph</text>
+  <text class="ts" x="532" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">MCPClientBus 总线</text>
+  <text class="ts" x="532" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">外部 MCP 服务器连接</text>
+
+  <path class="arr" d="M597 75 L615 75" marker-end="url(#arrow)"/>
+
+  <!-- ===== Phase 5 ===== -->
+  <rect x="618" y="20" width="130" height="110" rx="9" fill="#F1EFFB" stroke="#7C3AED" stroke-width="0.5"/>
+  <text class="done" x="683" y="44" text-anchor="middle" dominant-baseline="central">P5</text>
+  <text class="ts" x="683" y="64" text-anchor="middle" dominant-baseline="central">Agent 系统</text>
+  <line x1="634" y1="74" x2="732" y2="74" stroke="#7C3AED" stroke-width="0.3"/>
+  <text class="ts" x="683" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">Agent 循环 ≤10轮</text>
+  <text class="ts" x="683" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">SSE 流式对话</text>
+  <text class="ts" x="683" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">create_todo</text>
+
+  <path class="arr" d="M748 75 L766 75" marker-end="url(#arrow)"/>
+
+  <!-- ===== Phase 6 ===== -->
+  <rect x="769" y="20" width="115" height="110" rx="9" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text class="done" x="826" y="44" text-anchor="middle" dominant-baseline="central">P6</text>
+  <text class="ts" x="826" y="64" text-anchor="middle" dominant-baseline="central">OfficeCLI</text>
+  <line x1="783" y1="74" x2="870" y2="74" stroke="#185FA5" stroke-width="0.3"/>
+  <text class="ts" x="826" y="92" text-anchor="middle" dominant-baseline="central" font-size="9">9 文档工具</text>
+  <text class="ts" x="826" y="106" text-anchor="middle" dominant-baseline="central" font-size="9">内嵌二进制</text>
+  <text class="ts" x="826" y="120" text-anchor="middle" dominant-baseline="central" font-size="9">6 平台</text>
+
+  <!-- ===== 验收标准 ===== -->
+  <rect x="14" y="150" width="870" height="130" rx="12" fill="#F9F9F8" stroke="#E0DED8" stroke-width="0.5"/>
+  <text class="th" x="34" y="172" dominant-baseline="central">验收标准（全部通过 ✅）</text>
+
+  <rect x="30" y="188" width="12" height="12" rx="3" fill="#0F6E56"/>
+  <text class="ts" x="50" y="195" dominant-baseline="central" font-size="10">P1：MCP 客户端说"把这段会议纪要存到 /工作" → .md 文件出现在 resource/article/ 下</text>
+
+  <rect x="30" y="208" width="12" height="12" rx="3" fill="#0F6E56"/>
+  <text class="ts" x="50" y="215" dominant-baseline="central" font-size="10">P2：说"搜一下我关于向量检索的笔记" → 返回语义相关结果 + 来源路径</text>
+
+  <rect x="30" y="228" width="12" height="12" rx="3" fill="#0F6E56"/>
+  <text class="ts" x="50" y="235" dominant-baseline="central" font-size="10">P3：说"编译知识库" → 轮询进度 → 列候选页 → 审批 → 验证入库</text>
+
+  <rect x="30" y="248" width="12" height="12" rx="3" fill="#0F6E56"/>
+  <text class="ts" x="50" y="255" dominant-baseline="central" font-size="10">P4：MCPClientBus 连接外部 sap-mcp → Agent 可调用 sap-mcp__search_materials</text>
+
+  <rect x="30" y="268" width="12" height="12" rx="3" fill="#0F6E56"/>
+  <text class="ts" x="50" y="275" dominant-baseline="central" font-size="10">P5：在对话页输入 → Agent 自动 tool-calling → SSE 流式返回，全程无需手动开关</text>
+
+  <!-- ===== 图例 ===== -->
+  <rect x="14" y="298" width="870" height="72" rx="10" fill="#F5F5F4" stroke="#E0DED8" stroke-width="0.4"/>
+
+  <rect x="30" y="314" width="14" height="14" rx="4" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.4"/>
+  <text class="ts" x="52" y="322" dominant-baseline="central" font-size="10">基础闭环</text>
+
+  <rect x="130" y="314" width="14" height="14" rx="4" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="ts" x="152" y="322" dominant-baseline="central" font-size="10">检索/扩展</text>
+
+  <rect x="230" y="314" width="14" height="14" rx="4" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.4"/>
+  <text class="ts" x="252" y="322" dominant-baseline="central" font-size="10">写入/编译</text>
+
+  <rect x="330" y="314" width="14" height="14" rx="4" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.4"/>
+  <text class="ts" x="352" y="322" dominant-baseline="central" font-size="10">总线/图谱</text>
+
+  <rect x="430" y="314" width="14" height="14" rx="4" fill="#F1EFFB" stroke="#7C3AED" stroke-width="0.4"/>
+  <text class="ts" x="452" y="322" dominant-baseline="central" font-size="10">Agent</text>
+
+  <rect x="520" y="314" width="14" height="14" rx="4" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.4"/>
+  <text class="ts" x="542" y="322" dominant-baseline="central" font-size="10">Office</text>
+
+  <text class="ts" x="620" y="322" dominant-baseline="central" font-size="10">全部 Phase 已在 v2.0 完成，共 24 工具 + Agent 系统 + MCPClientBus + OfficeCLI</text>
+
+  <text class="t" x="30" y="352" dominant-baseline="central" font-size="11" fill="#0F6E56">🏁 ZSSNote 已升级为 AI 原生可驱动的个人知识管理系统</text>
+  <text class="ts" x="30" y="368" dominant-baseline="central" font-size="9">MCP Server 24 工具 + MCP Client 外部集成 + Agent 自动 tool-calling + Office 文档办公 — 全部就绪</text>
+
+</svg>

@@ -25,7 +25,40 @@ function abortStream() {
     window._streamState = null;
 }
 
+// Re-bind UI event listeners (called on every SPA navigation to chat page)
+function _bindChatUI() {
+    var el;
+
+    el = document.getElementById('chat-plus-dropdown');
+    if (el) { el.removeEventListener('click', _onPlusDropdownClick); el.addEventListener('click', _onPlusDropdownClick); }
+
+    el = document.getElementById('chat-mode-dropdown');
+    if (el) { el.removeEventListener('click', _onModeDropdownClick); el.addEventListener('click', _onModeDropdownClick); }
+
+    el = document.getElementById('chat-model-dropdown');
+    if (el) { el.removeEventListener('click', _onModelDropdownClick); el.addEventListener('click', _onModelDropdownClick); }
+
+    el = document.getElementById('chat-file-input');
+    if (el) { el.removeEventListener('change', _onFileInputChange); el.addEventListener('change', _onFileInputChange); }
+
+    el = document.getElementById('kb-browser');
+    if (el) { el.removeEventListener('click', _onKbBrowserClick); el.addEventListener('click', _onKbBrowserClick); }
+
+    el = document.getElementById('kb-browser-overlay');
+    if (el) { el.removeEventListener('click', _onKbOverlayClick); el.addEventListener('click', _onKbOverlayClick); }
+
+    // Panel resize (handle mousedown re-bound; document-level move/up bound once)
+    el = document.getElementById('panel-resize-handle');
+    if (el) { el.removeEventListener('mousedown', _onPanelResizeMouseDown); el.addEventListener('mousedown', _onPanelResizeMouseDown); }
+    if (!_panelResizeState._docBound) {
+        document.addEventListener('mousemove', _onPanelResizeMouseMove);
+        document.addEventListener('mouseup', _onPanelResizeMouseUp);
+        _panelResizeState._docBound = true;
+    }
+}
+
 function initChat() {
+    _bindChatUI();
     loadHistory();
     loadConfig();
     loadModels();
@@ -978,44 +1011,45 @@ function resetRightPanel() {
 }
 
 // ===== Panel Resize (Drag) =====
-(function() {
+var _panelResizeState = { isDragging: false, startX: 0, startWidth: 0 };
+
+function _onPanelResizeMouseDown(e) {
+    var panel = document.getElementById('chat-right-panel');
+    if (!panel || panel.classList.contains('collapsed')) return;
+    _panelResizeState.isDragging = true;
+    _panelResizeState.startX = e.clientX;
+    _panelResizeState.startWidth = panel.offsetWidth;
     var handle = document.getElementById('panel-resize-handle');
+    if (handle) handle.classList.add('active');
+    panel.style.transition = 'none';
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+}
+
+function _onPanelResizeMouseMove(e) {
+    if (!_panelResizeState.isDragging) return;
     var panel = document.getElementById('chat-right-panel');
     var chatMain = document.querySelector('.chat-main');
-    var isDragging = false;
-    var startX, startWidth;
+    if (!panel || !chatMain) return;
+    var dx = _panelResizeState.startX - e.clientX;
+    var newWidth = _panelResizeState.startWidth + dx;
+    var maxWidth = chatMain.offsetWidth * 0.6;
+    newWidth = Math.max(200, Math.min(newWidth, maxWidth));
+    panel.style.width = newWidth + 'px';
+    panel.style.minWidth = newWidth + 'px';
+}
 
-    handle.addEventListener('mousedown', function(e) {
-        if (panel.classList.contains('collapsed')) return;
-        isDragging = true;
-        startX = e.clientX;
-        startWidth = panel.offsetWidth;
-        handle.classList.add('active');
-        panel.style.transition = 'none';
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', function(e) {
-        if (!isDragging) return;
-        var dx = startX - e.clientX;
-        var newWidth = startWidth + dx;
-        var maxWidth = chatMain.offsetWidth * 0.6;
-        newWidth = Math.max(200, Math.min(newWidth, maxWidth));
-        panel.style.width = newWidth + 'px';
-        panel.style.minWidth = newWidth + 'px';
-    });
-
-    document.addEventListener('mouseup', function() {
-        if (!isDragging) return;
-        isDragging = false;
-        handle.classList.remove('active');
-        panel.style.transition = '';
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-    });
-})();
+function _onPanelResizeMouseUp() {
+    if (!_panelResizeState.isDragging) return;
+    _panelResizeState.isDragging = false;
+    var handle = document.getElementById('panel-resize-handle');
+    var panel = document.getElementById('chat-right-panel');
+    if (handle) handle.classList.remove('active');
+    if (panel) panel.style.transition = '';
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+}
 
 function _renderPreview(res, opts) {
     /** 共享预览渲染：展开面板 + 设置标题 + 按 type 渲染内容 + 控制下载按钮。 */
@@ -1523,7 +1557,7 @@ function closeAddMenu() {
 }
 
 // Event delegation for dropdown items
-document.getElementById('chat-plus-dropdown').addEventListener('click', function(e) {
+function _onPlusDropdownClick(e) {
     var item = e.target.closest('[data-action]');
     if (!item) return;
     var action = item.getAttribute('data-action');
@@ -1537,7 +1571,7 @@ document.getElementById('chat-plus-dropdown').addEventListener('click', function
         }
         e.stopPropagation();
     }
-});
+}
 
 // ===== Mode Selector =====
 function toggleModeMenu(e) {
@@ -1551,7 +1585,7 @@ function closeModeMenu() {
     dd.classList.remove('open');
 }
 
-document.getElementById('chat-mode-dropdown').addEventListener('click', function(e) {
+function _onModeDropdownClick(e) {
     var item = e.target.closest('[data-action]');
     if (!item) return;
     if (item.getAttribute('data-action') === 'set-mode') {
@@ -1560,7 +1594,7 @@ document.getElementById('chat-mode-dropdown').addEventListener('click', function
         closeModeMenu();
         e.stopPropagation();
     }
-});
+}
 
 function setChatMode(mode) {
     _chatMode = mode;
@@ -1621,7 +1655,7 @@ function loadModels() {
     });
 }
 
-document.getElementById('chat-model-dropdown').addEventListener('click', function(e) {
+function _onModelDropdownClick(e) {
     var item = e.target.closest('[data-action]');
     if (!item) return;
     if (item.getAttribute('data-action') === 'set-model') {
@@ -1651,11 +1685,11 @@ document.getElementById('chat-model-dropdown').addEventListener('click', functio
         });
         e.stopPropagation();
     }
-});
+}
 // ===== End Mode Selector =====
 
 // File input change handler — upload with progress cards
-document.getElementById('chat-file-input').addEventListener('change', function() {
+function _onFileInputChange() {
     var files = this.files;
     if (!files || files.length === 0) return;
     for (var i = 0; i < files.length; i++) {
@@ -1671,7 +1705,7 @@ document.getElementById('chat-file-input').addEventListener('change', function()
         })(files[i]);
     }
     this.value = '';
-});
+}
 
 function updateFileStatus(id, status, progress) {
     var found = _uploadedFiles.filter(function(f) { return f.id === id; })[0];
@@ -1875,13 +1909,13 @@ function escapeJs(str) {
 }
 
 // Prevent clicks inside KB browser from bubbling to document (which would close it)
-document.getElementById('kb-browser').addEventListener('click', function(e) {
+function _onKbBrowserClick(e) {
     e.stopPropagation();
-});
-document.getElementById('kb-browser-overlay').addEventListener('click', function(e) {
+}
+function _onKbOverlayClick(e) {
     e.stopPropagation();
     closeKbBrowser();
-});
+}
 // ===== End KB File Browser =====
 
 // Close dropdown, KB browser, and mode menu on outside click

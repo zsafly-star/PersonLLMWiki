@@ -283,10 +283,17 @@ def save_path():
     # 转为绝对路径
     path = os.path.abspath(path)
 
-    # 写入 .env
-    env_path = os.path.join(_get_project_root(), '.env')
-    if not os.path.isfile(env_path):
-        env_path = os.path.join(_get_app_dir(), '.env')
+    # 确定 .env 文件位置
+    # 打包模式：写到 %APPDATA%\PersonLLMWiki\.env
+    import sys as _sys
+    if getattr(_sys, 'frozen', False):
+        env_path = os.path.join(
+            os.getenv('APPDATA', ''), 'PersonLLMWiki', '.env')
+        os.makedirs(os.path.dirname(env_path), exist_ok=True)
+    else:
+        env_path = os.path.join(_get_project_root(), '.env')
+        if not os.path.isfile(env_path):
+            env_path = os.path.join(_get_app_dir(), '.env')
 
     lines = []
     found = False
