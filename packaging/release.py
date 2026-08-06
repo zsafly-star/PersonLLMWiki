@@ -23,7 +23,7 @@ GITLAB_PROJECT = "AiTeam/personllmwiki"
 
 def _api_request(method, path, token, data=None, files=None):
     """GitLab API 请求"""
-    url = f"https://{GITLAB_HOST}/api/v4{path}"
+    url = f"http://{GITLAB_HOST}/api/v4{path}"
     body = None
     boundary = None
 
@@ -112,7 +112,7 @@ def publish_release(version, installer_path):
         print("[release] 文件上传失败")
         return False
 
-    full_url = f"https://{GITLAB_HOST}{upload['url']}"
+    full_url = f"http://{GITLAB_HOST}{upload['url']}"
     print(f"[release] 上传成功: {full_url}")
 
     # 4. 关联文件到 Release
@@ -127,7 +127,7 @@ def publish_release(version, installer_path):
     else:
         print("[release] 关联失败（可能已存在）")
 
-    release_page = f"https://{GITLAB_HOST}/{GITLAB_PROJECT}/-/releases/{tag}"
+    release_page = f"http://{GITLAB_HOST}/{GITLAB_PROJECT}/-/releases/{tag}"
     print(f"\n[release] 完成！Release 页面: {release_page}")
     return True
 
