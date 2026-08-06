@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="tp-page">
+    <!-- Header -->
+    <header class="tp-header">
+        <div>
+            <h1 class="tp-title">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                计划看板
+            </h1>
+            <p class="tp-subtitle" id="plan-summary">加载中</p>
+        </div>
+    </header>
+
+    <!-- Add bar -->
+    <div class="tp-add-bar">
+        <input type="text" id="plan-input" placeholder="新建任务，回车添加…" class="tp-input"
+               onkeydown="if(event.key==='Enter')addPlan()" />
+        <button class="tp-add-btn" onclick="addPlan()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            添加任务
+        </button>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kb-board" id="plan-board">
+        <!-- Todo Column -->
+        <div class="kb-column" data-status="todo">
+            <div class="kb-col-head">
+                <span class="kb-col-dot kb-dot-todo"></span>
+                <span class="kb-col-name">待办</span>
+                <span class="kb-col-count" id="count-todo">0</span>
+            </div>
+            <div class="kb-col-body" id="col-todo"></div>
+        </div>
+
+        <!-- Doing Column -->
+        <div class="kb-column" data-status="doing">
+            <div class="kb-col-head">
+                <span class="kb-col-dot kb-dot-doing"></span>
+                <span class="kb-col-name">进行中</span>
+                <span class="kb-col-count" id="count-doing">0</span>
+            </div>
+            <div class="kb-col-body" id="col-doing"></div>
+        </div>
+
+        <!-- Done Column -->
+        <div class="kb-column" data-status="done">
+            <div class="kb-col-head">
+                <span class="kb-col-dot kb-dot-done"></span>
+                <span class="kb-col-name">已完成</span>
+                <span class="kb-col-count" id="count-done">0</span>
+            </div>
+            <div class="kb-col-body" id="col-done"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+onPageReady(function() { loadPlans(); });
+
+function loadPlans() {
+    fetch('/api/plans')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code === 200) renderPlans(result.data || []);
+        });
+}
+
+function renderPlans(items) {
+    var cols = { todo: [], doing: [], done: [] };
+    items.forEach(function(i) { if (cols[i.status]) cols[i.status].push(i); });
+
+    ['todo', 'doing', 'done'].forEach(function(status) {
+        var body = document.getElementById('col-' + status);
+        document.getElementById('count-' + status).textContent = cols[status].length;
+
+        if (cols[status].length === 0) {
+            body.innerHTML = '<div class="kb-col-empty">拖动卡片到这里</div>';
+            return;
+        }
+
+        body.innerHTML = cols[status].map(function(item) {
+            return '<div class="kb-card" data-id="' + item.id + '" draggable="true" '
+                 + 'ondragstart="event.dataTransfer.setData(\'text/plain\',' + item.id + ')">'
+                 + '<div class="kb-card-text">' + escHtml(item.title) + '</div>'
+                 + (item.description ? '<div class="kb-card-desc">' + escHtml(item.description) + '</div>' : '')
+                 + '<div class="kb-card-footer">'
+                 + renderMoveButtons(item.id, item.status)
+                 + '<button class="kb-card-del" onclick="deletePlan(' + item.id + ')" aria-label="删除">'
+                 + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+                 + '</button>'
+                 + '</div>'
+                 + '</div>';
+        }).join('');
+
+        // Enable drop
+        body.ondragover = function(e) { e.preventDefault(); this.classList.add('kb-drop-active'); };
+        body.ondragleave = function() { this.classList.remove('kb-drop-active'); };
+        body.ondrop = function(e) {
+            e.preventDefault();
+            this.classList.remove('kb-drop-active');
+            var id = e.dataTransfer.getData('text/plain');
+            if (id) movePlan(parseInt(id), status);
+        };
+    });
+
+    document.getElementById('plan-summary').textContent = items.length + ' 个任务';
+}
+
+function renderMoveButtons(id, status) {
+    var btns = '';
+    if (status !== 'todo') btns += '<button class="kb-move-btn" onclick="movePlan(' + id + ',\'todo\')">← 待办</button>';
+    if (status !== 'doing') btns += '<button class="kb-move-btn" onclick="movePlan(' + id + ',\'doing\')">进行中</button>';
+    if (status !== 'done') btns += '<button class="kb-move-btn" onclick="movePlan(' + id + ',\'done\')">完成 →</button>';
+    return btns;
+}
+
+function addPlan() {
+    var input = document.getElementById('plan-input');
+    var title = input.value.trim();
+    if (!title) return;
+    fetch('/api/plans', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title: title })
+    }).then(function(r) { return r.json(); }).then(function(res) {
+        if (res.code === 200) { input.value = ''; loadPlans(); }
+    });
+}
+
+function movePlan(id, status) {
+    fetch('/api/plans/' + id, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ status: status })
+    }).then(function() { loadPlans(); });
+}
+
+function deletePlan(id) {
+    fetch('/api/plans/' + id, { method: 'DELETE' }).then(function() { loadPlans(); });
+}
+
+function escHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+</script>
+{% endblock %}

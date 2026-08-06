@@ -62,7 +62,7 @@ function Start-Server {
     Write-Host "[ZSSNote] http://127.0.0.1:$Port" -ForegroundColor Green
     Write-Host "[ZSSNote] Press Ctrl+C to stop" -ForegroundColor DarkGray
     Write-Host ""
-    & $CondaPython app.py
+    & $CondaPython src/app.py
 }
 
 switch ($Action.ToLower()) {

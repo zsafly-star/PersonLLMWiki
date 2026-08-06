@@ -15,8 +15,10 @@ import subprocess
 import sys
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.dirname(THIS_DIR)
+PROJECT_DIR = os.path.dirname(THIS_DIR)
+SRC_DIR = os.path.join(PROJECT_DIR, 'src')
 PACKAGING_DIR = THIS_DIR
+RELEASE_DIR = os.path.join(PROJECT_DIR, 'release')
 
 
 def run_pyinstaller():
@@ -27,7 +29,7 @@ def run_pyinstaller():
         sys.executable, "-m", "PyInstaller",
         spec,
         "--noconfirm",
-        "--distpath", os.path.join(PACKAGING_DIR, "dist"),
+        "--distpath", os.path.join(RELEASE_DIR, "dist"),
         "--workpath", os.path.join(PACKAGING_DIR, "build"),
     ]
     print(f"[build] 运行: {' '.join(cmd)}")
@@ -36,7 +38,7 @@ def run_pyinstaller():
         print("[build] PyInstaller 失败！")
         sys.exit(1)
 
-    exe_path = os.path.join(PACKAGING_DIR, "dist", "PersonLLMWiki", "PersonLLMWiki.exe")
+    exe_path = os.path.join(RELEASE_DIR, "dist", "PersonLLMWiki", "PersonLLMWiki.exe")
     if not os.path.isfile(exe_path):
         print(f"[build] 未找到产出 EXE: {exe_path}")
         sys.exit(1)
@@ -70,7 +72,7 @@ def run_inno_setup(version):
         sys.exit(1)
 
     iss = os.path.join(PACKAGING_DIR, "installer.iss")
-    output_dir = os.path.join(PACKAGING_DIR, "installer_output")
+    output_dir = os.path.join(RELEASE_DIR, "installer")
     os.makedirs(output_dir, exist_ok=True)
 
     cmd = [iscc, f"/DAppVersion={version}", iss]

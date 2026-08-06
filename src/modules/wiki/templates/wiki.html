@@ -1,0 +1,1085 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════ -->
+<!--  Swiss-Style Minimalism — Wiki 知识库       -->
+<!-- ═══════════════════════════════════════════ -->
+
+<style>
+/* ── Font & Variables ── */
+:root {
+  --wk-ink: #1E293B;
+  --wk-stone: #475569;
+  --wk-soft: #64748B;
+  --wk-line: #E2E8F0;
+  --wk-snow: #F8FAFC;
+  --wk-white: #FFFFFF;
+  --wk-blue: #2563EB;
+  --wk-green: #059669;
+  --wk-amber: #D97706;
+  --wk-red: #DC2626;
+  --wk-radius: 10px;
+  --wk-xxs: 4px; --wk-xs: 8px; --wk-sm: 12px; --wk-md: 16px; --wk-lg: 24px; --wk-xl: 32px; --wk-2xl: 48px;
+}
+
+/* ── Page Shell ── */
+.wk-shell {
+  width: 100%; max-width: 1160px; margin: 0 auto;
+  padding: var(--wk-xl) var(--wk-xl) 0;
+  height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: var(--wk-ink);
+}
+
+/* ── Body (scrollable content) ── */
+.wk-body {
+  flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 64px;
+}
+.wk-body--noscroll { overflow: hidden; }
+
+/* ── Content area ── */
+#wk-content { min-height: 0; }
+.wk-body--noscroll #wk-content { display: flex; flex-direction: column; height: 100%; }
+
+/* ── Compile Toolbar (in sources tab) ── */
+.wk-sources-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--wk-line);
+  margin-bottom: var(--wk-md);
+}
+.wk-sources-toolbar__info {
+  font-size: 13px; font-weight: 500; color: var(--wk-stone);
+}
+.wk-sources-toolbar__info strong {
+  color: var(--wk-ink); font-weight: 600;
+}
+.wk-sources-toolbar__actions {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Top Bar ── */
+.wk-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--wk-xl); flex-wrap: wrap; gap: var(--wk-sm);
+}
+.wk-bar h1 {
+  margin: 0; font-size: 24px; font-weight: 700;
+  letter-spacing: -0.02em; color: var(--wk-ink);
+}
+.wk-bar-right { display: flex; align-items: center; gap: var(--wk-xs); }
+.wk-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 15px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--wk-line); background: var(--wk-white);
+  color: var(--wk-stone); font-family: inherit;
+  transition: all 150ms ease;
+}
+.wk-btn:hover { border-color: var(--wk-stone); color: var(--wk-ink); }
+.wk-btn:active { transform: scale(0.98); }
+.wk-btn--fill {
+  background: var(--wk-ink); color: var(--wk-white); border-color: var(--wk-ink);
+}
+.wk-btn--fill:hover { background: var(--wk-stone); border-color: var(--wk-stone); color: var(--wk-white); }
+.wk-compile-dot { display: none; align-items: center; gap: 5px; font-size: 12px; color: var(--wk-soft); }
+
+/* ── Stats Row ── */
+.wk-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--wk-sm);
+  margin-bottom: var(--wk-lg);
+}
+.wk-stat {
+  background: var(--wk-white); border: 1px solid var(--wk-line); border-radius: var(--wk-radius);
+  padding: var(--wk-md) 18px; cursor: pointer; transition: all 150ms ease;
+}
+.wk-stat:hover { border-color: var(--wk-stone); box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+.wk-stat__num { font-size: 26px; font-weight: 700; color: var(--wk-ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.wk-stat__label { font-size: 11px; color: var(--wk-soft); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Toolbar ── */
+.wk-toolbar {
+  display: flex; align-items: center; gap: var(--wk-sm); margin-bottom: var(--wk-lg); flex-wrap: wrap;
+}
+.wk-tabs { display: flex; gap: 2px; }
+.wk-tab {
+  padding: 6px 16px; border-radius: 7px; font-size: 13px; font-weight: 600;
+  color: var(--wk-soft); cursor: pointer; border: none; background: none;
+  transition: all 150ms; font-family: inherit;
+}
+.wk-tab:hover { color: var(--wk-stone); background: rgba(71,85,105,0.06); }
+.wk-tab--on { color: var(--wk-ink); background: rgba(71,85,105,0.08); }
+
+.wk-search {
+  flex: 1; min-width: 180px; max-width: 340px; position: relative;
+}
+.wk-search__icon {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--wk-soft); pointer-events: none;
+}
+.wk-search__input {
+  width: 100%; padding: 8px 14px 8px 36px;
+  border: 1px solid var(--wk-line); border-radius: 8px;
+  font-size: 13px; background: var(--wk-white); color: var(--wk-ink);
+  outline: none; font-family: inherit; box-sizing: border-box;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.wk-search__input:focus { border-color: var(--wk-stone); box-shadow: 0 0 0 3px rgba(71,85,105,0.1); }
+.wk-search__input::placeholder { color: var(--wk-soft); opacity: 0.6; }
+
+.wk-count { font-size: 12px; color: var(--wk-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── Category Group ── */
+.wk-group { margin-bottom: var(--wk-xl); }
+.wk-group__head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: var(--wk-sm); padding-bottom: var(--wk-xs);
+  border-bottom: 1px solid var(--wk-line);
+}
+.wk-group__name {
+  font-size: 11px; font-weight: 700; color: var(--wk-soft);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.wk-group__count { font-size: 11px; color: var(--wk-soft); font-weight: 500; }
+.wk-group__grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--wk-sm);
+}
+
+/* ── Card ── */
+.wk-card {
+  background: var(--wk-white); border: 1px solid var(--wk-line); border-radius: var(--wk-radius);
+  padding: var(--wk-md) 18px; cursor: pointer; transition: all 150ms ease;
+  display: flex; flex-direction: column; gap: 8px; position: relative;
+}
+.wk-card:hover { border-color: var(--wk-stone); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+.wk-card:active { transform: scale(0.99); }
+.wk-card__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.wk-card__title {
+  font-size: 14px; font-weight: 600; color: var(--wk-ink);
+  line-height: 1.35; word-break: break-word; letter-spacing: -0.01em;
+}
+.wk-card__tag {
+  display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 100px;
+  font-weight: 600; white-space: nowrap; letter-spacing: 0.03em;
+}
+.wk-tag--kind { background: rgba(37,99,235,0.06); color: var(--wk-blue); }
+.wk-tag--common { background: rgba(99,102,241,0.06); color: #6366F1; }
+.wk-tag--local { background: rgba(71,85,105,0.06); color: var(--wk-stone); }
+.wk-tag--pending { background: rgba(217,119,6,0.08); color: var(--wk-amber); }
+.wk-tag--ok { background: rgba(5,150,105,0.06); color: var(--wk-green); }
+.wk-tag--wait { background: rgba(217,119,6,0.08); color: var(--wk-amber); }
+
+.wk-card__desc {
+  font-size: 12px; color: var(--wk-soft); line-height: 1.55;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.wk-card__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--wk-soft); margin-top: auto; padding-top: 2px;
+}
+.wk-card__conf { font-weight: 600; color: var(--wk-stone); }
+.wk-card__actions { display: flex; gap: 6px; margin-top: 2px; }
+.wk-card__actions button {
+  font-size: 11px; padding: 3px 10px; border-radius: 5px; cursor: pointer;
+  border: none; font-weight: 600; font-family: inherit; transition: opacity 120ms;
+}
+.wk-card__actions button:hover { opacity: 0.85; }
+.wk-card__actions button:active { opacity: 0.7; }
+.wk-act--approve { background: var(--wk-green); color: #fff; }
+.wk-act--reject { background: var(--wk-red); color: #fff; }
+
+/* ── Empty / Loading ── */
+.wk-empty {
+  text-align: center; padding: var(--wk-2xl) 20px; color: var(--wk-soft);
+  font-size: 14px; grid-column: 1 / -1;
+}
+.wk-empty div:first-child { font-size: 36px; margin-bottom: var(--wk-sm); opacity: 0.25; }
+.wk-loading { text-align: center; padding: var(--wk-2xl); color: var(--wk-soft); grid-column: 1 / -1; }
+
+/* ── Overlay ── */
+.wk-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,0.35);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 1000; display: flex; justify-content: flex-end;
+  animation: wk-fade 180ms ease;
+}
+.wk-overlay.is-hidden { display: none; }
+@keyframes wk-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Drawer ── */
+.wk-drawer {
+  width: 640px; max-width: 92vw; height: 100%;
+  background: var(--wk-white); overflow-y: auto;
+  animation: wk-slide 300ms cubic-bezier(0.16, 0.36, 0.22, 1);
+}
+@keyframes wk-slide { from { transform: translateX(48px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.wk-drawer__close {
+  position: sticky; top: var(--wk-sm); float: right; z-index: 10; margin-right: var(--wk-sm);
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px; border: none;
+  background: var(--wk-snow); color: var(--wk-soft); cursor: pointer; transition: all 120ms;
+}
+.wk-drawer__close:hover { background: var(--wk-line); color: var(--wk-ink); }
+.wk-drawer__body { padding: 28px 36px 64px; }
+
+.wk-breadcrumb { font-size: 12px; color: var(--wk-soft); margin-bottom: 20px; }
+.wk-breadcrumb a { color: var(--wk-soft); cursor: pointer; text-decoration: none; }
+.wk-breadcrumb a:hover { color: var(--wk-ink); }
+.wk-breadcrumb span { margin: 0 6px; color: var(--wk-line); }
+
+.wk-drawer h1 {
+  font-size: 28px; font-weight: 700; margin: 0 0 12px;
+  color: var(--wk-ink); line-height: 1.25; letter-spacing: -0.02em;
+}
+.wk-drawer__tags { display: flex; gap: 6px; margin-bottom: 12px; }
+.wk-drawer__meta {
+  display: flex; align-items: center; gap: var(--wk-md); flex-wrap: wrap;
+  font-size: 12px; color: var(--wk-soft); margin-bottom: 16px;
+}
+.wk-drawer__meta svg { flex-shrink: 0; }
+.wk-drawer__summary {
+  font-size: 14px; color: var(--wk-stone); line-height: 1.7;
+  padding: 14px 18px; background: var(--wk-snow); border-radius: var(--wk-radius);
+  border-left: 3px solid var(--wk-stone); margin-bottom: var(--wk-lg);
+}
+.wk-drawer__content {
+  font-size: 15px; line-height: 1.85; color: var(--wk-ink);
+}
+.wk-drawer__content h2 { font-size: 19px; font-weight: 600; margin: 32px 0 14px; color: var(--wk-ink); }
+.wk-drawer__content h3 { font-size: 16px; font-weight: 600; margin: 24px 0 10px; color: var(--wk-stone); }
+.wk-drawer__content strong { font-weight: 600; }
+.wk-drawer__content code {
+  background: var(--wk-snow); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--wk-stone);
+}
+
+/* ── Review Banner ── */
+.wk-banner {
+  background: #FFFBEB; border: 1px solid #FCD34D; border-radius: var(--wk-radius);
+  padding: 10px 16px; margin-bottom: var(--wk-md);
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; color: #92400E;
+}
+.wk-banner__btns { display: flex; gap: 6px; }
+
+/* ── Related ── */
+.wk-related { margin-top: var(--wk-xl); padding-top: var(--wk-lg); border-top: 1px solid var(--wk-line); }
+.wk-related__title { font-size: 15px; font-weight: 600; color: var(--wk-ink); margin: 0 0 var(--wk-sm); }
+.wk-related__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--wk-xs); }
+.wk-related-card {
+  background: var(--wk-snow); border: 1px solid var(--wk-line); border-radius: 8px;
+  padding: 10px 14px; cursor: pointer; transition: all 150ms;
+}
+.wk-related-card:hover { border-color: var(--wk-stone); }
+.wk-related-card__name { font-size: 13px; font-weight: 600; color: var(--wk-ink); }
+.wk-related-card__desc { font-size: 11px; color: var(--wk-soft); line-height: 1.4; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.wk-sources { margin-top: var(--wk-md); font-size: 12px; color: var(--wk-soft); }
+.wk-sources strong { color: var(--wk-stone); }
+.wk-drawer__actions { margin-top: var(--wk-lg); padding-top: var(--wk-md); border-top: 1px solid var(--wk-line); display: flex; gap: var(--wk-xs); }
+.wk-provenance { color: var(--wk-soft); font-size: 12px; font-style: italic; background: var(--wk-snow); padding: 1px 4px; border-radius: 3px; }
+
+/* ── Compile Modal ── */
+.compile-pros-cons { display: flex; gap: 20px; margin-top: 16px; }
+.compile-pros-cons .pros, .compile-pros-cons .cons { flex: 1; }
+.compile-pros-cons ul { padding-left: 20px; margin: 8px 0 0 0; }
+.compile-pros-cons li { font-size: 13px; line-height: 1.6; margin-bottom: 4px; }
+.pros li { color: var(--wk-green); }
+.cons li { color: var(--wk-red); }
+.compile-info h4 { margin-bottom: 8px; color: var(--wk-ink); }
+.compile-info p { font-size: 14px; line-height: 1.5; color: var(--wk-stone); }
+
+@media (max-width: 768px) {
+  .wk-shell { padding: var(--wk-md) var(--wk-md) 48px; }
+  .wk-stats { grid-template-columns: repeat(2, 1fr); }
+  .wk-group__grid { grid-template-columns: 1fr; }
+  .wk-drawer { width: 100vw; max-width: 100vw; }
+  .wk-drawer__body { padding: 20px 20px 48px; }
+}
+
+/* ── Graph View ── */
+.wk-graph-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.wk-graph-bar { display: flex; align-items: center; gap: var(--wk-xs); margin-bottom: var(--wk-sm); }
+.wk-graph-bar .wk-btn { font-size: 12px; padding: 5px 12px; }
+
+.wk-graph-container {
+  position: relative; flex: 1; min-height: 300px;
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius);
+  background: var(--wk-snow); overflow: hidden;
+}
+
+.graph-canvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+}
+
+.wk-graph-tooltip {
+  position: absolute; display: none; pointer-events: none;
+  background: var(--wk-ink); color: #fff; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; line-height: 1.5; z-index: 10;
+  max-width: 220px; white-space: nowrap;
+}
+.wk-graph-tooltip__title { font-weight: 600; }
+.wk-graph-tooltip__desc { opacity: 0.7; font-size: 11px; }
+
+.wk-graph-legend {
+  position: absolute; bottom: var(--wk-sm); right: var(--wk-sm);
+  background: var(--wk-white); border: 1px solid var(--wk-line);
+  border-radius: 8px; padding: 10px 14px; font-size: 11px;
+  display: flex; flex-wrap: wrap; gap: 10px; z-index: 5;
+}
+.wk-graph-legend-item { display: flex; align-items: center; gap: 5px; }
+.wk-graph-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.wk-graph-legend-dot.lg-concept { background: var(--wk-blue); }
+.wk-graph-legend-dot.lg-query { background: var(--wk-amber); }
+.wk-graph-legend-dot.lg-entity { background: #6366F1; }
+.wk-graph-legend-dot.lg-overview { background: #EC4899; }
+.wk-graph-legend-dot.lg-common { background: none; border: 2px dashed #6366F1; }
+.wk-graph-stats { width: 100%; color: var(--wk-soft); border-top: 1px solid var(--wk-line); padding-top: 6px; margin-top: 2px; }
+
+.wk-graph-loading, .wk-graph-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--wk-soft); font-size: 13px; background: var(--wk-snow);
+}
+.wk-graph-loading svg { animation: emoji-spin 1s linear infinite; }
+</style>
+
+<div class="wk-shell" id="wk-shell">
+  <!-- ── Top Bar ── -->
+  <div class="wk-bar">
+    <h1>知识库</h1>
+    <div class="wk-bar-right">
+      <span class="wk-compile-dot" id="wk-compile-dot">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:emoji-spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 编译中
+      </span>
+      <span class="wk-compile-state" id="wk-compile-state"></span>
+    </div>
+  </div>
+
+  <!-- ── Stats ── -->
+  <div class="wk-stats" id="wk-stats">
+    <div class="wk-stat" data-tab="concepts" onclick="switchTab('concepts')">
+      <div class="wk-stat__num" id="wk-s-concept">—</div>
+      <div class="wk-stat__label">概念</div>
+    </div>
+    <div class="wk-stat" data-tab="sources" onclick="switchTab('sources')">
+      <div class="wk-stat__num" id="wk-s-source">—</div>
+      <div class="wk-stat__label">源文件</div>
+    </div>
+    <div class="wk-stat" data-tab="candidates" onclick="switchTab('candidates')">
+      <div class="wk-stat__num" id="wk-s-candidate">—</div>
+      <div class="wk-stat__label">待审批</div>
+    </div>
+  </div>
+
+  <!-- ── Toolbar ── -->
+  <div class="wk-toolbar">
+    <div class="wk-tabs" id="wk-tabs">
+      <button class="wk-tab wk-tab--on" data-tab="concepts" onclick="switchTab('concepts')">概念</button>
+      <button class="wk-tab" data-tab="sources" onclick="switchTab('sources')">源文件</button>
+      <button class="wk-tab" data-tab="candidates" onclick="switchTab('candidates')">待审批</button>
+      <button class="wk-tab" data-tab="graph" onclick="switchTab('graph')">星链</button>
+    </div>
+    <div class="wk-search">
+      <svg class="wk-search__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input class="wk-search__input" type="text" id="wk-search-input" placeholder="搜索概念、文件..." oninput="filterCards()" autocomplete="off">
+    </div>
+    <span class="wk-count" id="wk-count">—</span>
+  </div>
+
+  <div class="wk-body" id="wk-body">
+    <div id="wk-content"><div class="wk-loading">加载中...</div></div>
+  </div>
+</div>
+
+<!-- ═══ Drawer ═══ -->
+<div class="wk-overlay is-hidden" id="wk-overlay" onclick="if(event.target===this)closeDrawer()">
+  <div class="wk-drawer" id="wk-drawer">
+    <button class="wk-drawer__close" onclick="closeDrawer()" aria-label="关闭">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+    <div class="wk-drawer__body" id="wk-drawer-body"></div>
+  </div>
+</div>
+
+<!-- ═══ Compile Confirm Modal ═══ -->
+<div id="compile-modal" class="modal" style="display:none;">
+  <div class="modal-content" style="width:520px;max-width:90vw;">
+    <div class="modal-header">
+      <h3 id="compile-title">确认操作</h3>
+      <button class="btn-close" onclick="closeCompile()" title="关闭">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="compile-info">
+        <h4>操作说明</h4>
+        <p id="compile-desc"></p>
+      </div>
+      <div class="compile-pros-cons">
+        <div class="pros">
+          <h5>优点</h5>
+          <ul id="compile-pros"></ul>
+        </div>
+        <div class="cons">
+          <h5>注意</h5>
+          <ul id="compile-cons"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCompile()">取消</button>
+      <button class="btn btn-primary" onclick="confirmCompile()" id="compile-confirm-btn">确认执行</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _currentTab = 'concepts';
+var _pageCache = {};
+var _candidates = [];
+var _graphState = { data: null, simulation: null, zoomBehavior: null, resizeTimer: null };
+
+onPageReady(function() {
+  switchTab('concepts');
+  pollCompileStatus();
+});
+
+/* ═══ Tab ═══ */
+var _graphLoaded = false;
+
+var _graphViewHtml = '<div class="wk-graph-view">' +
+  '<div class="wk-graph-bar">' +
+    '<button class="wk-btn" onclick="resetGraphZoom()" title="重置视图">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>' +
+    '</button>' +
+    '<button class="wk-btn" onclick="refreshGraph()" title="刷新数据">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>' +
+    '</button>' +
+  '</div>' +
+  '<div class="wk-graph-container" id="wk-graph-container">' +
+    '<div class="wk-graph-loading" id="wk-graph-loading">' +
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>' +
+      '<span>加载中...</span>' +
+    '</div>' +
+    '<div class="wk-graph-empty" id="wk-graph-empty" style="display:none;">' +
+      '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>' +
+      '<span>暂无数据，请先编译 Wiki</span>' +
+    '</div>' +
+    '<svg class="graph-canvas" id="wk-graph-svg" width="100%" height="100%"></svg>' +
+    '<div class="wk-graph-tooltip" id="wk-graph-tooltip">' +
+      '<div class="wk-graph-tooltip__title" id="wk-tooltip-title"></div>' +
+      '<div class="wk-graph-tooltip__desc" id="wk-tooltip-desc"></div>' +
+    '</div>' +
+    '<div class="wk-graph-legend" id="wk-graph-legend" style="display:none;">' +
+      '<div class="wk-graph-legend-item"><div class="wk-graph-legend-dot lg-concept"></div><span>概念</span></div>' +
+      '<div class="wk-graph-legend-item"><div class="wk-graph-legend-dot lg-query"></div><span>查询</span></div>' +
+      '<div class="wk-graph-legend-item"><div class="wk-graph-legend-dot lg-entity"></div><span>实体</span></div>' +
+      '<div class="wk-graph-legend-item"><div class="wk-graph-legend-dot lg-overview"></div><span>概述</span></div>' +
+      '<div class="wk-graph-legend-item"><div class="wk-graph-legend-dot lg-common"></div><span>公共库</span></div>' +
+      '<div class="wk-graph-stats" id="wk-graph-stats"></div>' +
+    '</div>' +
+  '</div>' +
+'</div>';
+
+function switchTab(tab) {
+  _currentTab = tab;
+  document.querySelectorAll('#wk-tabs .wk-tab').forEach(function(t) { t.classList.remove('wk-tab--on'); });
+  var a = document.querySelector('#wk-tabs .wk-tab[data-tab="' + tab + '"]');
+  if (a) a.classList.add('wk-tab--on');
+  document.getElementById('wk-search-input').value = '';
+
+  if (tab === 'graph') {
+    document.getElementById('wk-body').classList.add('wk-body--noscroll');
+    document.getElementById('wk-content').innerHTML = _graphViewHtml;
+    document.getElementById('wk-search-input').placeholder = '搜索节点...';
+    document.getElementById('wk-search-input').setAttribute('oninput', 'filterGraphNodes()');
+    _graphLoaded = true;
+    loadGraph();
+    setTimeout(function() { renderGraphIfNeeded(); }, 100);
+  } else {
+    document.getElementById('wk-body').classList.remove('wk-body--noscroll');
+    document.getElementById('wk-search-input').placeholder = '搜索概念、文件...';
+    document.getElementById('wk-search-input').setAttribute('oninput', 'filterCards()');
+    stopWikiGraphSimulation();
+    loadList();
+  }
+}
+
+/* ═══ Load ═══ */
+function loadList() {
+  var g = document.getElementById('wk-content');
+  g.innerHTML = '<div class="wk-loading">加载中...</div>';
+
+  if (_currentTab === 'concepts') {
+    fetch('/api/wiki/pages').then(r => r.json()).then(function(r) {
+      r.code === 200 ? renderConcepts(r.data || []) : g.innerHTML = eHtml('加载失败');
+    });
+  } else if (_currentTab === 'sources') {
+    fetch('/api/wiki/sources').then(r => r.json()).then(function(r) {
+      r.code === 200 ? renderSources(r.data || []) : g.innerHTML = eHtml('加载失败');
+    });
+  } else if (_currentTab === 'candidates') {
+    fetch('/api/wiki/candidates').then(r => r.json()).then(function(r) {
+      if (r.code === 200) { _candidates = r.data || []; renderCandidates(_candidates); }
+    });
+  }
+  loadStats();
+}
+
+function eHtml(msg) { return '<div class="wk-empty"><div>—</div>' + msg + '</div>'; }
+
+/* ═══ Stats ═══ */
+function loadStats() {
+  fetch('/api/wiki/pages').then(r => r.json()).then(function(r) {
+    if (r.code === 200) { var el = document.getElementById('wk-s-concept'); if (el) el.textContent = (r.data || []).length; }
+  }).catch(function(){});
+  fetch('/api/wiki/sources').then(r => r.json()).then(function(r) {
+    if (r.code === 200) { var el = document.getElementById('wk-s-source'); if (el) el.textContent = (r.data || []).length; }
+  }).catch(function(){});
+  fetch('/api/wiki/candidates').then(r => r.json()).then(function(r) {
+    if (r.code === 200) { var el = document.getElementById('wk-s-candidate'); if (el) el.textContent = (r.data || []).length; }
+  }).catch(function(){});
+}
+
+/* ═══ Concepts (grouped by kind) ═══ */
+function renderConcepts(items) {
+  var g = document.getElementById('wk-content');
+  _pageCache = {};
+  if (!items || !items.length) { g.innerHTML = '<div class="wk-empty"><div>—</div>暂无概念，请先编译源文件</div>'; updateCount(0); return; }
+
+  items.forEach(function(i) { _pageCache[i.slug] = { title: i.title, summary: i.summary || '' }; });
+
+  // Group by kind
+  var groups = {};
+  items.forEach(function(i) {
+    var k = i.kind || 'concept';
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(i);
+  });
+
+  var kindNames = { concept: '概念', component: '组件', pattern: '模式', guideline: '规范' };
+  var h = '';
+  Object.keys(groups).sort().forEach(function(kind) {
+    var list = groups[kind];
+    h += '<div class="wk-group">';
+    h += '<div class="wk-group__head"><span class="wk-group__name">' + (kindNames[kind] || kind) + '</span><span class="wk-group__count">' + list.length + '</span></div>';
+    h += '<div class="wk-group__grid">';
+    list.forEach(function(i) {
+      var tags = '<span class="wk-card__tag wk-tag--kind">' + (i.kind || '概念') + '</span>';
+      if (i.source === 'common') tags += '<span class="wk-card__tag wk-tag--common">公共</span>';
+      if (i.confidence > 0) tags += '<span class="wk-card__tag wk-tag--local">' + (i.confidence * 100).toFixed(0) + '%</span>';
+      var timeHtml = i.updated_at ? fmtDate(i.updated_at) : '';
+      h += '<div class="wk-card" data-slug="' + i.slug + '" data-search="' + i.title + ' ' + (i.summary||'') + '" onclick="openDrawer(\'' + i.slug + '\')">' +
+        '<div class="wk-card__row"><span class="wk-card__title">' + i.title + '</span><div style="display:flex;gap:4px;flex-shrink:0;">' + tags + '</div></div>' +
+        '<div class="wk-card__desc">' + (i.summary || '暂无摘要') + '</div>' +
+        (timeHtml ? '<div class="wk-card__foot"><span>' + timeHtml + '</span></div>' : '') +
+      '</div>';
+    });
+    h += '</div></div>';
+  });
+  g.innerHTML = h;
+  updateCount(items.length);
+}
+
+/* ═══ Sources ═══ */
+function renderSources(items) {
+  var g = document.getElementById('wk-content');
+  var tb = '<div class="wk-sources-toolbar">' +
+    '<span class="wk-sources-toolbar__info">共 <strong>' + (items ? items.length : 0) + '</strong> 个源文件</span>' +
+    '<span class="wk-sources-toolbar__actions">' +
+      '<button class="wk-btn wk-btn--fill" onclick="showCompile(\'incremental\')">增量编译</button>' +
+      '<button class="wk-btn" onclick="showCompile(\'full\')">全量编译</button>' +
+    '</span>' +
+  '</div>';
+
+  if (!items || !items.length) {
+    g.innerHTML = tb + '<div class="wk-empty"><div>—</div>文章目录下没有 .md 文件</div>';
+    updateCount(0); return;
+  }
+  var h = '';
+  items.forEach(function(i) {
+    var t = i.status === 'compiled' ? '<span class="wk-card__tag wk-tag--ok">已编译</span>' : '<span class="wk-card__tag wk-tag--wait">待编译</span>';
+    h += '<div class="wk-card" data-search="' + i.title + '"><div class="wk-card__row"><span class="wk-card__title">' + i.title + '</span>' + t + '</div></div>';
+  });
+  g.innerHTML = tb + '<div class="wk-group__grid">' + h + '</div>';
+  updateCount(items.length);
+}
+
+/* ═══ Candidates ═══ */
+function renderCandidates(items) {
+  var g = document.getElementById('wk-content');
+  if (!items || !items.length) { g.innerHTML = '<div class="wk-empty"><div>—</div>暂无待审批内容</div>'; updateCount(0); return; }
+  var h = '';
+  items.forEach(function(i) {
+    h += '<div class="wk-card" data-id="' + i.id + '" data-slug="' + i.slug + '" data-search="' + i.title + '" onclick="openCandidateDetail(' + i.id + ')">' +
+      '<div class="wk-card__row"><span class="wk-card__title">' + i.title + '</span><span class="wk-card__tag wk-tag--pending">待审批</span></div>' +
+      '<div class="wk-card__desc">' + (i.summary || '') + '</div>' +
+      '<div class="wk-card__actions" onclick="event.stopPropagation();"><button class="wk-act--approve" onclick="approveC(' + i.id + ')">通过</button><button class="wk-act--reject" onclick="rejectC(' + i.id + ')">拒绝</button></div></div>';
+  });
+  g.innerHTML = '<div class="wk-group__grid">' + h + '</div>';
+  updateCount(items.length);
+}
+
+/* ═══ Search Filter ═══ */
+function filterCards() {
+  var q = document.getElementById('wk-search-input').value.toLowerCase(), v = 0;
+  document.querySelectorAll('#wk-content .wk-card').forEach(function(c) {
+    var s = (c.getAttribute('data-search') || '').toLowerCase();
+    var m = s.indexOf(q) >= 0;
+    c.style.display = m ? '' : 'none';
+    if (m) v++;
+  });
+  // Hide empty groups
+  document.querySelectorAll('#wk-content .wk-group').forEach(function(g) {
+    var cards = g.querySelectorAll('.wk-card[style*="display: none"]');
+    g.style.display = cards.length === g.querySelectorAll('.wk-card').length ? 'none' : '';
+  });
+  updateCount(v, q ? '匹配 ' + v + ' 项' : null);
+}
+
+function updateCount(n, label) {
+  var c = document.getElementById('wk-count');
+  if (c) c.textContent = label || ('共 ' + (n||0) + ' 项');
+}
+
+/* ═══ Drawer ═══ */
+function openDrawer(slug) {
+  var o = document.getElementById('wk-overlay'), b = document.getElementById('wk-drawer-body');
+  b.innerHTML = '<div style="text-align:center;padding:48px;color:var(--wk-soft);">加载中...</div>';
+  o.classList.remove('is-hidden');
+  document.getElementById('wk-drawer').scrollTop = 0;
+
+  fetch('/api/wiki/pages/' + slug).then(r => r.json()).then(function(res) {
+    if (res.code !== 200) { b.innerHTML = '<p>加载失败</p>'; return; }
+    var d = res.data;
+    trackPageView(slug, d.title);
+
+    var meta = '<span class="wk-card__tag wk-tag--kind">' + (d.kind || 'concept') + '</span>';
+    if (d.source === 'common') meta += '<span class="wk-card__tag wk-tag--common">公共库</span>';
+    if (d.confidence) meta += '<span style="font-size:12px;font-weight:600;color:var(--wk-stone);">置信度 ' + (d.confidence * 100).toFixed(0) + '%</span>';
+
+    var extra = '<div class="wk-drawer__meta">';
+    if (d.updated_at) extra += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' + fmtDateTime(d.updated_at);
+    if (d.source) extra += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ' + d.source;
+    if (d.review_status) {
+      var rc = d.review_status === 'approved' ? 'wk-tag--ok' : 'wk-tag--pending';
+      extra += '<span class="wk-card__tag ' + rc + '" style="font-size:11px;">' + (d.review_status === 'approved' ? '已审核' : '待审核') + '</span>';
+    }
+    extra += '</div>';
+
+    var rel = '';
+    if (d.links && d.links.length > 0) {
+      rel = '<div class="wk-related"><div class="wk-related__title">相关概念</div><div class="wk-related__grid">';
+      d.links.forEach(function(l) {
+        var ls = l.toLowerCase().replace(/ /g, '_').replace(/\//g, '_');
+        var c = _pageCache[ls];
+        rel += '<div class="wk-related-card" onclick="openDrawer(\'' + ls + '\')"><div class="wk-related-card__name">' + l + '</div><div class="wk-related-card__desc">' + (c ? c.summary : '') + '</div></div>';
+      });
+      rel += '</div></div>';
+    }
+
+    var src = d.sources && d.sources.length > 0 ? '<div class="wk-sources"><strong>来源</strong> ' + d.sources.join(', ') + '</div>' : '';
+
+    b.innerHTML =
+      '<div class="wk-breadcrumb"><a onclick="closeDrawer()">知识库</a><span>/</span>' + d.title + '</div>' +
+      '<h1>' + d.title + '</h1>' +
+      '<div class="wk-drawer__tags">' + meta + '</div>' + extra +
+      (d.summary ? '<div class="wk-drawer__summary">' + d.summary + '</div>' : '') +
+      '<div class="wk-drawer__content" id="wk-content-' + d.slug + '"></div>' +
+      rel + src +
+      '<div class="wk-drawer__actions">' +
+        (d.source !== 'common' ? '<button class="btn btn-sm btn-primary" onclick="submitToPublic(\'' + d.slug + '\')">提交到公共库</button>' : '') +
+      '</div>';
+
+    // 正文走公共 Md 模块渲染
+    Md.renderInto(d.body || '', document.getElementById('wk-content-' + d.slug), {
+      onDone: function(el) {
+        var hs = document.getElementById('wk-drawer-body').querySelectorAll('h2, h3');
+        hs.forEach(function(h, i) { h.id = 'wk-toc-' + i; });
+        // 绑定 wiki 链接，点击在抽屉内打开对应概念
+        _bindWikiDrawerLinks(el);
+      }
+    });
+  });
+}
+
+function closeDrawer() { document.getElementById('wk-overlay').classList.add('is-hidden'); }
+
+/* ═══ Candidate Detail ═══ */
+function openCandidateDetail(id) {
+  var d = null;
+  for (var i = 0; i < _candidates.length; i++) { if (_candidates[i].id === id) { d = _candidates[i]; break; } }
+  if (!d) return;
+  var o = document.getElementById('wk-overlay'), b = document.getElementById('wk-drawer-body');
+  o.classList.remove('is-hidden');
+  document.getElementById('wk-drawer').scrollTop = 0;
+
+  var rel = '';
+  if (d.links && d.links.length > 0) {
+    rel = '<div class="wk-related"><div class="wk-related__title">相关概念</div><div class="wk-related__grid">';
+    d.links.forEach(function(l) {
+      var ls = l.toLowerCase().replace(/ /g, '_').replace(/\//g, '_');
+      rel += '<div class="wk-related-card" onclick="openDrawer(\'' + ls + '\')"><div class="wk-related-card__name">' + l + '</div></div>';
+    });
+    rel += '</div></div>';
+  }
+  var src = d.sources && d.sources.length > 0 ? '<div class="wk-sources"><strong>来源</strong> ' + d.sources.join(', ') + '</div>' : '';
+
+  b.innerHTML =
+    '<div class="wk-breadcrumb"><a onclick="closeDrawer()">知识库</a><span>/</span>' + d.title + '</div>' +
+    '<div class="wk-banner"><span>待审批候选知识</span><div class="wk-banner__btns"><button class="wk-btn wk-btn--fill" style="font-size:12px;padding:4px 12px;background:var(--wk-green);border-color:var(--wk-green);" onclick="approveC(' + id + ')">通过</button><button class="wk-btn" style="font-size:12px;padding:4px 12px;color:var(--wk-red);border-color:var(--wk-red);" onclick="rejectC(' + id + ')">拒绝</button></div></div>' +
+    '<h1>' + d.title + '</h1>' +
+    '<div class="wk-drawer__tags"><span class="wk-card__tag wk-tag--kind">' + (d.kind || 'concept') + '</span>' + (d.confidence ? '<span style="font-size:12px;font-weight:600;color:var(--wk-stone);">置信度 ' + (d.confidence * 100).toFixed(0) + '%</span>' : '') + '</div>' +
+    (d.summary ? '<div class="wk-drawer__summary">' + d.summary + '</div>' : '') +
+    '<div class="wk-drawer__content" id="wk-content-cand-' + id + '"></div>' +
+    rel + src;
+
+  // 正文走公共 Md 模块渲染
+  Md.renderInto(d.body || '', document.getElementById('wk-content-cand-' + id), {
+    onDone: function(el) {
+      var hs = document.getElementById('wk-drawer-body').querySelectorAll('h2, h3');
+      hs.forEach(function(h, i) { h.id = 'wk-toc-' + i; });
+      _bindWikiDrawerLinks(el);
+    }
+  });
+}
+
+/* ═══ Approve / Reject ═══ */
+function approveC(id) {
+  fetch('/api/wiki/candidates/' + id + '/approve', { method: 'POST', headers: {'Content-Type':'application/json'} })
+    .then(r => r.json()).then(function(res) {
+      if (res.code === 200) { loadList(); closeDrawer(); } else alert(res.message || '操作失败');
+    });
+}
+function rejectC(id) {
+  customConfirm('确定拒绝此候选知识？', '拒绝').then(function(ok) {
+    if (!ok) return;
+    _doRejectC(id);
+  });
+}
+function _doRejectC(id) {
+  fetch('/api/wiki/candidates/' + id + '/reject', { method: 'DELETE', headers: {'Content-Type':'application/json'} })
+    .then(r => r.json()).then(function(res) {
+      if (res.code === 200) { loadList(); closeDrawer(); } else alert(res.message || '操作失败');
+    });
+}
+
+/* ═══ Recent Pages ═══ */
+var RECENT_KEY = 'wiki_recent_pages';
+function trackPageView(slug, title) {
+  try {
+    var list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    list = list.filter(function(r) { return r.slug !== slug; });
+    list.unshift({ slug: slug, title: title, time: Date.now() });
+    if (list.length > 20) list = list.slice(0, 20);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  } catch(e) {}
+}
+
+/* ═══ Markdown（正文渲染统一走公共 Md 模块） ═══ */
+
+/* 绑定渲染后的 wiki 链接 [[标题]]，点击在抽屉内打开对应概念 */
+function _bindWikiDrawerLinks(container) {
+  if (!container) return;
+  container.querySelectorAll('.wiki-link').forEach(function(a) {
+    if (a.dataset.bound) return;
+    a.dataset.bound = '1';
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      var target = (this.getAttribute('data-target') || '').trim();
+      if (!target) return;
+      var slug = target.toLowerCase().replace(/ /g, '_').replace(/\//g, '_');
+      openDrawer(slug);
+    });
+  });
+}
+
+/* ═══ Date Utils ═══ */
+function fmtDate(s) { if (!s) return ''; var d = new Date(s + 'Z'); if (isNaN(d.getTime())) return ''; return (d.getMonth()+1) + '/' + d.getDate(); }
+function fmtDateTime(s) { if (!s) return '—'; var d = new Date(s + 'Z'); if (isNaN(d.getTime())) return s; return d.getFullYear() + '-' + z(d.getMonth()+1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+function z(n) { return n < 10 ? '0' + n : '' + n; }
+
+/* ═══ Submit to Public ═══ */
+function submitToPublic(slug) {
+  customConfirm('提交此知识到公共库审批队列？', '提交审批', {primary: true, okText: '提交'}).then(function(ok) {
+    if (!ok) return;
+    _doSubmitToPublic(slug);
+  });
+}
+function _doSubmitToPublic(slug) {
+  fetch('/api/wiki/submit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ slug: slug }) })
+    .then(r => r.json()).then(function(res) {
+      alert(res.code === 200 ? '已提交到公共库审批队列' : '提交失败: ' + (res.message || ''));
+    }).catch(function(e) { alert('提交失败: ' + e); });
+}
+
+/* ═══ Compile ═══ */
+var _compileType = '';
+var _compiling = false;
+var _compileOpts = {
+  full: { title: '全量编译', desc: '重新编译所有文章，生成全新的知识库。', pros: ['确保知识库完全同步', '可修复概念关联问题', '适合大规模更新后'], cons: ['消耗较多 LLM API 调用', '耗时较长', '覆盖所有现有概念'] },
+  incremental: { title: '增量编译', desc: '仅编译发生变化的文章，更新相关概念页面。', pros: ['节省 API 调用次数', '速度较快', '只影响变化部分'], cons: ['可能遗漏跨文章关联变化', '首次效果同全量'] }
+};
+function showCompile(type) {
+  if (_compiling) { alert('编译正在进行中，请等待完成'); return; }
+  _compileType = type; var o = _compileOpts[type];
+  document.getElementById('compile-title').textContent = '确认' + o.title;
+  document.getElementById('compile-desc').textContent = o.desc;
+  document.getElementById('compile-pros').innerHTML = o.pros.map(function(p) { return '<li>' + p + '</li>'; }).join('');
+  document.getElementById('compile-cons').innerHTML = o.cons.map(function(c) { return '<li>' + c + '</li>'; }).join('');
+  document.getElementById('compile-modal').style.display = 'flex';
+}
+function closeCompile() {
+  var btn = document.getElementById('compile-confirm-btn');
+  if (btn && !_compiling) { btn.disabled = false; btn.textContent = '确认执行'; }
+  document.getElementById('compile-modal').style.display = 'none';
+}
+function confirmCompile() {
+  if (!_compileType) return;
+  if (_compiling) { alert('编译正在进行中，请等待完成'); return; }
+  var btn = document.getElementById('compile-confirm-btn');
+  btn.disabled = true; btn.textContent = '执行中...';
+  _compiling = true;
+  fetch('/api/wiki/compile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ incremental: _compileType === 'incremental' }) })
+    .then(r => r.json()).then(function(res) {
+      if (res.code !== 200) { closeCompile(); alert(res.message || '操作失败'); return; }
+      if (res.data && res.data.status === 'already_running') { closeCompile(); _compiling = false; alert('编译正在进行中'); return; }
+      closeCompile();
+      pollCompileStatus();
+    }).catch(function() { closeCompile(); _compiling = false; alert('请求失败'); });
+}
+function setCompileState(running, progress) {
+  var dot = document.getElementById('wk-compile-dot');
+  var state = document.getElementById('wk-compile-state');
+  if (dot) dot.style.display = running ? 'flex' : 'none';
+  if (state) state.textContent = running ? (progress || '编译中...') : '';
+  _compiling = running;
+}
+function pollCompileStatus() {
+  fetch('/api/wiki/status').then(function(r) { return r.json(); }).then(function(res) {
+    if (res.code !== 200 || !res.data) { setCompileState(false); return; }
+    if (res.data.running) {
+      setCompileState(true, res.data.progress);
+      setTimeout(pollCompileStatus, 2000);
+    } else {
+      setCompileState(false);
+      if (res.data.progress && res.data.progress.indexOf('失败') >= 0) {
+        var m = res.data.progress;
+        if (res.data.errors && res.data.errors.length > 0) m += '\n\n' + res.data.errors.join('\n');
+        alert(m);
+      }
+      // Only refresh if we're on a non-graph tab (sources may need status update after compile)
+      if (_currentTab !== 'graph') loadList();
+    }
+  }).catch(function() { setCompileState(false); });
+}
+
+/* ═══ Graph (Star Chain) ═══ */
+var _d3Ready = false;
+
+function ensureD3(cb) {
+  if (typeof d3 !== 'undefined') { _d3Ready = true; cb(); return; }
+  if (window.__wikiD3Callbacks) { window.__wikiD3Callbacks.push(cb); return; }
+  window.__wikiD3Callbacks = [cb];
+  var s = document.createElement('script');
+  s.src = 'https://d3js.org/d3.v7.min.js';
+  s.onload = function() { _d3Ready = true; var cbs = window.__wikiD3Callbacks; window.__wikiD3Callbacks = null; cbs.forEach(function(f) { f(); }); };
+  s.onerror = function() { window.__wikiD3Callbacks = null; };
+  document.head.appendChild(s);
+}
+
+function stopWikiGraphSimulation() {
+  if (_graphState.simulation) { _graphState.simulation.stop(); _graphState.simulation = null; }
+}
+
+function loadGraph() {
+  var le = document.getElementById('wk-graph-loading');
+  var ee = document.getElementById('wk-graph-empty');
+  if (le) le.style.display = 'flex';
+  if (ee) ee.style.display = 'none';
+  fetch('/api/wiki/graph').then(function(r) { return r.json(); }).then(function(res) {
+    if (le) le.style.display = 'none';
+    if (res.code === 200 && res.data) {
+      _graphState.data = res.data;
+      renderGraphIfNeeded();
+    } else {
+      if (ee) ee.style.display = 'flex';
+    }
+  }).catch(function() {
+    if (le) le.style.display = 'none';
+    if (ee) ee.style.display = 'flex';
+  });
+}
+
+function renderGraphIfNeeded() {
+  var gv = document.getElementById('wk-graph-container');
+  if (!gv) return;
+  if (_graphState.data) renderGraph(_graphState.data);
+}
+
+function renderGraph(data) {
+  if (!_d3Ready) { ensureD3(function() { renderGraph(data); }); return; }
+  var container = document.getElementById('wk-graph-container');
+  var empty = document.getElementById('wk-graph-empty');
+  var loading = document.getElementById('wk-graph-loading');
+  var tooltip = document.getElementById('wk-graph-tooltip');
+  var legend = document.getElementById('wk-graph-legend');
+  var stats = document.getElementById('wk-graph-stats');
+  if (!container) return;
+
+  var w = container.clientWidth, h = container.clientHeight;
+  if (w < 20 || h < 20) return;
+
+  stopWikiGraphSimulation();
+  if (loading) loading.style.display = 'none';
+
+  var svg = d3.select('#wk-graph-svg');
+  svg.on('.zoom', null);
+  svg.selectAll('*').remove();
+
+  if (!data.nodes || data.nodes.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    if (legend) legend.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (legend) legend.style.display = 'flex';
+
+  svg.attr('width', w).attr('height', h).attr('viewBox', '0 0 ' + w + ' ' + h).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  var cs = getComputedStyle(document.documentElement);
+  var clrFg = cs.getPropertyValue('--color-foreground').trim() || '#1E293B';
+  var clrMuted = cs.getPropertyValue('--color-muted').trim() || '#94A3B8';
+  var clrSurface = cs.getPropertyValue('--color-surface').trim() || '#FFFFFF';
+  var clrBlue = '#2563EB', clrAmber = '#D97706';
+  var colorMap = { concept: clrBlue, query: clrAmber, entity: '#6366F1', overview: '#EC4899' };
+
+  var maxSize = d3.max(data.nodes, function(d) { return d.size || 1; }) || 1;
+  var maxRadius = Math.max(14, Math.min(26, Math.sqrt(w * h) / 35));
+  var sizeScale = d3.scaleLinear().domain([1, maxSize]).range([5, maxRadius]);
+
+  var nodes = data.nodes.map(function(n) {
+    return { id: n.id, label: n.label || n.id, kind: n.kind || 'concept', size: n.size || 1, source: n.source || 'local' };
+  });
+  var nodeMap = {};
+  nodes.forEach(function(n) { nodeMap[n.id] = n; });
+  var links = (data.edges || []).filter(function(e) {
+    return e.source !== e.target && nodeMap[e.source] && nodeMap[e.target];
+  }).map(function(e) { return { source: e.source, target: e.target }; });
+
+  if (stats) stats.textContent = nodes.length + ' 个节点 · ' + links.length + ' 条关系';
+
+  var areaPerNode = Math.sqrt((w * h) / Math.max(nodes.length, 1));
+  var linkDist = Math.max(55, Math.min(130, areaPerNode * 2));
+  var chargeStr = -Math.max(90, Math.min(380, areaPerNode * 6));
+
+  _graphState.simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(function(d) { return d.id; }).distance(linkDist).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(chargeStr))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('x', d3.forceX(w / 2).strength(0.025))
+    .force('y', d3.forceY(h / 2).strength(0.025))
+    .force('collision', d3.forceCollide().radius(function(d) { return sizeScale(d.size) + 5; }));
+
+  var g = svg.append('g');
+  _graphState.zoomBehavior = d3.zoom().scaleExtent([0.2, 5]).on('zoom', function(ev) { g.attr('transform', ev.transform); });
+  svg.call(_graphState.zoomBehavior);
+
+  var defs = svg.append('defs');
+  var glow = defs.append('filter').attr('id', 'wk-glow');
+  glow.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
+  var fm = glow.append('feMerge');
+  fm.append('feMergeNode').attr('in', 'blur');
+  fm.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  var link = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', clrMuted).attr('stroke-width', 1).attr('stroke-opacity', 0.42);
+
+  var node = g.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor', 'pointer')
+    .call(d3.drag().on('start', _dragStart).on('drag', _dragMove).on('end', _dragEnd));
+
+  node.append('circle')
+    .attr('r', function(d) { return sizeScale(d.size); })
+    .attr('fill', function(d) { return colorMap[d.kind] || colorMap.concept; })
+    .attr('fill-opacity', 0.85)
+    .attr('stroke', function(d) { return d.source === 'common' ? '#6366F1' : clrSurface; })
+    .attr('stroke-width', function(d) { return d.source === 'common' ? 3 : 2; })
+    .attr('stroke-dasharray', function(d) { return d.source === 'common' ? '4,2' : null; });
+
+  node.append('text')
+    .attr('dy', function(d) { return sizeScale(d.size) + 13; })
+    .attr('text-anchor', 'middle').attr('font-size', '11px').attr('font-weight', '500')
+    .attr('fill', clrFg).attr('pointer-events', 'none')
+    .text(function(d) { return d.label.length > 8 ? d.label.substring(0, 8) + '...' : d.label; });
+
+  node.on('mouseover', function(ev, d) {
+    document.getElementById('wk-tooltip-title').textContent = d.label;
+    document.getElementById('wk-tooltip-desc').textContent = d.kind + (d.size > 1 ? ' · 关联 ' + d.size : '');
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(ev.offsetX + 15, w - 200) + 'px';
+    tooltip.style.top = (ev.offsetY - 10) + 'px';
+    d3.select(this).select('circle').transition().duration(200).attr('r', sizeScale(d.size) * 1.3).attr('fill-opacity', 1).attr('filter', 'url(#wk-glow)');
+    link.attr('stroke', function(l) { return (l.source.id === d.id || l.target.id === d.id) ? (colorMap[d.kind] || clrBlue) : clrMuted; })
+      .attr('stroke-width', function(l) { return (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 1; })
+      .attr('stroke-opacity', function(l) { return (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.12; });
+  }).on('mousemove', function(ev) {
+    tooltip.style.left = Math.min(ev.offsetX + 15, w - 200) + 'px';
+    tooltip.style.top = (ev.offsetY - 10) + 'px';
+  }).on('mouseout', function(ev, d) {
+    tooltip.style.display = 'none';
+    d3.select(this).select('circle').transition().duration(200).attr('r', sizeScale(d.size)).attr('fill-opacity', 0.85).attr('filter', null);
+    link.attr('stroke', clrMuted).attr('stroke-width', 1).attr('stroke-opacity', 0.42);
+  }).on('click', function(ev, d) {
+    openDrawer(d.id);
+  });
+
+  _graphState.simulation.on('tick', function() {
+    link.attr('x1', function(d) { return d.source.x; }).attr('y1', function(d) { return d.source.y; })
+      .attr('x2', function(d) { return d.target.x; }).attr('y2', function(d) { return d.target.y; });
+    node.attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+  });
+}
+
+function _dragStart(ev, d) {
+  if (!ev.active && _graphState.simulation) _graphState.simulation.alphaTarget(0.3).restart();
+  d.fx = d.x; d.fy = d.y;
+}
+function _dragMove(ev, d) { d.fx = ev.x; d.fy = ev.y; }
+function _dragEnd(ev, d) {
+  if (!ev.active && _graphState.simulation) _graphState.simulation.alphaTarget(0);
+  d.fx = null; d.fy = null;
+}
+
+function resetGraphZoom() {
+  if (!_graphState.zoomBehavior) return;
+  d3.select('#wk-graph-svg').transition().duration(500).call(_graphState.zoomBehavior.transform, d3.zoomIdentity);
+}
+
+function refreshGraph() {
+  _graphState.data = null;
+  var le = document.getElementById('wk-graph-loading');
+  if (le) le.style.display = 'flex';
+  document.getElementById('wk-graph-empty').style.display = 'none';
+  stopWikiGraphSimulation();
+  d3.select('#wk-graph-svg').selectAll('*').remove();
+  loadGraph();
+}
+
+function filterGraphNodes() {
+  if (!_d3Ready) return;
+  var q = (document.getElementById('wk-search-input').value || '').toLowerCase().trim();
+  var svg = d3.select('#wk-graph-svg');
+  var groups = svg.selectAll('.graph-node-group');
+  var links = svg.selectAll('line');
+  if (!q) { groups.style('opacity', 1); links.style('opacity', 0.42); return; }
+  var matched = {};
+  groups.each(function(d) { if (d.label.toLowerCase().indexOf(q) >= 0) matched[d.id] = true; });
+  groups.style('opacity', function(d) { return matched[d.id] ? 1 : 0.15; });
+  links.style('opacity', function(l) { return (matched[l.source.id] || matched[l.target.id]) ? 0.7 : 0.08; });
+}
+</script>
+{% endblock %}
+

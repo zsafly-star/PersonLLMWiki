@@ -94,5 +94,4 @@ doc/
 
 # PyInstaller output
 packaging/build/
-packaging/dist/
-installer_output/
+release/

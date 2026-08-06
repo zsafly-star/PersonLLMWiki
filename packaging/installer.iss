@@ -16,7 +16,7 @@ AppPublisher=PersonLLMWiki
 DefaultDirName={pf}\PersonLLMWiki
 DefaultGroupName=PersonLLMWiki
 DisableProgramGroupPage=yes
-OutputDir=..\installer_output
+OutputDir=..\release\installer
 OutputBaseFilename=PersonLLMWiki-Setup-{#AppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -33,7 +33,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
 
 [Files]
-Source: "dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\release\dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\PersonLLMWiki"; Filename: "{app}\{#MyAppExeName}"

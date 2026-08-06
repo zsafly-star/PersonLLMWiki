@@ -1,0 +1,199 @@
+/**
+ * 模态框组件样式
+ */
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-modal);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.modal-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-foreground);
+}
+
+.modal-body {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--color-border-light);
+}
+
+/* 头像选择模态框 */
+.avatar-modal {
+    max-width: 400px;
+}
+
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+}
+
+.avatar-option {
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--color-border-light);
+}
+
+.avatar-option:hover {
+    background: var(--color-primary-lightest);
+}
+
+.avatar-option i {
+    font-size: 20px;
+    color: var(--color-foreground);
+}
+
+/* 附件选择模态框 */
+.attachment-modal {
+    max-width: 600px;
+    max-height: 80vh;
+}
+
+.attachment-toolbar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.attachment-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.attachment-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.attachment-table th,
+.attachment-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.attachment-table th {
+    font-weight: 600;
+    color: var(--color-foreground);
+}
+
+.attachment-table td {
+    color: var(--color-foreground-secondary);
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+/* 上传进度 */
+.upload-progress {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: var(--color-border-light);
+    border-radius: var(--radius-md);
+}
+
+.progress-label {
+    font-size: 12px;
+    color: var(--color-foreground-secondary);
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 3px;
+    transition: width var(--transition-fast);
+}
+
+.progress-percent {
+    font-size: 12px;
+    color: var(--color-primary);
+    margin-top: 4px;
+    text-align: right;
+}
+
+/* 聊天模态框 */
+.chat-modal {
+    max-width: 500px;
+}
+
+/* 设置提示 */
+.settings-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    font-size: 13px;
+    color: var(--color-foreground);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all var(--transition-normal);
+    z-index: var(--z-tooltip);
+}
+
+.settings-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}

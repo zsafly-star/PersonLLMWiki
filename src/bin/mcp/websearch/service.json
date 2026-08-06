@@ -1,0 +1,17 @@
+{
+  "name": "websearch",
+  "source": "builtin",
+  "location": "local",
+  "type": "subprocess",
+  "command": "python",
+  "args": ["{bin_dir}/launcher.py"],
+  "host": "127.0.0.1",
+  "port": 17655,
+  "path": "/mcp",
+  "startup_timeout": 15,
+  "env": {
+    "WEBSEARCH_MCP_HTTP_HOST": "127.0.0.1",
+    "WEBSEARCH_MCP_HTTP_PORT": "17655"
+  },
+  "description": "联网搜索（DuckDuckGo），免费无需 API Key"
+}

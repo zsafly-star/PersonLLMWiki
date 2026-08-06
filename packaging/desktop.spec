@@ -9,8 +9,10 @@
 import os
 
 block_cipher = None
-# src 目录（spec 文件的上两级：packaging/desktop.spec → src/）
-src_dir = os.path.dirname(os.path.dirname(os.path.abspath(SPEC)))
+# spec 位置：packaging/desktop.spec → 项目根 PersonLLMWiki/
+# 源码在 src/ 子目录
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(SPEC)))
+src_dir = os.path.join(project_dir, 'src')
 
 a = Analysis(
     [os.path.join(src_dir, 'desktop.pyw')],
