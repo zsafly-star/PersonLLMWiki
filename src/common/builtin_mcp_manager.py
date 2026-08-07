@@ -134,10 +134,13 @@ def _start_subprocess_service(svc):
     auth_token_env = svc.get('auth_token_env', '')
     startup_timeout = svc.get('startup_timeout', 30)
 
-    # 检查命令是否可用
-    cmd = command + ('.exe' if _is_windows() and not command.endswith('.exe') else '')
-    if shutil.which(cmd) is None:
-        return {'available': False, 'running': False, 'error': f'{command} 未安装'}
+    # 解析命令：打包模式下使用 sys.executable（PyInstaller EXE 内嵌 Python 解释器）
+    if getattr(sys, 'frozen', False):
+        cmd = sys.executable
+    else:
+        cmd = command + ('.exe' if _is_windows() and not command.endswith('.exe') else '')
+        if shutil.which(cmd) is None:
+            return {'available': False, 'running': False, 'error': f'{command} 未安装'}
 
     bin_dir = svc['_bin_dir']
 
