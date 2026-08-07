@@ -313,7 +313,7 @@ def save_path():
         f.writelines(lines)
 
     # 创建所需子目录
-    subdirs = ['instance', 'article', 'img', 'attachments', 'wiki']
+    subdirs = ['instance', 'article', 'img', 'attachments', 'wiki', 'bin/mcp', 'bin/skills']
     created = []
     for sub in subdirs:
         d = os.path.join(path, sub)
@@ -322,6 +322,14 @@ def save_path():
 
     # 同步更新 Config（当前进程生效）
     Config.RESOURCE_BASE_PATH = path
+
+    # 重新初始化内置 MCP 服务和 Skills（路径变更后重新扫描）
+    try:
+        from common.builtin_mcp_manager import reinit as _reinit_mcp
+        _reinit_mcp()
+        print(f'[Settings] 资源路径已切换到 {path}，重新扫描 MCP 服务和 Skills')
+    except Exception as e:
+        print(f'[Settings] MCP 重新初始化失败（非致命）: {e}')
 
     return success_response({
         'resource_path': path,

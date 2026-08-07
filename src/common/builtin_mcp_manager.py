@@ -9,12 +9,13 @@
 
 新增一个内置服务只需在 bin/mcp/ 下创建文件夹 + service.json，无需写新的 runner。
 
-目录约定：
-  bin/mcp/<name>/            每个服务一个文件夹（自包含）
-  bin/mcp/<name>/service.json    服务声明（进 Git）
-  bin/mcp/<name>/launcher.py     启动脚本（subprocess 类型）
-  bin/mcp/<name>/models/         模型等运行时数据（ensure_dirs 声明，不进 Git）
-  bin/mcp/<name>/cache/          缓存（不进 Git）
+目录约定（开发模式：项目根/bin/；打包模式：RESOURCE_BASE_PATH/bin/）：
+  bin/mcp/<name>/                 每个服务一个文件夹（自包含）
+  bin/mcp/<name>/service.json     服务声明
+  bin/mcp/<name>/launcher.py      启动脚本（subprocess 类型）
+  bin/mcp/<name>/models/          模型等运行时数据（ensure_dirs 声明）
+  bin/mcp/<name>/cache/           缓存
+  bin/skills/<name>/SKILL.md      Skill 工作流指令
 """
 import os
 import sys
@@ -25,16 +26,18 @@ import secrets
 import atexit
 import threading
 import subprocess
-import sys
 
-# bin/mcp/ 目录绝对路径（内置 MCP 服务统一存放点）
-# 打包模式：bin/ 在 exe 同级，sys._MEIPASS 指向 _internal/，取其上级
-# 开发模式：bin/ 在 src/ 下，__file__ 在 src/common/，向上两级
-if getattr(sys, 'frozen', False):
-    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
-else:
-    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_BIN_MCP_DIR = os.path.join(_SRC_ROOT, 'bin', 'mcp')
+# bin/mcp/ 目录（内置 MCP 服务统一存放点）— 动态读取，支持用户修改路径后实时生效
+def _get_bin_mcp_dir():
+    if getattr(sys, 'frozen', False):
+        try:
+            from config import Config
+            return os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'mcp')
+        except Exception:
+            return os.path.join(os.path.dirname(sys._MEIPASS), 'resource', 'bin', 'mcp')
+    else:
+        _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(_SRC_ROOT, 'bin', 'mcp')
 
 # 运行时状态
 _procs = {}          # name -> subprocess.Popen
@@ -55,12 +58,13 @@ def _discover_services():
     每个文件夹自包含：有 service.json 就是一个服务，没有就跳过。
     删除文件夹 = 移除服务，零配置。
     """
+    bin_mcp_dir = _get_bin_mcp_dir()
     services = []
-    if not os.path.isdir(_BIN_MCP_DIR):
+    if not os.path.isdir(bin_mcp_dir):
         return services
 
-    for entry in sorted(os.listdir(_BIN_MCP_DIR)):
-        svc_path = os.path.join(_BIN_MCP_DIR, entry, 'service.json')
+    for entry in sorted(os.listdir(bin_mcp_dir)):
+        svc_path = os.path.join(bin_mcp_dir, entry, 'service.json')
         if not os.path.isfile(svc_path):
             continue
         try:
@@ -68,7 +72,7 @@ def _discover_services():
                 svc = json.load(f)
             # service.json 中的 name 应与文件夹名一致，不一致时以文件夹名为准
             svc['name'] = entry
-            svc['_bin_dir'] = os.path.join(_BIN_MCP_DIR, entry)
+            svc['_bin_dir'] = os.path.join(bin_mcp_dir, entry)
             services.append(svc)
         except (json.JSONDecodeError, IOError):
             continue
@@ -94,11 +98,15 @@ def _health_check(host, port, health_path, token, timeout):
     """轮询健康检查，等待服务就绪。
 
     策略：先尝试 HTTP health 端点（200=就绪），失败则退回 TCP 端口探测。
+
+    Returns: (ok: bool, last_error: str)
     """
     import socket
     deadline = time.time() + timeout
     health_url = f'http://{host}:{port}{health_path}'
     headers = {'Authorization': f'Bearer {token}'} if token else {}
+    last_http_err = ''
+    last_tcp_err = ''
 
     while time.time() < deadline:
         # 策略 1：HTTP health 端点
@@ -106,18 +114,19 @@ def _health_check(host, port, health_path, token, timeout):
             import requests
             resp = requests.get(health_url, headers=headers, timeout=2)
             if resp.status_code == 200:
-                return True
-        except Exception:
-            pass
+                return True, ''
+            last_http_err = f'HTTP {resp.status_code}'
+        except Exception as e:
+            last_http_err = f'{type(e).__name__}: {e}'[:120]
         # 策略 2：TCP 端口探测（如 FastMCP 无 /health 端点）
         try:
             sock = socket.create_connection((host, port), timeout=1)
             sock.close()
-            return True
-        except Exception:
-            pass
+            return True, ''
+        except Exception as e:
+            last_tcp_err = f'{type(e).__name__}: {e}'[:120]
         time.sleep(0.5)
-    return False
+    return False, f'TCP: {last_tcp_err}' if last_tcp_err else f'HTTP: {last_http_err}'
 
 
 def _start_subprocess_service(svc):
@@ -175,7 +184,7 @@ def _start_subprocess_service(svc):
         proc = subprocess.Popen(
             full_cmd,
             env=env,
-            stdout=subprocess.DEVNULL,
+            stdout=err_fh,
             stderr=err_fh,
             creationflags=creationflags,
         )
@@ -186,7 +195,13 @@ def _start_subprocess_service(svc):
         _procs[name] = proc
 
     # 健康检查
-    if not _health_check(host, port, health_path, token, startup_timeout):
+    health_ok, health_err = _health_check(host, port, health_path, token, startup_timeout)
+    if not health_ok:
+        # 检查进程是否已提前退出
+        exit_info = ''
+        if proc.poll() is not None:
+            exit_code = proc.returncode
+            exit_info = f'进程已退出(code={exit_code})，'
         # 读取 stderr 日志辅助诊断
         err_detail = ''
         try:
@@ -197,7 +212,10 @@ def _start_subprocess_service(svc):
         except Exception:
             pass
         _stop_service(name)
-        return {'available': False, 'running': False, 'error': f'启动超时: {err_detail or "详见 stderr.log"}'}
+        err_msg = f'{exit_info}连接失败({health_err})'
+        if err_detail:
+            err_msg += f': {err_detail}'
+        return {'available': False, 'running': False, 'error': err_msg}
 
     # 注册到 MCPClientBus
     mcp_url = f'http://{host}:{port}{path}'
@@ -358,6 +376,19 @@ def init_all_async():
 
     t = threading.Thread(target=_worker, daemon=True, name='builtin-services')
     t.start()
+
+
+def reinit():
+    """重新初始化所有内置服务（当资源路径变更时调用）。
+
+    停止所有运行中的服务，清除状态，重新扫描并启动。
+    """
+    stop_all()
+    with _lock:
+        _statuses.clear()
+        _procs.clear()
+        _tokens.clear()
+    init_all_async()
 
 
 # 注册退出钩子

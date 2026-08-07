@@ -33,7 +33,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
 
 [Files]
-Source: "..\release\dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\release\dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "bin\*"
 
 [Icons]
 Name: "{group}\PersonLLMWiki"; Filename: "{app}\{#MyAppExeName}"
@@ -60,5 +60,18 @@ begin
   begin
     // 通知 Shell 刷新图标缓存，确保桌面快捷方式和详细信息页图标正确
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppDataPath: string;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    // 清理 AppData 下的 .env，确保下次安装使用默认路径
+    AppDataPath := ExpandConstant('{userappdata}\PersonLLMWiki\.env');
+    if FileExists(AppDataPath) then
+      DeleteFile(AppDataPath);
   end;
 end;

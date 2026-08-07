@@ -25,14 +25,17 @@ import os
 import re
 import sys
 
-# bin/skills/ 目录绝对路径
-# 打包模式：bin/ 在 exe 同级，sys._MEIPASS 指向 _internal/，取其上级
-# 开发模式：bin/ 在 src/ 下，__file__ 在 src/common/，向上两级
-if getattr(sys, 'frozen', False):
-    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
-else:
-    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_SKILLS_DIR = os.path.join(_SRC_ROOT, 'bin', 'skills')
+# bin/skills/ 目录 — 动态读取，支持用户修改路径后实时生效
+def _get_skills_dir():
+    if getattr(sys, 'frozen', False):
+        try:
+            from config import Config
+            return os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'skills')
+        except Exception:
+            return os.path.join(os.path.dirname(sys._MEIPASS), 'resource', 'bin', 'skills')
+    else:
+        _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(_SRC_ROOT, 'bin', 'skills')
 
 
 def _parse_front_matter(content):
@@ -66,7 +69,7 @@ def load_skill(name):
 
     返回 dict: {name, description, path, content} 或 None。
     """
-    skill_dir = os.path.join(_SKILLS_DIR, name)
+    skill_dir = os.path.join(_get_skills_dir(), name)
     skill_file = os.path.join(skill_dir, 'SKILL.md')
     if not os.path.isfile(skill_file):
         return None
@@ -90,11 +93,11 @@ def list_skills():
     只返回 name + description（不含完整内容），用于注入系统提示词。
     """
     skills = []
-    if not os.path.isdir(_SKILLS_DIR):
+    if not os.path.isdir(_get_skills_dir()):
         return skills
 
-    for entry in sorted(os.listdir(_SKILLS_DIR)):
-        skill_dir = os.path.join(_SKILLS_DIR, entry)
+    for entry in sorted(os.listdir(_get_skills_dir())):
+        skill_dir = os.path.join(_get_skills_dir(), entry)
         skill_file = os.path.join(skill_dir, 'SKILL.md')
         if not os.path.isfile(skill_file):
             continue
@@ -166,4 +169,4 @@ def match_skill(user_message):
 
 def get_skill_dir(name):
     """返回 skill 目录的绝对路径。"""
-    return os.path.join(_SKILLS_DIR, name)
+    return os.path.join(_get_skills_dir(), name)

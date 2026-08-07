@@ -1,13 +1,14 @@
 import os
+import sys as _sys
 from dotenv import load_dotenv
 
 # 查找 .env：依次检查 app 同级目录（embedded 部署）、app 上级、当前目录
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_THIS_DIR)
-_DEFAULT_RESOURCE_PATH = os.path.join(os.path.dirname(_PROJECT_ROOT), 'resource')
-
-# 尝试多个位置的 .env
-import sys as _sys
+if getattr(_sys, 'frozen', False):
+    _DEFAULT_RESOURCE_PATH = os.path.join(_PROJECT_ROOT, 'resource')
+else:
+    _DEFAULT_RESOURCE_PATH = os.path.join(os.path.dirname(_PROJECT_ROOT), 'resource')
 _env_candidates = [
     os.path.join(_PROJECT_ROOT, '.env'),          # embedded: app/../.env
     os.path.join(_THIS_DIR, '.env'),               # 开发模式: src/.env

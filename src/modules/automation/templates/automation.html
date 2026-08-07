@@ -308,13 +308,17 @@ function loadSchedulerStatus() {
 /* ═══ MCP Servers ═══ */
 function loadMcpServers() {
     fetch('/api/mcp/services')
-        .then(function(r) { return r.json(); })
+        .then(function(r) { return r.json().catch(function() { throw new Error('响应解析失败 (HTTP ' + r.status + ')'); }); })
         .then(function(result) {
-            if (result.code !== 200) return;
+            if (result.code !== 200) {
+                var msg = result.message || '未知错误';
+                document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">加载 MCP 服务失败: ' + esc(msg) + '</div>';
+                return;
+            }
             renderMcpServers((result.data && result.data.services) || []);
         })
-        .catch(function() {
-            document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">无法加载 MCP 服务</div>';
+        .catch(function(e) {
+            document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">无法加载 MCP 服务: ' + esc(e.message || '网络错误') + '</div>';
         })
         .finally(function() {
             var el = document.getElementById('mcp-server-list');
@@ -335,7 +339,7 @@ function renderMcpServers(servers) {
         var toolCount = s.tool_count || (s.tools ? s.tools.length : 0);
         var hasError = s.error && s.error.length > 0;
         var statusClass = connected ? (hasError ? 'am-srv-warn' : 'am-srv-on') : 'am-srv-off';
-        var statusText = !connected ? (s.error || '未连接') : (hasError ? s.error : '已连接');
+        var statusText = connected ? (hasError ? '异常' : '已连接') : '未连接';
         var chevron = connected ? '<svg class="am-mcp-chevron am-srv-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '';
         var clickable = connected ? ' am-mcp-card' : '';
         // 标签：来源 + 位置
@@ -345,6 +349,11 @@ function renderMcpServers(servers) {
         var locationTag = s.location === 'local'
             ? '<span class="am-tag am-tag-local">本地</span>'
             : '<span class="am-tag am-tag-remote">远程</span>';
+        // 错误信息胶囊（未连接且有错误时显示）
+        var errorCapsule = '';
+        if (hasError && !connected) {
+            errorCapsule = '<span class="am-srv-err-capsule" data-tip="' + escAttr(s.error) + '">错误信息</span>';
+        }
         // 操作按钮：内置不可删除，仅 subprocess 可重连
         var actions = '';
         if (s.can_reconnect) {
@@ -367,6 +376,7 @@ function renderMcpServers(servers) {
              + '<span class="am-mcp-status am-srv-status ' + statusClass + '">'
              + '<span class="am-mcp-status-dot am-srv-dot"></span>' + statusText
              + '</span>'
+             + errorCapsule
              + '</div>'
              + '<div class="am-srv-tools-panel" id="tools-' + esc(s.name) + '" style="display:none">'
              + '<div class="am-srv-tools-loading">加载工具列表…</div>'
@@ -531,7 +541,6 @@ function reconnectServer(name) {
     var btn = card ? card.querySelector('button') : null;
     var statusEl = card ? card.querySelector('.am-mcp-status') : null;
     var origBtnText = btn ? btn.textContent : '重连';
-    var origStatusHTML = statusEl ? statusEl.innerHTML : '';
     if (btn) { btn.disabled = true; btn.textContent = '重连中...'; }
     if (statusEl) {
         statusEl.className = 'am-mcp-status am-srv-status am-srv-warn';
@@ -539,7 +548,7 @@ function reconnectServer(name) {
     }
 
     fetch('/api/mcp/servers/' + encodeURIComponent(name) + '/reconnect', { method: 'POST' })
-        .then(function(r) { return r.json(); })
+        .then(function(r) { return r.json().catch(function() { throw new Error('HTTP ' + r.status); }); })
         .then(function(res) {
             if (res.code === 200) {
                 // 短暂显示断开再刷新
@@ -552,20 +561,23 @@ function reconnectServer(name) {
             } else {
                 if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
                 var errMsg = res.message || '未知错误';
+                // 截断过长错误，完整信息放 title
+                var showMsg = errMsg.length > 120 ? errMsg.substring(0, 120) + '…' : errMsg;
                 if (statusEl) {
-                    statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
-                    statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>' + esc(errMsg);
+                    statusEl.className = 'am-mcp-status am-srv-status am-srv-off am-srv-error';
+                    statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span><span title="' + escAttr(errMsg) + '">' + esc(showMsg) + '</span>';
                 }
-                addLog('重连失败: ' + errMsg, 'err');
+                addLog(name + ' 重连失败: ' + errMsg, 'err');
             }
         })
-        .catch(function() {
+        .catch(function(e) {
             if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+            var errText = e.message || '网络错误';
             if (statusEl) {
-                statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
-                statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>请求失败';
+                statusEl.className = 'am-mcp-status am-srv-status am-srv-off am-srv-error';
+                statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>' + esc(errText);
             }
-            addLog('重连请求失败', 'err');
+            addLog(name + ' 重连失败: ' + errText, 'err');
         });
 }
 

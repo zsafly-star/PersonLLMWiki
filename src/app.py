@@ -75,10 +75,12 @@ with app.app_context():
             os.makedirs(directory)
             print(f"Created directory: {directory}")
     
-    # 子目录：对话页导出、上传
+    # 子目录：对话页导出、上传、MCP 服务 & Skills 存放
     _subdirs = [
         os.path.join(app.config['ATTACHMENT_PATH'], 'chat_uploads'),
         os.path.join(app.config['ATTACHMENT_PATH'], 'file_exports'),
+        os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'mcp'),
+        os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'skills'),
     ]
     for d in _subdirs:
         if not os.path.exists(d):

@@ -22,8 +22,18 @@ if len(sys.argv) >= 2 and sys.argv[1].startswith('--mcp-launcher='):
     if getattr(sys, 'frozen', False) and sys._MEIPASS not in sys.path:
         sys.path.insert(0, sys._MEIPASS)
     sys.path.insert(0, _mcp_launcher_dir)
+    # PyInstaller 子进程中 importlib.metadata 找不到 dist-info，
+    # 在 sys.path 最前面挂载假元数据目录，确保 version() 调用不崩溃
+    import tempfile
+    _fmd = tempfile.mkdtemp(prefix='mcp_fake_meta_')
+    for _pkg_name, _pkg_ver in [('fastmcp-slim', '3.4.5'), ('fastmcp', '3.4.5')]:
+        _dist = os.path.join(_fmd, '%s-%s.dist-info' % (_pkg_name.replace('-', '_'), _pkg_ver))
+        os.makedirs(_dist, exist_ok=True)
+        with open(os.path.join(_dist, 'METADATA'), 'w', encoding='utf-8') as _mf:
+            _mf.write('Name: %s\nVersion: %s\n' % (_pkg_name, _pkg_ver))
+    sys.path.insert(0, _fmd)
     import runpy
-    runpy.run_path(_mcp_launcher_path)
+    runpy.run_path(_mcp_launcher_path, run_name='__main__')  # 必须指定，否则 launcher 的 if __name__ == '__main__' 不触发
     sys.exit(0)
 
 import time

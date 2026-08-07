@@ -363,6 +363,69 @@
 .am-srv-warn { background: rgba(217, 119, 6, 0.1); color: #D97706; }
 .am-srv-warn .am-srv-dot { background: #D97706; }
 
+/* status: error variant (连接失败等) */
+.am-srv-error { background: rgba(239, 68, 68, 0.08); color: #DC2626; }
+.am-srv-error .am-srv-dot { background: #DC2626; }
+
+/* 错误信息胶囊 + 气泡 */
+.am-srv-err-capsule {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 4px;
+    margin-left: 6px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #DC2626;
+    cursor: help;
+    position: relative;
+    white-space: nowrap;
+    user-select: none;
+}
+.am-srv-err-capsule::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 480px;
+    width: max-content;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+}
+.am-srv-err-capsule::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #1e293b;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+}
+.am-srv-err-capsule:hover::after,
+.am-srv-err-capsule:hover::before {
+    opacity: 1;
+}
+
 /* badge: tighter spacing */
 .am-srv-tool-badge {
     font-size: 10px;

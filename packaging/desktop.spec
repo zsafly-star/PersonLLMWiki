@@ -7,6 +7,7 @@
 """
 
 import os
+from PyInstaller.building.datastruct import Tree
 
 block_cipher = None
 # spec 位置：packaging/desktop.spec → 项目根 PersonLLMWiki/
@@ -66,6 +67,15 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+
+# 补充 fastmcp 包元数据（importlib.metadata.version 需要）
+import site as _site
+_sp = _site.getsitepackages()[1]
+_tree_fastmcp = Tree(os.path.join(_sp, 'fastmcp-3.4.5.dist-info'), prefix='fastmcp-3.4.5.dist-info')
+_tree_fastmcp_slim = Tree(os.path.join(_sp, 'fastmcp_slim-3.4.5.dist-info'), prefix='fastmcp_slim-3.4.5.dist-info')
+# 将 Tree 的 TOC 合并到 a.datas
+a.datas += _tree_fastmcp
+a.datas += _tree_fastmcp_slim
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
