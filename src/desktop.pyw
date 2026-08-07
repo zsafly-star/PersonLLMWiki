@@ -11,6 +11,18 @@
 
 import os
 import sys
+
+# ── MCP 子进程入口 ──────────────────────────────────────────────
+# 打包模式下，builtin_mcp_manager 以 --mcp-launcher=<path> 参数启动 EXE，
+# 此时只运行指定 MCP 服务器脚本，不启动完整桌面应用。
+if len(sys.argv) >= 2 and sys.argv[1].startswith('--mcp-launcher='):
+    _mcp_launcher_path = sys.argv[1].split('=', 1)[1]
+    _mcp_launcher_dir = os.path.dirname(os.path.abspath(_mcp_launcher_path))
+    sys.path.insert(0, _mcp_launcher_dir)
+    import runpy
+    runpy.run_path(_mcp_launcher_path, run_name='__mcp__')
+    sys.exit(0)
+
 import time
 import ctypes
 import threading

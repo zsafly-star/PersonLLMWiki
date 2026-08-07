@@ -159,9 +159,12 @@ def _start_subprocess_service(svc):
     if auth_token_env:
         env[auth_token_env] = token
 
-    # 构建启动命令（command + args，支持模板变量）
+    # 构建启动命令
     raw_args = svc.get('args', [])
     resolved_args = [_resolve_template(a, ctx) for a in raw_args]
+    if getattr(sys, 'frozen', False) and resolved_args:
+        # 打包模式：通过 --mcp-launcher 标志让 EXE 只运行脚本
+        resolved_args = [f'--mcp-launcher={resolved_args[0]}']
     full_cmd = [cmd] + resolved_args
 
     # 启动子进程（stderr 重定向到日志文件用于调试）

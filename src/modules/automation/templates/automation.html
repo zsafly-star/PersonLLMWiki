@@ -335,7 +335,7 @@ function renderMcpServers(servers) {
         var toolCount = s.tool_count || (s.tools ? s.tools.length : 0);
         var hasError = s.error && s.error.length > 0;
         var statusClass = connected ? (hasError ? 'am-srv-warn' : 'am-srv-on') : 'am-srv-off';
-        var statusText = !connected ? '未连接' : (hasError ? '异常' : '已连接');
+        var statusText = !connected ? (s.error || '未连接') : (hasError ? s.error : '已连接');
         var chevron = connected ? '<svg class="am-mcp-chevron am-srv-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '';
         var clickable = connected ? ' am-mcp-card' : '';
         // 标签：来源 + 位置
@@ -551,13 +551,20 @@ function reconnectServer(name) {
                 addLog('MCP 服务器 ' + name + ' 重连成功', 'ok');
             } else {
                 if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
-                if (statusEl) { statusEl.innerHTML = origStatusHTML; statusEl.className = origStatusHTML.includes('am-srv-on') ? 'am-mcp-status am-srv-status am-srv-on' : 'am-mcp-status am-srv-status'; }
-                addLog('重连失败: ' + (res.message || ''), 'err');
+                var errMsg = res.message || '未知错误';
+                if (statusEl) {
+                    statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
+                    statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>' + esc(errMsg);
+                }
+                addLog('重连失败: ' + errMsg, 'err');
             }
         })
         .catch(function() {
             if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
-            if (statusEl) { statusEl.innerHTML = origStatusHTML; }
+            if (statusEl) {
+                statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
+                statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>请求失败';
+            }
             addLog('重连请求失败', 'err');
         });
 }
