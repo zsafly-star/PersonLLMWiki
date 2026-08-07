@@ -18,9 +18,12 @@ import sys
 if len(sys.argv) >= 2 and sys.argv[1].startswith('--mcp-launcher='):
     _mcp_launcher_path = sys.argv[1].split('=', 1)[1]
     _mcp_launcher_dir = os.path.dirname(os.path.abspath(_mcp_launcher_path))
+    # 确保能导入项目模块（_internal/ 在 sys._MEIPASS）
+    if getattr(sys, 'frozen', False) and sys._MEIPASS not in sys.path:
+        sys.path.insert(0, sys._MEIPASS)
     sys.path.insert(0, _mcp_launcher_dir)
     import runpy
-    runpy.run_path(_mcp_launcher_path, run_name='__mcp__')
+    runpy.run_path(_mcp_launcher_path)
     sys.exit(0)
 
 import time
