@@ -9,6 +9,7 @@
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import urllib.error
@@ -19,6 +20,9 @@ PROJECT_DIR = os.path.dirname(THIS_DIR)
 
 GITLAB_HOST = "gitlab.xiangyuniot.com"
 GITLAB_PROJECT = "AiTeam/personllmwiki"
+
+# 大文件上传超时设置
+socket.setdefaulttimeout(600)
 
 
 def _api_request(method, path, token, data=None, files=None):
@@ -61,8 +65,8 @@ def _api_request(method, path, token, data=None, files=None):
         return None
 
 
-def publish_release(version, installer_path):
-    """推 tag + 创建 GitLab Release + 上传安装包"""
+def publish_release(version, installer_path, zip_path=None):
+    """推 tag + 创建 GitLab Release + 上传安装包 + 资源包"""
     token = os.getenv("GITLAB_TOKEN", "")
     if not token:
         print("[release] 错误: 缺少 GITLAB_TOKEN 环境变量")

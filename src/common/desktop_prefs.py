@@ -1,6 +1,6 @@
 """桌面应用偏好读写（关闭行为、首次启动标记）。
 
-偏好文件存储在 {resource}/instance/desktop_prefs.json
+偏好文件存储在 ~/.personllmwiki/instance/desktop_prefs.json
 """
 
 import json
@@ -9,14 +9,15 @@ import os
 VALID_ACTIONS = {"minimize", "exit"}
 
 
-def _prefs_path(resource_path):
+def _prefs_path():
     """获取偏好文件路径"""
-    return os.path.join(resource_path, "instance", "desktop_prefs.json")
+    from config import Config
+    return os.path.join(Config.INSTANCE_PATH, "desktop_prefs.json")
 
 
-def _read_prefs(resource_path):
+def _read_prefs():
     """读取全部偏好，不存在则返回空 dict"""
-    path = _prefs_path(resource_path)
+    path = _prefs_path()
     if not os.path.isfile(path):
         return {}
     try:
@@ -26,10 +27,10 @@ def _read_prefs(resource_path):
         return {}
 
 
-def _write_prefs(prefs, resource_path):
+def _write_prefs(prefs):
     """写入全部偏好（自动创建目录，原子写入）"""
     import tempfile
-    path = _prefs_path(resource_path)
+    path = _prefs_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     dir_ = os.path.dirname(path)
     fd, tmp = tempfile.mkstemp(dir=dir_, prefix=".desktop_prefs-", suffix=".tmp")
@@ -43,20 +44,19 @@ def _write_prefs(prefs, resource_path):
         raise
 
 
-def get_close_action(resource_path):
+def get_close_action():
     """获取关闭行为偏好。
 
     Returns:
         str | None: "minimize" / "exit" / None（未设置）
     """
-    return _read_prefs(resource_path).get("close_action")
+    return _read_prefs().get("close_action")
 
 
-def set_close_action(resource_path, action):
+def set_close_action(action):
     """设置关闭行为偏好。
 
     Args:
-        resource_path: resource 根目录路径
         action: "minimize" 或 "exit"
 
     Raises:
@@ -64,18 +64,18 @@ def set_close_action(resource_path, action):
     """
     if action not in VALID_ACTIONS:
         raise ValueError(f"close_action 必须是 {VALID_ACTIONS} 之一，收到: {action}")
-    prefs = _read_prefs(resource_path)
+    prefs = _read_prefs()
     prefs["close_action"] = action
-    _write_prefs(prefs, resource_path)
+    _write_prefs(prefs)
 
 
-def is_first_launch(resource_path):
+def is_first_launch():
     """是否为首次启动"""
-    return not _read_prefs(resource_path).get("launched", False)
+    return not _read_prefs().get("launched", False)
 
 
-def mark_launched(resource_path):
+def mark_launched():
     """标记已启动过（不再是首次）"""
-    prefs = _read_prefs(resource_path)
+    prefs = _read_prefs()
     prefs["launched"] = True
-    _write_prefs(prefs, resource_path)
+    _write_prefs(prefs)

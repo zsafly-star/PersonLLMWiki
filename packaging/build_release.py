@@ -16,14 +16,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fetch_runtime import build_runtime
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.dirname(THIS_DIR)          # PersonLLMWiki/src/
+PROJECT_DIR = os.path.dirname(THIS_DIR)      # PersonLLMWiki/
+SRC_DIR = os.path.join(PROJECT_DIR, "src")    # PersonLLMWiki/src/
 BUILD_DIR = os.path.join(THIS_DIR, "build")
 DIST_DIR = os.path.join(THIS_DIR, "dist")
 
 EXCLUDE_PATTERNS = {
-    ".git", "__pycache__", ".vscode", "node_modules",
-    "resource", "build", "dist", "packaging", "bin",
-    ".env", "dev.ps1", ".env.local", ".env.example"
+    "__pycache__", "resource", "build", "dist", "bin",
+    ".env", ".env.local", ".env.example"
 }
 
 
@@ -92,6 +92,16 @@ def build_full(version):
         print(f"[build] 复制 bin/ (MCP 二进制)...")
         shutil.copytree(bin_src, bin_dst)
 
+    # 2c. 复制 seed/（首次播种数据，包含 Skills 和 MCP 配置）
+    seed_src = os.path.join(PROJECT_DIR, "seed")
+    seed_dst = os.path.join(target, "seed")
+    if os.path.isdir(seed_src):
+        print(f"[build] 复制 seed/ (播种数据: skills + mcp)...")
+        shutil.copytree(seed_src, seed_dst,
+                        ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    else:
+        print(f"[build] ⚠ seed/ 目录不存在，跳过: {seed_src}")
+
     # 3. bat 脚本
     copy_bat_scripts(target)
 
@@ -108,8 +118,7 @@ def build_full(version):
         shutil.copy2(guide_src, os.path.join(target, "README-用户指南.md"))
 
     # 7. 创建空目录占位
-    for d in ["resource", os.path.join("resource", "instance"),
-              os.path.join("resource", "article"),
+    for d in ["resource", os.path.join("resource", "article"),
               os.path.join("resource", "img"),
               os.path.join("resource", "attachments"),
               os.path.join("resource", "wiki"), "logs"]:
@@ -131,17 +140,27 @@ def build_full(version):
 
 
 def build_update(version):
-    """构建增量包（仅 app 代码）"""
+    """构建增量包（app/ 代码 + seed/ 播种数据）。
+
+    解压到安装根目录后覆盖 app/ 和 seed/，用户数据（resource/）不受影响。
+    """
     target_name = f"PersonLLMWiki-{version}-update"
     target = os.path.join(BUILD_DIR, target_name)
 
     if os.path.isdir(target):
         shutil.rmtree(target)
-    # copy_app_code 会通过 shutil.copytree 自动创建 target 目录
-    os.makedirs(BUILD_DIR, exist_ok=True)
+    os.makedirs(target)
 
-    # 仅 app 代码（保持目录结构，解压时直接覆盖到 app/）
-    copy_app_code(SRC_DIR, target)
+    # app/ 代码
+    copy_app_code(SRC_DIR, os.path.join(target, "app"))
+
+    # seed/ 播种数据（增量包也需更新 Skills 和 MCP 配置）
+    seed_src = os.path.join(PROJECT_DIR, "seed")
+    seed_dst = os.path.join(target, "seed")
+    if os.path.isdir(seed_src):
+        shutil.copytree(seed_src, seed_dst,
+                        ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        print(f"[build] 已包含 seed/ 播种数据")
 
     # VERSION
     with open(os.path.join(target, "VERSION"), "w") as f:
@@ -150,17 +169,14 @@ def build_update(version):
     # 打包 zip
     os.makedirs(DIST_DIR, exist_ok=True)
     zip_base = os.path.join(DIST_DIR, target_name)
-    shutil.make_archive(zip_base, "zip", target, ".")
+    shutil.make_archive(zip_base, "zip", BUILD_DIR, target_name)
 
-    # 清理临时目录
-    shutil.rmtree(target)
-
-    zip_path = zip_base + ".zip"
-    size_mb = os.path.getsize(zip_path) / 1024 / 1024
+    # 统计大小
+    size_mb = os.path.getsize(zip_base + ".zip") / 1024 / 1024
     print(f"\n[build] 增量包已生成:")
-    print(f"  路径: {zip_path}")
+    print(f"  路径: {zip_base}.zip")
     print(f"  大小: {size_mb:.1f} MB")
-    return zip_path
+    return zip_base + ".zip"
 
 
 if __name__ == "__main__":

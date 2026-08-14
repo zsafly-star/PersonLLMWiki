@@ -540,6 +540,26 @@
     color: var(--color-muted);
 }
 
+.paths-subtitle {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 20px 0 6px 0;
+    color: var(--color-text);
+}
+
+.paths-subtitle:first-of-type {
+    margin-top: 0;
+}
+
+.path-cell {
+    word-break: break-all;
+    font-size: 11px;
+}
+
+.fixed-paths {
+    margin-bottom: 4px;
+}
+
 /* ===== LLM 配置 ===== */
 .llm-config-list {
     display: flex;

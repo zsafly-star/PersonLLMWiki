@@ -9,13 +9,13 @@
 
 新增一个内置服务只需在 bin/mcp/ 下创建文件夹 + service.json，无需写新的 runner。
 
-目录约定（开发模式：项目根/bin/；打包模式：RESOURCE_BASE_PATH/bin/）：
-  bin/mcp/<name>/                 每个服务一个文件夹（自包含）
-  bin/mcp/<name>/service.json     服务声明
-  bin/mcp/<name>/launcher.py      启动脚本（subprocess 类型）
-  bin/mcp/<name>/models/          模型等运行时数据（ensure_dirs 声明）
-  bin/mcp/<name>/cache/           缓存
-  bin/skills/<name>/SKILL.md      Skill 工作流指令
+目录约定：
+  ~/.personllmwiki/mcp/<name>/           每个服务一个文件夹（自包含）
+  ~/.personllmwiki/mcp/<name>/service.json   服务声明
+  ~/.personllmwiki/mcp/<name>/launcher.py    启动脚本（subprocess 类型）
+  ~/.personllmwiki/mcp/<name>/models/        模型等运行时数据（ensure_dirs 声明）
+  ~/.personllmwiki/mcp/<name>/cache/         缓存
+  ~/.personllmwiki/skills/<name>/SKILL.md    Skill 工作流指令
 """
 import os
 import sys
@@ -27,17 +27,16 @@ import atexit
 import threading
 import subprocess
 
-# bin/mcp/ 目录（内置 MCP 服务统一存放点）— 动态读取，支持用户修改路径后实时生效
+# MCP_DIR（~/.personllmwiki/mcp/，首次启动时从 seed/ 播种）
 def _get_bin_mcp_dir():
-    if getattr(sys, 'frozen', False):
-        try:
-            from config import Config
-            return os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'mcp')
-        except Exception:
-            return os.path.join(os.path.dirname(sys._MEIPASS), 'resource', 'bin', 'mcp')
-    else:
-        _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(_SRC_ROOT, 'bin', 'mcp')
+    """获取 MCP 服务目录，统一从 Config.MCP_DIR 读取。"""
+    try:
+        from config import Config
+        return Config.MCP_DIR
+    except Exception:
+        pass
+    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(_SRC_ROOT, 'bin', 'mcp')
 
 # 运行时状态
 _procs = {}          # name -> subprocess.Popen

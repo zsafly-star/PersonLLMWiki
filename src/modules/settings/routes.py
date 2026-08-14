@@ -150,12 +150,12 @@ _VERSIONS_URL = os.getenv(
 
 
 def _get_app_dir():
-    """获取 app 代码目录"""
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    """获取 app 代码目录（src/）"""
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _get_project_root():
-    """获取项目根目录（app 的上级）"""
+    """获取项目根目录（PersonLLMWiki/PersonLLMWiki/，app 的上级）"""
     return os.path.dirname(_get_app_dir())
 
 
@@ -220,8 +220,9 @@ def _get_disk_info():
 
 
 def _get_mcp_services():
-    """获取 bin/mcp 下的服务清单"""
-    bin_dir = os.path.join(_get_app_dir(), 'bin', 'mcp')
+    """获取 MCP 服务清单"""
+    from config import Config
+    bin_dir = Config.MCP_DIR
     services = []
     if os.path.isdir(bin_dir):
         for name in sorted(os.listdir(bin_dir)):
@@ -262,10 +263,14 @@ def get_version_info():
 
 @settings_bp.route('/api/settings/path', methods=['GET'])
 def get_path():
-    """返回当前资源路径"""
+    """返回当前资源路径 + 固定应用数据目录"""
     from config import Config
     return success_response({
         'resource_path': getattr(Config, 'RESOURCE_BASE_PATH', ''),
+        'data_dir': getattr(Config, 'USER_DATA_DIR', ''),
+        'instance_path': getattr(Config, 'INSTANCE_PATH', ''),
+        'mcp_dir': getattr(Config, 'MCP_DIR', ''),
+        'skills_dir': getattr(Config, 'SKILLS_DIR', ''),
     })
 
 
@@ -283,17 +288,9 @@ def save_path():
     # 转为绝对路径
     path = os.path.abspath(path)
 
-    # 确定 .env 文件位置
-    # 打包模式：写到 %APPDATA%\PersonLLMWiki\.env
-    import sys as _sys
-    if getattr(_sys, 'frozen', False):
-        env_path = os.path.join(
-            os.getenv('APPDATA', ''), 'PersonLLMWiki', '.env')
-        os.makedirs(os.path.dirname(env_path), exist_ok=True)
-    else:
-        env_path = os.path.join(_get_project_root(), '.env')
-        if not os.path.isfile(env_path):
-            env_path = os.path.join(_get_app_dir(), '.env')
+    # .env 固定写入用户数据目录
+    env_path = os.path.join(Config.USER_DATA_DIR, '.env')
+    os.makedirs(Config.USER_DATA_DIR, exist_ok=True)
 
     lines = []
     found = False
@@ -309,11 +306,22 @@ def save_path():
     if not found:
         lines.append('RESOURCE_BASE_PATH=' + path + '\n')
 
-    with open(env_path, 'w', encoding='utf-8') as f:
-        f.writelines(lines)
+    # 先写入临时文件再原子替换，避免文件锁定问题
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=Config.USER_DATA_DIR, suffix='.tmp')
+    try:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        os.replace(tmp_path, env_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
-    # 创建所需子目录
-    subdirs = ['instance', 'article', 'img', 'attachments', 'wiki', 'bin/mcp', 'bin/skills']
+    # 创建所需子目录（仅用户内容）
+    subdirs = ['article', 'img', 'attachments', 'wiki']
     created = []
     for sub in subdirs:
         d = os.path.join(path, sub)

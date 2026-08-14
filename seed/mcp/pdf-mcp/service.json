@@ -1,0 +1,22 @@
+{
+  "name": "pdf-mcp",
+  "source": "builtin",
+  "location": "local",
+  "type": "subprocess",
+  "command": "python",
+  "args": ["{bin_dir}/launcher.py"],
+  "description": "PDF 文档读取/搜索/大纲/分页（13 个 MCP 工具）",
+  "host": "127.0.0.1",
+  "port": 17654,
+  "path": "/mcp",
+  "auth_token_env": "PDF_MCP_AUTH_TOKEN",
+  "startup_timeout": 30,
+  "ensure_dirs": ["models", "cache"],
+  "env": {
+    "FASTEMBED_CACHE_PATH": "{bin_dir}/models",
+    "PDF_MCP_CACHE_DIR": "{bin_dir}/cache",
+    "PDF_MCP_HTTP_HOST": "127.0.0.1",
+    "PDF_MCP_HTTP_PORT": "17654",
+    "HF_ENDPOINT": "https://hf-mirror.com"
+  }
+}

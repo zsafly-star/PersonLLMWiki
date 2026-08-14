@@ -5,7 +5,7 @@ import sys
 import pytest
 
 # 把 src/ 加入 sys.path，让测试能直接 import modules.*
-_SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src')
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 

@@ -15,6 +15,7 @@
 ```
 PersonLLMWiki/
 ├── src/                    # 源码（Flask + 前端）
+├── seed/                   # 播种数据（MCP + Skills 默认文件）
 ├── tests/                  # 测试
 ├── doc/                    # 文档
 ├── packaging/              # 打包脚本
@@ -27,6 +28,23 @@ PersonLLMWiki/
 │   └── installer/          #   安装包 .exe
 ├── requirements.txt
 └── VERSION
+```
+
+### 运行时数据目录
+
+首次启动自动创建 `~/.personllmwiki/`（播种数据从安装目录 `seed/` 复制）：
+
+```
+~/.personllmwiki/           # 应用数据根（固定）
+├── .env                    #   应用配置
+├── instance/               #   数据库和配置（固定）
+├── mcp/                    #   MCP 服务二进制（固定）
+├── skills/                 #   技能定义文件（固定）
+└── resource/               #   用户内容（可自定义）
+    ├── article/
+    ├── img/
+    ├── attachments/
+    └── wiki/
 ```
 
 ---
@@ -63,9 +81,11 @@ Swiss-Style Minimalism 卡片网格布局，概念按 kind 分组展示。点击
 - 基于 APScheduler 动态加载，支持手动触发
 
 ### MCP
-双角色 MCP 协议（v2.0，24 工具）：
-- **服务端**：`POST /mcp` (JSON-RPC 2.0)，4 Tier 工具
+双角色 MCP 协议（v2.0，25 工具）：
+- **服务端**：`POST /mcp` (JSON-RPC 2.0)，3 Tier 工具
 - **客户端**：MCPClientBus 总线，连接外部 MCP 服务器（如 SAP）
+- **write_note**：创建/覆盖 Markdown 文章，内嵌 base64 图片自动提取
+- **save_text_file**：通用文本写入，支持覆盖/追加双模式，可选 article/resource 根目录
 
 ### 文章 / 图片
 Markdown 文件管理、文件夹目录树、附件上传、图片网格/列表视图。
@@ -135,6 +155,22 @@ src/
 
 ## 快速开始
 
+### 桌面版安装
+
+1. 下载最新 [Release 分支](http://gitlab.xiangyuniot.com/AiTeam/personllmwiki/-/tree/releases) 中的 `PersonLLMWiki-Setup-*.exe` 安装包
+2. 下载 `bin-resources-*.zip` 资源包
+3. 安装完成后，将 `bin-resources-*.zip` 解压到资源路径（默认 `{安装目录}\resource\`），确保目录结构为：
+   ```
+   resource\bin\
+   ├── mcp\
+   │   ├── officecli\
+   │   ├── pdf-mcp\
+   │   ├── websearch\
+   │   └── zssnote\
+   └── skills\
+   ```
+4. 重启应用即可在控制台 → MCP 页面看到所有服务
+
 ### 环境要求
 
 | 依赖 | 版本 |
@@ -196,15 +232,20 @@ python packaging/build_desktop.py 1.0.0
 
 ### 发布到 GitLab
 
-```bash
-# 设置 Token（一次性）
-set GITLAB_TOKEN=glpat-xxxxxxxxxxxx
+安装包通过 `releases` 分支分发：
 
-# 发布
-python packaging/release.py 1.0.0 release/installer/PersonLLMWiki-Setup-1.0.0.exe
+```bash
+# 推送到 releases 分支
+git checkout --orphan releases
+git rm -rf .
+cp release/installer/PersonLLMWiki-Setup-*.exe .
+git add *.exe
+git commit -m "release v1.0.0"
+git push -u origin releases
+git checkout main
 ```
 
-自动完成：推 tag → 创建 Release → 上传安装包。
+用户下载地址：`http://gitlab.xiangyuniot.com/AiTeam/personllmwiki/-/tree/releases`
 
 ---
 

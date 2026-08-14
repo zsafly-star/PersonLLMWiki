@@ -319,6 +319,9 @@
 @media (prefers-reduced-motion: reduce) {
     .chat-bubble-row { animation: none; }
     .chat-right-panel { transition: none; }
+    .thinking-body { transition: none; }
+    .thinking-text.typing::after { animation: none; }
+    .thinking-dot.loading { animation: none; }
 }
 
 .chat-bubble-row.deleting .chat-bubble {
@@ -386,6 +389,8 @@
     line-height: 1.7;
     word-break: break-word;
     max-width: 100%;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .chat-bubble-row.user .chat-bubble {
@@ -1379,7 +1384,8 @@
     background: var(--color-primary-dark);
 }
 
-.chat-thinking-block, .chat-bubble details {
+/* ---- 旧版兼容（details 标签） ---- */
+.chat-bubble details {
     margin-bottom: 10px;
     border-radius: 8px;
     position: relative;
@@ -1389,7 +1395,7 @@
     padding: 0;
 }
 
-.chat-thinking-header, .chat-bubble summary {
+.chat-bubble summary {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1404,13 +1410,8 @@
     transition: background 0.15s;
 }
 
-.chat-bubble summary:hover {
-    background: var(--color-border-light);
-}
-
-.chat-bubble summary::-webkit-details-marker {
-    display: none;
-}
+.chat-bubble summary:hover { background: var(--color-border-light); }
+.chat-bubble summary::-webkit-details-marker { display: none; }
 
 .chat-bubble summary::before {
     content: '▶';
@@ -1420,95 +1421,24 @@
     opacity: 0.5;
 }
 
-.chat-bubble details[open] summary::before {
-    transform: rotate(90deg);
-}
+.chat-bubble details[open] summary::before { transform: rotate(90deg); }
 
-.chat-thinking-header i {
-    font-size: 11px;
-    opacity: 0.6;
-}
-
-.chat-thinking-header .chat-thinking-toggle {
-    margin-left: auto;
-    font-size: 11px;
-    color: var(--color-foreground-secondary);
-    opacity: 0.6;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 4px;
-    transition: background 0.15s;
-}
-.chat-thinking-header .chat-thinking-toggle:hover {
-    background: var(--color-border-light);
-    opacity: 1;
-}
-
-.chat-thinking-body, .chat-bubble details > :not(summary) {
-    font-size: 12.5px;
-    line-height: 1.65;
-    color: var(--color-foreground-secondary);
-    word-break: break-word;
-}
-
-.chat-thinking-body {
-    padding: 0 12px 10px;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
+.chat-bubble details > :not(summary),
 .chat-bubble details > p,
 .chat-bubble details > div {
     padding: 0 12px 10px;
     font-size: 12.5px;
     color: var(--color-foreground-secondary);
     line-height: 1.65;
+    word-break: break-word;
 }
 
-.chat-bubble details > p:first-of-type {
-    padding-top: 2px;
-}
+.chat-bubble details > p:first-of-type { padding-top: 2px; }
+.chat-bubble details pre, .chat-bubble details code { font-size: 12px; }
+.chat-bubble details strong { font-weight: 600; }
 
-.chat-bubble details pre, .chat-bubble details code {
-    font-size: 12px;
-}
-
-.chat-bubble details strong {
-    font-weight: 600;
-}
-
-.chat-thinking-block:not(.expanded) .chat-thinking-body {
-    max-height: 0;
-    overflow: hidden;
-    padding: 0 12px;
-    transition: max-height 0.2s ease, padding 0.2s ease;
-}
-
-.chat-thinking-block.expanded .chat-thinking-body {
-    transition: max-height 0.25s ease;
-}
-
-.chat-thinking-pulse {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--color-foreground-secondary);
-    font-size: 12.5px;
-    font-style: italic;
-    opacity: 0.6;
-}
-
-.chat-thinking-pulse i {
-    animation: spin 1.5s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-/* ===== 阶段节点式思考过程组件 ===== */
-.thinking-process {
+/* ===== 连续思考流 (v4) ===== */
+.thinking-stream {
     border: 1px solid var(--color-border-light);
     border-radius: 8px;
     background: var(--color-background);
@@ -1516,216 +1446,109 @@
     margin-bottom: 14px;
 }
 
-/* -- 进度栏 -- */
-.thinking-progress {
+/* 头部栏：思考中 / 完成摘要 */
+.thinking-header {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
-    gap: 8px;
-    position: relative;
-    min-height: 48px;
-}
-
-.thinking-progress-track {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-behavior: smooth;
-    gap: 0;
-    padding: 4px 0;
-}
-
-/* 隐藏滚动条 */
-.thinking-progress-track::-webkit-scrollbar { height: 2px; }
-.thinking-progress-track::-webkit-scrollbar-thumb { background: var(--color-border-light); border-radius: 2px; }
-
-.thinking-node {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
+    gap: 6px;
+    padding: 8px 12px;
     cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 4px;
+    user-select: none;
     transition: background 0.15s;
-    position: relative;
+    min-height: 36px;
 }
-.thinking-node:hover { background: var(--color-border-light); }
-.thinking-node.pending { cursor: default; opacity: 0.5; }
-.thinking-node.pending:hover { background: transparent; }
+.thinking-header:hover {
+    background: var(--color-surface);
+}
 
-.thinking-node-icon {
-    width: 20px;
-    height: 20px;
+/* 加载点 */
+.thinking-dot {
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     font-size: 10px;
-    font-weight: 700;
-    transition: all 0.3s;
-    position: relative;
+    color: #fff;
 }
-
-/* pending: 灰色空心圆 */
-.thinking-node.pending .thinking-node-icon {
-    border: 2px solid var(--color-border);
-    background: transparent;
-    color: transparent;
-}
-
-/* processing: 蓝色实心圆 + 呼吸动效 */
-.thinking-node.processing .thinking-node-icon {
+/* processing: 蓝色旋转 */
+.thinking-dot.loading {
     background: var(--color-accent, #3b82f6);
-    border: none;
-    color: #fff;
-    box-shadow: 0 0 0 0 rgba(59,130,246,0.5);
-    animation: node-breathe 1.5s ease-in-out infinite;
+    animation: thinking-dot-pulse 1.2s ease-in-out infinite;
 }
-@keyframes node-breathe {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+@keyframes thinking-dot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.5; }
 }
-
-/* completed: 蓝色实心圆 + 白色对勾 */
-.thinking-node.completed .thinking-node-icon {
-    background: var(--color-accent, #3b82f6);
-    border: none;
-    color: #fff;
+/* done: 绿色勾 */
+.thinking-dot.done {
+    background: #22c55e;
 }
 
-/* error: 红色实心圆 + 白色感叹号 */
-.thinking-node.error .thinking-node-icon {
-    background: var(--color-error, #dc2626);
-    border: none;
-    color: #fff;
-}
-
-.thinking-node-name {
-    font-size: 12px;
-    white-space: nowrap;
+.thinking-label {
+    flex: 1;
+    font-size: 13px;
     color: var(--color-muted);
-    transition: color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
-.thinking-node.processing .thinking-node-name {
+.thinking-header.processing .thinking-label {
     color: var(--color-accent, #3b82f6);
-    font-weight: 600;
-}
-.thinking-node.completed .thinking-node-name {
-    color: var(--color-foreground-secondary);
-}
-.thinking-node.error .thinking-node-name {
-    color: var(--color-error, #dc2626);
+    font-weight: 500;
 }
 
-/* 连接线 */
-.thinking-connector {
-    width: 24px;
-    height: 2px;
+.thinking-toggle {
     flex-shrink: 0;
-    margin: 0 2px;
-    transition: background 0.3s;
-}
-/* 灰色虚线 */
-.thinking-connector {
-    background: repeating-linear-gradient(
-        to right,
-        var(--color-border) 0,
-        var(--color-border) 4px,
-        transparent 4px,
-        transparent 8px
-    );
-}
-/* completed 连接线：蓝色实线 */
-.thinking-connector.completed {
-    background: var(--color-accent, #3b82f6);
-}
-/* error 连接线：红色实线 */
-.thinking-connector.error {
-    background: var(--color-error, #dc2626);
-}
-
-/* -- 跳过思考按钮 -- */
-.thinking-skip-btn {
-    flex-shrink: 0;
-    padding: 3px 10px;
     font-size: 11px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-background);
-    color: var(--color-muted);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s;
-}
-.thinking-skip-btn:hover {
-    color: var(--color-foreground);
-    border-color: var(--color-foreground-secondary);
-}
-.thinking-skip-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-/* -- 详情面板 -- */
-.thinking-detail {
-    border-top: 1px solid var(--color-border-light);
-    display: none;
-    animation: detailSlideDown 0.2s ease;
-}
-.thinking-detail.active { display: block; }
-
-@keyframes detailSlideDown {
-    from { max-height: 0; opacity: 0; }
-    to { max-height: 300px; opacity: 1; }
-}
-
-.thinking-detail-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    font-size: 12px;
+    padding: 2px 8px;
+    border: none;
     background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border-light);
-    color: var(--color-foreground-secondary);
-}
-.thinking-detail-title { font-weight: 600; color: var(--color-foreground); }
-
-.thinking-detail-actions {
-    display: flex;
-    gap: 6px;
-}
-.thinking-detail-actions button {
-    padding: 3px 8px;
-    font-size: 11px;
-    border: 1px solid var(--color-border);
+    color: var(--color-muted);
     border-radius: 4px;
-    background: var(--color-background);
-    color: var(--color-foreground-secondary);
     cursor: pointer;
+    display: none;
     transition: all 0.15s;
 }
-.thinking-detail-actions button:hover {
+.thinking-toggle:hover {
     color: var(--color-foreground);
-    border-color: var(--color-foreground-secondary);
+}
+.thinking-header.done .thinking-toggle {
+    display: block;
 }
 
-.thinking-detail-content {
-    padding: 10px 12px;
-    font-size: 12px;
-    color: var(--color-foreground-secondary);
-    line-height: 1.6;
-    max-height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
+/* 思考文字体 */
+.thinking-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.thinking-body.expanded {
+    max-height: 2000px;
 }
 
-/* -- 最终答案分隔 -- */
+.thinking-text {
+    padding: 8px 12px 4px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--color-foreground);
+}
+/* 打字机光标 */
+.thinking-text.typing::after {
+    content: '|';
+    animation: cursor-blink 0.8s step-end infinite;
+    color: var(--color-accent, #3b82f6);
+    font-weight: 400;
+}
+@keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* 回答分隔线 */
 .thinking-answer-divider {
     display: flex;
     align-items: center;
@@ -1733,7 +1556,6 @@
     padding: 6px 12px;
     font-size: 11px;
     color: var(--color-muted);
-    border-top: 1px solid var(--color-border-light);
 }
 .thinking-answer-divider::after {
     content: '';
@@ -1742,59 +1564,216 @@
     background: var(--color-border-light);
 }
 
-/* -- 答案占位 -- */
-.thinking-answer-placeholder {
-    padding: 12px;
-    font-size: 12px;
-    color: var(--color-muted);
-    font-style: italic;
+/* ---- 旧版兼容（details 标签） ---- */
+.chat-bubble details {
+    margin-bottom: 10px;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    background: var(--color-background);
+    border: 1px solid var(--color-border-light);
+    padding: 0;
 }
 
-/* -- 历史消息思考过程（可折叠） -- */
-.thinking-history {
-    margin-bottom: 8px;
-}
-.thinking-history-header {
-    display: inline-flex;
+.chat-bubble summary {
+    display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    color: var(--color-muted);
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--color-foreground-secondary);
+    padding: 8px 12px;
     cursor: pointer;
+    list-style: none;
+    outline: none;
     user-select: none;
     transition: background 0.15s;
 }
-.thinking-history-header:hover {
-    background: var(--color-border-light);
+
+.chat-bubble summary:hover { background: var(--color-border-light); }
+.chat-bubble summary::-webkit-details-marker { display: none; }
+
+.chat-bubble summary::before {
+    content: '▶';
+    font-size: 8px;
+    margin-right: 2px;
+    transition: transform 0.2s ease;
+    opacity: 0.5;
 }
-.thinking-history-header.expanded .thinking-history-chevron {
-    transform: rotate(180deg);
+
+.chat-bubble details[open] summary::before { transform: rotate(90deg); }
+
+.chat-bubble details > :not(summary),
+.chat-bubble details > p,
+.chat-bubble details > div {
+    padding: 0 12px 10px;
+    font-size: 12.5px;
+    color: var(--color-foreground-secondary);
+    line-height: 1.65;
+    word-break: break-word;
 }
-.thinking-history-chevron {
-    transition: transform 0.2s;
-}
-.thinking-history-body {
-    margin-top: 8px;
-    padding: 8px 12px;
-    background: var(--color-surface);
+
+.chat-bubble details > p:first-of-type { padding-top: 2px; }
+.chat-bubble details pre, .chat-bubble details code { font-size: 12px; }
+.chat-bubble details strong { font-weight: 600; }
+
+/* ---- Mermaid 工具栏 ---- */
+.mermaid-code-block {
+    position: relative;
+    margin: 10px 0;
+    border: 1px solid var(--color-border);
     border-radius: 6px;
-    border: 1px solid var(--color-border-light);
+    overflow: hidden;
 }
-.thinking-history .thinking-track {
-    flex-wrap: wrap;
+.mermaid-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--color-border-light);
+    background: var(--color-surface);
+}
+.mermaid-toolbar button {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: rgba(255,255,255,0.85);
+    border-radius: 4px;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    backdrop-filter: blur(4px);
+}
+.mermaid-toolbar button:hover {
+    background: rgba(255,255,255,0.95);
+    color: var(--color-foreground);
+}
+.mermaid-toolbar button.copied {
+    color: #22c55e;
+}
+/* 源码面板 */
+.mermaid-source {
+    padding: 12px 12px 12px 16px;
+    background: #1e293b;
+    color: #e2e8f0;
+    overflow-x: auto;
+    display: none;
+    border-radius: 0 0 6px 6px;
+}
+.mermaid-source.active { display: block; }
+.mermaid-source pre {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+.mermaid-source pre code {
+    background: transparent !important;
+    color: #e2e8f0 !important;
+}
+.mermaid-source .codehilite .hll,
+.mermaid-source .codehilite .c,
+.mermaid-source .codehilite .err,
+.mermaid-source .codehilite .k,
+.mermaid-source .codehilite .o,
+.mermaid-source .codehilite .cm,
+.mermaid-source .codehilite .cp,
+.mermaid-source .codehilite .c1,
+.mermaid-source .codehilite .cs,
+.mermaid-source .codehilite .gd,
+.mermaid-source .codehilite .ge,
+.mermaid-source .codehilite .gr,
+.mermaid-source .codehilite .gh,
+.mermaid-source .codehilite .gi,
+.mermaid-source .codehilite .go,
+.mermaid-source .codehilite .gp,
+.mermaid-source .codehilite .gs,
+.mermaid-source .codehilite .gu,
+.mermaid-source .codehilite .gt,
+.mermaid-source .codehilite .kc,
+.mermaid-source .codehilite .kd,
+.mermaid-source .codehilite .kn,
+.mermaid-source .codehilite .kp,
+.mermaid-source .codehilite .kr,
+.mermaid-source .codehilite .kt,
+.mermaid-source .codehilite .m,
+.mermaid-source .codehilite .s,
+.mermaid-source .codehilite .na,
+.mermaid-source .codehilite .nb,
+.mermaid-source .codehilite .nc,
+.mermaid-source .codehilite .no,
+.mermaid-source .codehilite .nd,
+.mermaid-source .codehilite .ni,
+.mermaid-source .codehilite .ne,
+.mermaid-source .codehilite .nf,
+.mermaid-source .codehilite .nl,
+.mermaid-source .codehilite .nn,
+.mermaid-source .codehilite .nt,
+.mermaid-source .codehilite .nv,
+.mermaid-source .codehilite .ow,
+.mermaid-source .codehilite .w,
+.mermaid-source .codehilite .mf,
+.mermaid-source .codehilite .mh,
+.mermaid-source .codehilite .mi,
+.mermaid-source .codehilite .mo,
+.mermaid-source .codehilite .sb,
+.mermaid-source .codehilite .sc,
+.mermaid-source .codehilite .sd,
+.mermaid-source .codehilite .s2,
+.mermaid-source .codehilite .se,
+.mermaid-source .codehilite .sh,
+.mermaid-source .codehilite .si,
+.mermaid-source .codehilite .sx,
+.mermaid-source .codehilite .sr,
+.mermaid-source .codehilite .s1,
+.mermaid-source .codehilite .ss,
+.mermaid-source .codehilite .bp,
+.mermaid-source .codehilite .vc,
+.mermaid-source .codehilite .vg,
+.mermaid-source .codehilite .vi,
+.mermaid-source .codehilite .il {
+    background: transparent !important;
+}
+/* 渲染面板 */
+.mermaid-render {
+    padding: 16px;
+    background: #fff;
+    text-align: center;
+    overflow-x: auto;
+    display: none;
+}
+.mermaid-render.active { display: block; }
+.mermaid-render img {
+    max-width: 100%;
+    height: auto;
+    cursor: pointer;
+}
+.mermaid-render img:hover { opacity: 0.85; }
+/* 图片放大灯箱 */
+#mermaid-lightbox {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.85);
+    z-index: 9999;
+    align-items: center; justify-content: center;
+    cursor:zoom-out;
+}
+#mermaid-lightbox.active { display: flex; }
+#mermaid-lightbox img {
+    max-width: 95vw; max-height: 95vh;
+    border-radius: 8px; box-shadow: 0 4px 40px rgba(0,0,0,.5);
 }
 
-/* -- 移动端适配 -- */
 @media (max-width: 768px) {
-    .thinking-node-name { display: none; }
-    .thinking-connector { width: 12px; }
-    .thinking-node { padding: 4px; }
+    .thinking-text { font-size: 13px; padding: 6px 10px 4px; }
 }
 
-/* ===== END 阶段节点式思考过程 ===== */
-
+/* ===== END 连续思考流 ===== */
 .chat-bubble-actions {
     display: flex;
     align-items: center;

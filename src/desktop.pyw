@@ -95,25 +95,20 @@ def _get_resource_path():
 
 def _ensure_first_launch_setup(resource_path):
     from common.desktop_prefs import is_first_launch, mark_launched
+    from config import Config
 
-    if not is_first_launch(resource_path):
+    if not is_first_launch():
         return False
 
-    for subdir in ['instance', 'article', 'img', 'attachments', 'wiki']:
-        os.makedirs(os.path.join(resource_path, subdir), exist_ok=True)
-
-    env_path = os.path.join(os.path.dirname(_THIS_DIR), '.env')
-    if getattr(sys, 'frozen', False):
-        # 打包后安装目录无写入权限，放到 %APPDATA%
-        env_dir = os.path.join(os.getenv('APPDATA', ''), 'PersonLLMWiki')
-        os.makedirs(env_dir, exist_ok=True)
-        env_path = os.path.join(env_dir, '.env')
+    # .env 写入用户数据目录
+    env_path = os.path.join(Config.USER_DATA_DIR, '.env')
+    os.makedirs(Config.USER_DATA_DIR, exist_ok=True)
     if not os.path.isfile(env_path):
         with open(env_path, 'w', encoding='utf-8') as f:
             f.write(f"RESOURCE_BASE_PATH={resource_path}\n")
 
-    mark_launched(resource_path)
-    print(f"[Desktop] 首次启动：数据目录已创建 {resource_path}")
+    mark_launched()
+    print(f"[Desktop] 首次启动：数据目录 {Config.USER_DATA_DIR}")
     return True
 
 

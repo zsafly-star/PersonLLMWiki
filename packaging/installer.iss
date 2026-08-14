@@ -33,7 +33,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
 
 [Files]
-Source: "..\release\dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "bin\*"
+Source: "..\release\dist\PersonLLMWiki\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\PersonLLMWiki"; Filename: "{app}\{#MyAppExeName}"
@@ -65,13 +65,13 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  AppDataPath: string;
+  UserDataPath: string;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // 清理 AppData 下的 .env，确保下次安装使用默认路径
-    AppDataPath := ExpandConstant('{userappdata}\PersonLLMWiki\.env');
-    if FileExists(AppDataPath) then
-      DeleteFile(AppDataPath);
+    // 清理用户数据目录下的 .env，确保下次安装使用默认路径
+    UserDataPath := GetEnv('USERPROFILE') + '\.personllmwiki\.env';
+    if FileExists(UserDataPath) then
+      DeleteFile(UserDataPath);
   end;
 end;

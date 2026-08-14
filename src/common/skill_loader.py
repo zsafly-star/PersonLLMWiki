@@ -23,19 +23,17 @@ Agent 工作流程：
 """
 import os
 import re
-import sys
 
-# bin/skills/ 目录 — 动态读取，支持用户修改路径后实时生效
+# SKILLS_DIR（~/.personllmwiki/skills/，首次启动时从 seed/ 播种）
 def _get_skills_dir():
-    if getattr(sys, 'frozen', False):
-        try:
-            from config import Config
-            return os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'skills')
-        except Exception:
-            return os.path.join(os.path.dirname(sys._MEIPASS), 'resource', 'bin', 'skills')
-    else:
-        _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(_SRC_ROOT, 'bin', 'skills')
+    """获取 Skills 目录，统一从 Config.SKILLS_DIR 读取。"""
+    try:
+        from config import Config
+        return Config.SKILLS_DIR
+    except Exception:
+        pass
+    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(_SRC_ROOT, 'bin', 'skills')
 
 
 def _parse_front_matter(content):

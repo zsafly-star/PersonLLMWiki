@@ -164,13 +164,31 @@
                     <div id="setting-paths" class="setting-content-section" style="display:none;" role="tabpanel" aria-label="路径设置">
                         <div class="section-header">
                             <h3>路径设置</h3>
-                            <p class="section-desc">资源文件存储路径（由系统自动管理）</p>
+                            <p class="section-desc">管理应用数据和资源文件的存储位置</p>
                         </div>
+
+                        <!-- 固定目录（不可自定义） -->
+                        <h4 class="paths-subtitle">应用数据目录（固定）</h4>
+                        <p class="section-desc">以下目录由系统自动管理，存放数据库、MCP 服务、技能等应用核心数据。</p>
+                        <table class="path-table fixed-paths" aria-label="固定应用数据目录">
+                            <thead>
+                                <tr><th>目录</th><th>说明</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code class="path-cell" id="fixed-data-dir">—</code></td><td>应用数据根目录</td></tr>
+                                <tr><td><code class="path-cell" id="fixed-instance">—</code></td><td>数据库和配置文件</td></tr>
+                                <tr><td><code class="path-cell" id="fixed-mcp">—</code></td><td>MCP 服务二进制</td></tr>
+                                <tr><td><code class="path-cell" id="fixed-skills">—</code></td><td>技能定义文件</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- 可自定义的资源路径 -->
+                        <h4 class="paths-subtitle">用户内容路径（可自定义）</h4>
                         <div class="hint-banner">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                            <span>设置资源文件的存储路径。保存后自动创建所需子目录，<strong>修改路径需重启服务生效</strong>。</span>
+                            <span>设置文章、图片等用户内容的存储路径。保存后自动创建所需子目录，<strong>修改路径需重启服务生效</strong>。</span>
                         </div>
-                        <table class="path-table" aria-label="资源文件夹结构">
+                        <table class="path-table" aria-label="用户内容文件夹结构">
                             <thead>
                                 <tr><th>文件夹</th><th>说明</th></tr>
                             </thead>
@@ -181,13 +199,12 @@
                                 <tr><td><code>attachments/chat_uploads/</code></td><td>对话页上传的文件</td></tr>
                                 <tr><td><code>attachments/file_exports/</code></td><td>对话页 AI 导出的文档</td></tr>
                                 <tr><td><code>wiki/</code></td><td>Wiki 知识编译产物</td></tr>
-                                <tr><td><code>instance/</code></td><td>数据库和配置文件</td></tr>
                             </tbody>
                         </table>
                         <div class="form-group">
-                            <label for="resource-path">资源存储路径</label>
+                            <label for="resource-path">用户内容存储路径</label>
                             <input type="text" id="resource-path" placeholder="例如：D:\PersonLLMWiki\resource">
-                            <p class="form-hint">文章、图片、数据库等数据将存储在此目录。留空则使用默认路径。</p>
+                            <p class="form-hint">文章、图片、附件、Wiki 等用户内容将存储在此目录。留空则使用默认路径。</p>
                         </div>
                         <div class="form-actions">
                             <button class="btn btn-primary" id="btn-save-paths">
@@ -492,6 +509,15 @@
                     if (res.code === 200 && res.data) {
                         var el = document.getElementById('resource-path');
                         if (el) el.value = res.data.resource_path || '';
+                        // 固定路径
+                        var fd = document.getElementById('fixed-data-dir');
+                        var fi = document.getElementById('fixed-instance');
+                        var fm = document.getElementById('fixed-mcp');
+                        var fs = document.getElementById('fixed-skills');
+                        if (fd) fd.textContent = res.data.data_dir || '—';
+                        if (fi) fi.textContent = res.data.instance_path || '—';
+                        if (fm) fm.textContent = res.data.mcp_dir || '—';
+                        if (fs) fs.textContent = res.data.skills_dir || '—';
                     }
                 })
                 .catch(function(e) { console.error('loadCurrentPath error:', e); });

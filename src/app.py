@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from config import Config
 from extensions import db
@@ -13,6 +13,16 @@ from modules import (
 )
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # 开发环境禁用静态文件缓存
+
+@app.after_request
+def _no_cache_static(response):
+    """开发环境：静态文件禁用浏览器缓存"""
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 from modules.wiki import wiki_bp
 from modules.weather import weather_bp
@@ -63,29 +73,85 @@ with app.app_context():
             print(f'[SelfUpdate] 自更新失败（非致命）: {e}')
     threading.Thread(target=_async_self_update, name="self-update", daemon=True).start()
 
-    directories = [
+    # ===== 播种逻辑：智能同步 seed/ 到用户目录 =====
+    # seed 有变化/新增 → 覆盖/追加；用户自建文件不删除
+    def _seed_smart_sync(seed_dir, target_dir, label):
+        """智能同步：seed 中有变化的文件覆盖更新，seed 中新增的直接追加，用户自建的保留不动。"""
+        if not os.path.isdir(seed_dir):
+            print(f"[Seed] {label} 播种源不存在，跳过: {seed_dir}")
+            return
+
+        os.makedirs(target_dir, exist_ok=True)
+        import shutil
+        import filecmp
+
+        updated = 0
+        added = 0
+
+        for item in os.listdir(seed_dir):
+            src = os.path.join(seed_dir, item)
+            dst = os.path.join(target_dir, item)
+
+            if os.path.isdir(src):
+                # 目录：递归同步所有文件
+                os.makedirs(dst, exist_ok=True)
+                for root, _dirs, files in os.walk(src):
+                    rel = os.path.relpath(root, src)
+                    dst_root = os.path.join(dst, rel) if rel != '.' else dst
+                    os.makedirs(dst_root, exist_ok=True)
+                    for f in files:
+                        sf = os.path.join(root, f)
+                        df = os.path.join(dst_root, f)
+                        if not os.path.exists(df):
+                            shutil.copy2(sf, df)
+                            added += 1
+                        elif not filecmp.cmp(sf, df, shallow=False):
+                            shutil.copy2(sf, df)
+                            updated += 1
+            else:
+                # 文件
+                if not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+                    added += 1
+                elif not filecmp.cmp(src, dst, shallow=False):
+                    shutil.copy2(src, dst)
+                    updated += 1
+
+        if updated or added:
+            print(f"[Seed] {label} 同步: +{added} 新增, ~{updated} 更新")
+        else:
+            print(f"[Seed] {label} 已是最新")
+
+    _seed_smart_sync(
+        os.path.join(Config.SEED_DIR, 'mcp'),
+        Config.MCP_DIR,
+        'MCP 服务')
+    _seed_smart_sync(
+        os.path.join(Config.SEED_DIR, 'skills'),
+        Config.SKILLS_DIR,
+        'Skills 技能')
+
+    # ===== 创建目录 =====
+    # 用户数据目录
+    os.makedirs(Config.INSTANCE_PATH, exist_ok=True)
+
+    # 用户内容目录
+    _content_dirs = [
         app.config['ARTICLE_PATH'],
         app.config['IMAGE_PATH'],
         app.config['ATTACHMENT_PATH'],
         app.config['WIKI_PATH'],
-        app.config['INSTANCE_PATH']
     ]
-    for directory in directories:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            print(f"Created directory: {directory}")
-    
-    # 子目录：对话页导出、上传、MCP 服务 & Skills 存放
+    for d in _content_dirs:
+        os.makedirs(d, exist_ok=True)
+
+    # 子目录
     _subdirs = [
         os.path.join(app.config['ATTACHMENT_PATH'], 'chat_uploads'),
         os.path.join(app.config['ATTACHMENT_PATH'], 'file_exports'),
-        os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'mcp'),
-        os.path.join(Config.RESOURCE_BASE_PATH, 'bin', 'skills'),
     ]
     for d in _subdirs:
-        if not os.path.exists(d):
-            os.makedirs(d)
-            print(f"Created directory: {d}")
+        os.makedirs(d, exist_ok=True)
     db.create_all()
 
     import sqlite3

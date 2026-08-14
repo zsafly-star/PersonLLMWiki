@@ -20,6 +20,15 @@ from common.mcp_client import get_bus
 MAX_TOOL_ROUNDS = 30
 
 AGENT_SYSTEM_PROMPT = """你是一个智能知识助手。你可以通过调用工具来帮助用户：
+
+## 思考展示规则（重要）
+在每次调用工具之前，先用一句简短的口语化中文说明你在做什么、为什么这么做。像自言自语一样自然。不要用列表、不要用 markdown 格式，就是一句自然的句子。将这句思考文字作为普通文本输出，然后再调用工具。
+
+示例：
+- "我先搜一下知识库，看有没有记录过相关经验的"
+- "知识库里的信息有点旧了，联网查查最新的资料"
+
+你可以通过调用工具来帮助用户：
 - 搜索知识库（search_kb）
 - 读取笔记和 Wiki 页面
 - 查询 SAP 物料信息（如果已连接 SAP MCP 服务器）
@@ -28,6 +37,11 @@ AGENT_SYSTEM_PROMPT = """你是一个智能知识助手。你可以通过调用�
 
 请根据用户需求智能选择工具。如果不需要工具，直接回答。
 工具调用结果中的 isError=true 表示工具执行出错，请告知用户并尝试其他方法。
+
+## 文件路径规则
+- 用户上传的文件在 `{upload_dir}` 目录下
+- 需读取用户上传的文件时，使用完整路径 `{upload_dir}/文件名`
+- 导出/创建的文档保存到 `{export_dir}` 目录下
 
 ## 核心规则：文档创建
 - **严禁主动创建文档**。除非用户明确要求"保存为文档"、"导出为 Word"、"生成文档"、"创建 docx"等，否则所有内容应直接在对话中展示，不要调用 create_document / add_element 等文档工具。
@@ -43,12 +57,24 @@ AGENT_SYSTEM_PROMPT = """你是一个智能知识助手。你可以通过调用�
 
 EXPERT_SYSTEM_PROMPT = """你是一个资深的领域专家顾问。你需要提供深入、专业、全面的分析。
 
+## 思考展示规则（重要）
+在每次调用工具之前，先用一句简短的口语化中文说明你在做什么、为什么这么做。像自言自语一样自然。不要用列表、不要用 markdown 格式，就是一句自然的句子。将这句思考文字作为普通文本输出，然后再调用工具。
+
+示例：
+- "我先搜一下知识库，看有没有记录过类似的分析经验"
+- "知识库里的信息比较久远了，联网搜索一下最新的研究进展"
+
 回答要求：
 - 展示你的完整推理过程（thinking），让用户理解你的分析思路
 - 从多个角度分析问题，列出优缺点、风险和机会
 - 引用相关知识库内容或数据支撑你的论点
 - 如果信息不足，明确指出需要补充什么信息
 - 给出结构化的结论和可操作的建议
+
+## 文件路径规则
+- 用户上传的文件在 `{upload_dir}` 目录下
+- 需读取用户上传的文件时，使用完整路径 `{upload_dir}/文件名`
+- 导出/创建的文档保存到 `{export_dir}` 目录下
 
 ## 核心规则：文档创建
 - **严禁主动创建文档**。除非用户明确要求"保存为文档"、"导出为 Word"、"生成文档"、"创建 docx"等，否则所有分析内容直接在对话中展示，不要调用 create_document / add_element 等文档工具。
@@ -75,6 +101,21 @@ EXPERT_SYSTEM_PROMPT = """你是一个资深的领域专家顾问。你需要提
 3. 使用 create_document 创建 .docx 文件，路径为 `{export_dir}/文档标题.docx`
 4. 使用 add_element 写入内容，优先用 type="paragraph" 分段写入，每个段落尽可能包含更多内容以减少调用次数
 5. 导出完成后告知用户文件路径和下载方式"""
+
+
+def _get_mermaid_prompt():
+    """注入精简版 Mermaid 图表规范（详细规则见 seed/skills/mermaid/SKILL.md）。"""
+    return """
+
+## Mermaid 图表规范（仅在需要绘制图表时遵守）
+
+1. 所有含特殊字符(空格/()/&/引号/中文括号/+)的标签文本必须用双引号包裹，节点ID用简单英文
+2. 箭头标签必须用 `|"标签"|` 语法，严禁 `-- "标签" -->` 或 `-. "标签" .->`
+3. **跨 subgraph 连线必须全部放在所有 `end` 之后，subgraph 内部只能有本组成员连线**
+4. 禁止 `&` 多源合并（S1 & S2 --> M），拆成独立边
+5. 生成后逐条自检：标签引号？|xxx|语法？跨组连线位置？&合并？发现任一问题自动修正后重新输出
+
+"""
 
 
 def _get_active_llm():
@@ -171,10 +212,12 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
     has_system = any(m.get('role') == 'system' for m in full_messages)
     if not has_system:
         system_prompt = EXPERT_SYSTEM_PROMPT if mode == 'expert' else AGENT_SYSTEM_PROMPT
-        # 注入导出目录路径（基于配置的附件路径）
+        # 注入导出目录路径和上传目录路径（基于配置的附件路径）
         from config import Config
         export_dir = os.path.join(Config.ATTACHMENT_PATH, 'file_exports')
+        upload_dir = os.path.join(Config.ATTACHMENT_PATH, 'chat_uploads')
         system_prompt = system_prompt.replace('{export_dir}', export_dir)
+        system_prompt = system_prompt.replace('{upload_dir}', upload_dir)
         # 注入可用技能列表
         try:
             from common.skill_loader import get_skills_prompt, match_skill
@@ -183,6 +226,8 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
                 system_prompt += skills_prompt
         except Exception:
             pass
+        # 注入 Mermaid 图表规范（从 skill 文件加载，始终生效）
+        system_prompt += _get_mermaid_prompt()
         full_messages.insert(0, {'role': 'system', 'content': system_prompt})
 
     # ── 专家模式强制流程：先查知识库 → 再联网搜 → 注入上下文 ──
@@ -265,6 +310,14 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
 
         # 检查是否有 tool_calls
         has_tool_calls = hasattr(message, 'tool_calls') and message.tool_calls
+
+        # 如果有思考文字（LLM 在调工具前输出的口语化文本），通知回调
+        thinking_text = (message.content or '').strip() if hasattr(message, 'content') else ''
+        if thinking_text and has_tool_calls and progress_callback:
+            try:
+                progress_callback('thinking_text', {'text': thinking_text})
+            except Exception:
+                pass
 
         if not has_tool_calls:
             # LLM 没有调用工具，返回最终回复

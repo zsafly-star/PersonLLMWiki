@@ -1,0 +1,44 @@
+{
+ "format_version": 1,
+ "files": {
+  ".gitattributes": {
+   "size": 1519,
+   "blob_id": "a6344aac8c09253b3b630fb776ae94478aa0275b"
+  },
+  "README.md": {
+   "size": 907,
+   "blob_id": "0ba208a1dfde5050c3ba22f755144282e7cd309f"
+  },
+  "config.json": {
+   "size": 706,
+   "blob_id": "0d7726d0cdccb62ee17c03bd1595cff07199b8f8"
+  },
+  "model_optimized.onnx": {
+   "size": 66465124,
+   "blob_id": "94f6925f5e2ad78878198fa757195c25f74d6bc2",
+   "lfs_sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+   "lfs_size": 66465124,
+   "xet_hash": "aaca296ced1def8c4e3df6cb215f78017b69427da86a9b725e77e8f68665ca8d"
+  },
+  "ort_config.json": {
+   "size": 1272,
+   "blob_id": "ca62fa095648efcf2709136afcd942d98744eb3f"
+  },
+  "special_tokens_map.json": {
+   "size": 695,
+   "blob_id": "9bbecc17cabbcbd3112c14d6982b51403b264bfa"
+  },
+  "tokenizer.json": {
+   "size": 711396,
+   "blob_id": "688882a79f44442ddc1f60d70334a7ff5df0fb47"
+  },
+  "tokenizer_config.json": {
+   "size": 1242,
+   "blob_id": "75305659f7795d4549f0e23688b52fa20a32f925"
+  },
+  "vocab.txt": {
+   "size": 231508,
+   "blob_id": "fb140275c155a9c7c5a3b3e0e77a9e839594a938"
+  }
+ }
+}

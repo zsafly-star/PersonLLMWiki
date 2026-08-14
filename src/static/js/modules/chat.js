@@ -2,6 +2,38 @@
  * 聊天页面脚本（从 chat.html 提取）
  */
 
+// 通用剪贴板复制（Clipboard API → execCommand 降级）
+function copyToClipboard(text, onSuccess) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function() {
+            if (onSuccess) onSuccess();
+        }).catch(function() {
+            // Clipboard API 失败，尝试降级
+            _fallbackCopy(text, onSuccess);
+        });
+    } else {
+        _fallbackCopy(text, onSuccess);
+    }
+}
+
+function _fallbackCopy(text, onSuccess) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+        document.execCommand('copy');
+        if (onSuccess) onSuccess();
+    } catch (e) {
+        // 忽略
+    }
+    document.body.removeChild(ta);
+}
+
 var sid = null;
 
 if (!window._streamState) window._streamState = null;
@@ -126,21 +158,24 @@ function rebuildStreamUI(st) {
     var streamTextEl = document.getElementById('stream-text');
 
     // 重建思考过程容器
-    if (st.thinking.stages.length > 0) {
+    if (st.thinking.thinkingText) {
         st.thinkingContainer = null;
-        _initThinkingProcess(st);
-        _renderProgressBar(st);
+        _initThinkingStream(st);
+        if (st.thinking.textEl) {
+            st.thinking.textEl.textContent = st.thinking.thinkingText;
+        }
+        _collapseThinkingBody(st);
     }
 
     // 重建答案内容
     if (st.streamContent) {
-        if (st.thinking.placeholderEl) st.thinking.placeholderEl.style.display = 'none';
-        if (!st.thinking.answerEl) {
-            st.thinking.answerEl = document.createElement('div');
-            st.thinking.answerEl.id = 'stream-content';
-            streamTextEl.appendChild(st.thinking.answerEl);
-        }
-        st.thinking.answerEl.innerHTML = md(st.streamContent);
+        var oldAnswer = streamTextEl.querySelector('#stream-content');
+        if (oldAnswer) oldAnswer.remove();
+        st.answerEl = document.createElement('div');
+        st.answerEl.id = 'stream-content';
+        streamTextEl.appendChild(st.answerEl);
+        st.answerEl.innerHTML = Md.renderSync(st.streamContent, md);
+        _processMermaidBlocks(st.answerEl);
     }
 
     var btn = document.getElementById('chat-send-btn');
@@ -148,281 +183,346 @@ function rebuildStreamUI(st) {
     scrollEnd();
 }
 
-// ===== 阶段节点式思考过程组件 =====
-function _initThinkingProcess(st) {
+// ===== 连续思考流 (v4) =====
+function _initThinkingStream(st) {
     if (st.thinkingContainer) return;
     var el = document.getElementById('stream-text');
     if (!el) return;
 
-    var container = document.createElement('div');
-    container.className = 'thinking-process';
-    container.id = 'thinking-process';
+    // 移除旧的 chat-typing 三点
+    var typing = el.querySelector('.chat-typing');
+    if (typing) typing.remove();
 
-    container.innerHTML =
-        '<div class="thinking-progress">' +
-            '<div class="thinking-progress-track"></div>' +
-            '<button class="thinking-skip-btn" onclick="_skipThinking(window._streamState)">跳过思考</button>' +
-        '</div>' +
-        '<div class="thinking-detail">' +
-            '<div class="thinking-detail-header">' +
-                '<span class="thinking-detail-title">当前阶段：—</span>' +
-                '<div class="thinking-detail-actions">' +
-                    '<button onclick="_copyStageDetail()">复制本段</button>' +
-                    '<button onclick="this.closest(\'.thinking-detail\').classList.remove(\'active\');window._streamState&&(window._streamState.thinking.selectedStageId=null)">收起</button>' +
-                '</div>' +
-            '</div>' +
-            '<div class="thinking-detail-content"></div>' +
-        '</div>' +
-        '<div class="thinking-answer-divider">最终答案</div>' +
-        '<div class="thinking-answer-placeholder">思考完成后将展示最终答案</div>';
+    var container = document.createElement('div');
+    container.className = 'thinking-stream';
+    container.id = 'thinking-stream';
+
+    // Header: 思考中...
+    var header = document.createElement('div');
+    header.className = 'thinking-header processing';
+    header.onclick = function() { _toggleThinkingBody(st); };
+
+    var dot = document.createElement('span');
+    dot.className = 'thinking-dot loading';
+    header.appendChild(dot);
+
+    var label = document.createElement('span');
+    label.className = 'thinking-label';
+    label.textContent = '思考中...';
+    header.appendChild(label);
+
+    var toggleBtn = document.createElement('button');
+    toggleBtn.className = 'thinking-toggle';
+    toggleBtn.textContent = '展开';
+    toggleBtn.onclick = function(e) { e.stopPropagation(); _toggleThinkingBody(st); };
+    header.appendChild(toggleBtn);
+
+    container.appendChild(header);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'thinking-body expanded';
+
+    var textDiv = document.createElement('div');
+    textDiv.className = 'thinking-text typing';
+    body.appendChild(textDiv);
+
+    container.appendChild(body);
+
+    // Divider
+    var divider = document.createElement('div');
+    divider.className = 'thinking-answer-divider';
+    divider.textContent = '回答';
+    container.appendChild(divider);
 
     el.appendChild(container);
     st.thinkingContainer = container;
-    st.thinking.processEl = container;
-    st.thinking.trackEl = container.querySelector('.thinking-progress-track');
-    st.thinking.skipBtn = container.querySelector('.thinking-skip-btn');
-    st.thinking.detailEl = container.querySelector('.thinking-detail');
-    st.thinking.detailTitle = container.querySelector('.thinking-detail-title');
-    st.thinking.detailContent = container.querySelector('.thinking-detail-content');
-    st.thinking.placeholderEl = container.querySelector('.thinking-answer-placeholder');
-    st.thinking.answerEl = null;
+    st.thinking.streamEl = container;
+    st.thinking.textEl = textDiv;
+    st.thinking.headerEl = header;
+    st.thinking.dotEl = dot;
 }
 
-function _handleStageStart(st, data) {
+function _handleThinkingText(st, data) {
     if (!st.active) return;
-    _initThinkingProcess(st);
-
-    // 查找或创建节点
-    var existing = null;
-    for (var i = 0; i < st.thinking.stages.length; i++) {
-        if (st.thinking.stages[i].stage_id === data.stage_id) {
-            existing = st.thinking.stages[i];
-            break;
-        }
-    }
-
-    if (!existing) {
-        // 新阶段：添加 stage 数据
-        var stage = {
-            stage_id: data.stage_id,
-            stage_name: data.stage_name || '',
-            tool_name: data.tool_name || '',
-            tool_arguments: data.tool_arguments || '',
-            round: data.round || 0,
-            status: 'processing',
-            start_timestamp: data.start_timestamp || 0,
-            content: '',
-            nodeEl: null
-        };
-        st.thinking.stages.push(stage);
-
-        // 标记之前的阶段为 completed
-        for (var j = 0; j < st.thinking.stages.length - 1; j++) {
-            if (st.thinking.stages[j].status === 'processing') {
-                st.thinking.stages[j].status = 'completed';
-            }
-        }
-    } else {
-        existing.status = 'processing';
-    }
-
-    st.thinking.currentStageId = data.stage_id;
-    _renderProgressBar(st);
-}
-
-function _handleStageEnd(st, data) {
-    if (!st.active) return;
-    for (var i = 0; i < st.thinking.stages.length; i++) {
-        if (st.thinking.stages[i].stage_id === data.stage_id) {
-            st.thinking.stages[i].status = data.status || 'completed';
-            if (data.end_timestamp) st.thinking.stages[i].end_timestamp = data.end_timestamp;
-            if (data.content) st.thinking.stages[i].content = data.content;
-            break;
-        }
-    }
-    _renderProgressBar(st);
-
-    // 如果详情面板展开且选中该阶段，更新内容
-    if (st.thinking.selectedStageId === data.stage_id) {
-        _selectStageDetail(st, data.stage_id);
+    _initThinkingStream(st);
+    var token = data.token || '';
+    st.thinking.thinkingText += token;
+    if (st.thinking.textEl) {
+        st.thinking.textEl.textContent = st.thinking.thinkingText;
     }
 }
 
 function _finishThinking(st) {
-    st.thinking.globalStatus = 'completed';
-    // 标记所有进行中的阶段为已完成
-    for (var i = 0; i < st.thinking.stages.length; i++) {
-        if (st.thinking.stages[i].status === 'processing') {
-            st.thinking.stages[i].status = 'completed';
-        }
+    st.thinking.status = 'done';
+    if (st.thinking.dotEl) {
+        st.thinking.dotEl.className = 'thinking-dot done';
+        st.thinking.dotEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     }
-    _renderProgressBar(st);
-    // 隐藏跳过按钮
-    if (st.thinking.skipBtn) st.thinking.skipBtn.style.display = 'none';
+    if (st.thinking.headerEl) {
+        st.thinking.headerEl.classList.replace('processing', 'done');
+        // 生成摘要（取前50字）
+        var summary = st.thinking.thinkingText.replace(/\s+/g, ' ').trim();
+        var label = st.thinking.headerEl.querySelector('.thinking-label');
+        if (summary.length > 50) summary = summary.substring(0, 50) + '...';
+        if (label && summary) label.textContent = '思考过程: ' + summary;
+    }
+    if (st.thinking.textEl) {
+        st.thinking.textEl.classList.remove('typing');
+    }
+    // 折叠 body
+    _collapseThinkingBody(st);
+    // 折叠后内容高度减小，补一次滚动到底部
+    scrollEnd();
 }
 
-function _createStaticThinking(stages) {
-    var container = document.createElement('div');
-    container.className = 'thinking-history';
+function _collapseThinkingBody(st) {
+    if (!st.thinking.streamEl) return;
+    var body = st.thinking.streamEl.querySelector('.thinking-body');
+    if (body) body.classList.remove('expanded');
+    var toggleBtn = st.thinking.streamEl.querySelector('.thinking-toggle');
+    if (toggleBtn) toggleBtn.textContent = '展开';
+}
 
-    var header = document.createElement('div');
-    header.className = 'thinking-history-header';
-    header.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg><span>思考过程</span><svg class="thinking-history-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+function _toggleThinkingBody(st) {
+    if (st.thinking.status !== 'done') return;  // 流式进行中不可折叠
+    if (!st.thinking.streamEl) return;
+    var body = st.thinking.streamEl.querySelector('.thinking-body');
+    var toggleBtn = st.thinking.streamEl.querySelector('.thinking-toggle');
+    if (!body) return;
+    if (body.classList.contains('expanded')) {
+        body.classList.remove('expanded');
+        if (toggleBtn) toggleBtn.textContent = '展开';
+    } else {
+        body.classList.add('expanded');
+        if (toggleBtn) toggleBtn.textContent = '折叠';
+    }
+}
 
-    var body = document.createElement('div');
-    body.className = 'thinking-history-body';
-    body.style.display = 'none';
+// Mermaid 代码块处理：检测并添加 源码/渲染 切换
+function _processMermaidBlocks(container) {
+    if (!container) return;
 
-    var track = document.createElement('div');
-    track.className = 'thinking-track';
-    var html = '';
-    for (var i = 0; i < stages.length; i++) {
-        var s = stages[i];
-        var status = s.status || 'completed';
-        var icon = status === 'completed' ? '\u2713' : (status === 'error' ? '!' : '');
-        html += '<div class="thinking-node ' + status + '">';
-        html += '<div class="thinking-node-icon">' + icon + '</div>';
-        html += '<span class="thinking-node-name">' + _escHtml(s.stage_name || s.stage_id || '') + '</span>';
-        html += '</div>';
-        if (i < stages.length - 1) {
-            html += '<div class="thinking-connector ' + (status === 'completed' ? 'completed' : '') + '"></div>';
+    // 收集所有待处理的 code 元素（去重）
+    var seen = new Set();
+    var targets = [];
+
+    // 方式1: class="language-mermaid"
+    var byClass = container.querySelectorAll('pre code.language-mermaid, pre code[class*="language-mermaid"]');
+    for (var i = 0; i < byClass.length; i++) {
+        if (!seen.has(byClass[i])) { seen.add(byClass[i]); targets.push(byClass[i]); }
+    }
+
+    // 方式2: 所有 pre>code 中内容看起来像 mermaid 的（服务端 codehilite 可能丢失 language class）
+    var allCodes = container.querySelectorAll('pre code');
+    for (var j = 0; j < allCodes.length; j++) {
+        if (seen.has(allCodes[j])) continue;
+        var txt = (allCodes[j].textContent || '').trim();
+        // mermaid 图通常以此类关键词开头
+        if (/^(graph\s|flowchart\s|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie\b|gitGraph|mindmap|timeline|block-beta|journey|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component)/.test(txt)) {
+            seen.add(allCodes[j]); targets.push(allCodes[j]);
         }
     }
-    track.innerHTML = html;
-    body.appendChild(track);
+
+    for (var i = 0; i < targets.length; i++) {
+        var codeEl = targets[i];
+        var preEl = codeEl.parentNode;
+        // codehilite 可能包了一层 div.codehilite
+        var topEl = preEl;
+        if (preEl.parentNode && preEl.parentNode.classList && preEl.parentNode.classList.contains('codehilite')) {
+            topEl = preEl.parentNode;
+        }
+        if (!topEl || topEl === container) continue;
+
+        var mermaidText = codeEl.textContent || '';
+        if (!mermaidText.trim()) continue;
+
+        // 创建容器 + 内部工具栏（IIFE 隔离每轮迭代）
+        (function(codeEl, preEl, topEl, mermaidText) {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'mermaid-code-block';
+
+        // 顶栏（靠右）
+        var toolbar = document.createElement('div');
+        toolbar.className = 'mermaid-toolbar';
+
+
+        var viewBtn = document.createElement('button');
+        viewBtn.title = '查看源码';
+        viewBtn.innerHTML = _EYE_OFF_SVG;
+        viewBtn._isRender = true;
+
+        var copyBtn = document.createElement('button');
+        copyBtn.title = '复制代码';
+        copyBtn.innerHTML = _COPY_SVG;
+
+        toolbar.appendChild(viewBtn);
+        toolbar.appendChild(copyBtn);
+        wrapper.appendChild(toolbar);
+
+        // 源码面板
+        var srcPanel = document.createElement('div');
+        srcPanel.className = 'mermaid-source';
+        srcPanel.appendChild(preEl.cloneNode(true));
+        wrapper.appendChild(srcPanel);
+
+        // 渲染面板
+        var renderPanel = document.createElement('div');
+        renderPanel.className = 'mermaid-render active';
+        var lines = mermaidText.split('\n');
+        var minIndent = Infinity;
+        for (var li = 0; li < lines.length; li++) {
+            var t = lines[li].replace(/\s+$/, '');
+            if (t.length > 0) {
+                var ld = t.length - t.replace(/^\s+/, '').length;
+                if (ld < minIndent) minIndent = ld;
+            }
+        }
+        if (minIndent > 0 && minIndent < Infinity)
+            for (var lj = 0; lj < lines.length; lj++) lines[lj] = lines[lj].substring(minIndent);
+        var cleanCode = lines.join('\n').trim();
+        // 归一化引号：LLM 常输出弯引号（""''），mermaid.ink 只认直引号
+        cleanCode = cleanCode.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+        var img = document.createElement('img');
+        img.src = '/api/chat/mermaid-img?code=' + encodeURIComponent(cleanCode);
+        img.alt = 'Mermaid Diagram';
+        img.onload = function() { this.style.display = ''; };
+        img.onclick = function() { _openMermaidLightbox(img.src); };
+        img.onerror = function() {
+            this.parentNode.innerHTML = '<div style="color:#999;font-size:12px;padding:12px;text-align:center">'
+                + '<p style="margin:0 0 6px">渲染失败</p>'
+                + '<p style="margin:0;font-size:11px">请检查 Mermaid 语法<br>常见问题：边缘标签应为 <code>-.->|"文本"|</code> 而非 <code>-. "文本" .-></code></p>'
+                + '</div>';
+        };
+        renderPanel.appendChild(img);
+        wrapper.appendChild(renderPanel);
+
+        // 视图切换
+        viewBtn.onclick = function() {
+            if (viewBtn._isRender) {
+                srcPanel.classList.add('active');
+                renderPanel.classList.remove('active');
+                viewBtn.innerHTML = _EYE_OPEN_SVG;
+                viewBtn.title = '查看渲染';
+                viewBtn._isRender = false;
+            } else {
+                srcPanel.classList.remove('active');
+                renderPanel.classList.add('active');
+                viewBtn.innerHTML = _EYE_OFF_SVG;
+                viewBtn.title = '查看源码';
+                viewBtn._isRender = true;
+            }
+        };
+
+        // 复制
+        copyBtn.onclick = function(e) {
+            e.stopPropagation();
+            var ta = document.createElement('textarea');
+            ta.value = mermaidText;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                copyBtn.innerHTML = _CHECK_SVG;
+                copyBtn.classList.add('copied');
+                copyBtn.title = '已复制';
+                setTimeout(function() {
+                    copyBtn.innerHTML = _COPY_SVG;
+                    copyBtn.classList.remove('copied');
+                    copyBtn.title = '复制代码';
+                }, 1500);
+            } catch(err) {}
+            document.body.removeChild(ta);
+        };
+
+        topEl.parentNode.replaceChild(wrapper, topEl);
+        })(codeEl, preEl, topEl, mermaidText);
+    }
+}
+
+// 图片放大灯箱（单例）
+var _mermaidLightbox = null;
+function _openMermaidLightbox(src) {
+    if (!_mermaidLightbox) {
+        _mermaidLightbox = document.createElement('div');
+        _mermaidLightbox.id = 'mermaid-lightbox';
+        _mermaidLightbox.onclick = function() { _mermaidLightbox.classList.remove('active'); };
+        _mermaidLightbox.innerHTML = '<img src="" alt="">';
+        document.body.appendChild(_mermaidLightbox);
+    }
+    _mermaidLightbox.querySelector('img').src = src;
+    _mermaidLightbox.classList.add('active');
+}
+
+// 共享 SVG 常量
+var _COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+var _CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+var _EYE_OPEN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+var _EYE_OFF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="m14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+var _FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
+
+function _renderHistoryThinking(thinkingText) {
+    var container = document.createElement('div');
+    container.className = 'thinking-stream';
+
+    // Header (always collapsed)
+    var header = document.createElement('div');
+    header.className = 'thinking-header done';
+    header.onclick = function() {
+        var body = container.querySelector('.thinking-body');
+        var toggleBtn = container.querySelector('.thinking-toggle');
+        if (body.classList.contains('expanded')) {
+            body.classList.remove('expanded');
+            if (toggleBtn) toggleBtn.textContent = '展开';
+        } else {
+            body.classList.add('expanded');
+            if (toggleBtn) toggleBtn.textContent = '折叠';
+        }
+    };
+
+    var dot = document.createElement('span');
+    dot.className = 'thinking-dot done';
+    dot.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    header.appendChild(dot);
+
+    var summary = thinkingText.replace(/\s+/g, ' ').trim();
+    if (summary.length > 50) summary = summary.substring(0, 50) + '...';
+    var label = document.createElement('span');
+    label.className = 'thinking-label';
+    label.textContent = summary ? '思考过程: ' + summary : '思考过程';
+    header.appendChild(label);
+
+    var toggleBtn = document.createElement('button');
+    toggleBtn.className = 'thinking-toggle';
+    toggleBtn.textContent = '展开';
+    toggleBtn.onclick = function(e) {
+        e.stopPropagation();
+        var body = container.querySelector('.thinking-body');
+        if (body.classList.contains('expanded')) {
+            body.classList.remove('expanded');
+            toggleBtn.textContent = '展开';
+        } else {
+            body.classList.add('expanded');
+            toggleBtn.textContent = '折叠';
+        }
+    };
+    header.appendChild(toggleBtn);
     container.appendChild(header);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'thinking-body';
+
+    var textDiv = document.createElement('div');
+    textDiv.className = 'thinking-text';
+    textDiv.textContent = thinkingText;
+    body.appendChild(textDiv);
     container.appendChild(body);
 
-    header.onclick = function() {
-        var isHidden = body.style.display === 'none';
-        body.style.display = isHidden ? 'block' : 'none';
-        header.classList.toggle('expanded', isHidden);
-    };
     return container;
 }
-
-function _renderProgressBar(st) {
-    var track = st.thinking.trackEl;
-    if (!track) return;
-    var stages = st.thinking.stages;
-    var html = '';
-
-    for (var i = 0; i < stages.length; i++) {
-        var s = stages[i];
-        var status = s.status;
-        var iconContent = '';
-        if (status === 'completed') {
-            iconContent = '\u2713'; // ✓
-        } else if (status === 'error') {
-            iconContent = '!';
-        } else if (status === 'processing') {
-            iconContent = ''; // 空心
-        }
-        html += '<div class="thinking-node ' + status + '" data-stage-id="' + s.stage_id + '" onclick="var st=window._streamState;if(st&&st.thinking&&st.thinking.stages){_selectStageDetail(st,\'' + s.stage_id + '\')}" title="' + _escHtml(s.stage_name || s.stage_id) + (status === 'pending' ? ' (待执行)' : '') + '">';
-        html += '<div class="thinking-node-icon">' + iconContent + '</div>';
-        html += '<span class="thinking-node-name">' + _escHtml(s.stage_name || s.stage_id) + '</span>';
-        html += '</div>';
-
-        // 连接线（最后一个节点不加）
-        if (i < stages.length - 1) {
-            // completed 阶段后的连接线也用 completed 样式
-            var connClass = (status === 'completed') ? 'completed' : (status === 'error' ? 'error' : '');
-            html += '<div class="thinking-connector ' + connClass + '"></div>';
-        }
-    }
-
-    track.innerHTML = html;
-
-    // 更新节点 DOM 引用
-    var nodes = track.querySelectorAll('.thinking-node');
-    for (var j = 0; j < stages.length; j++) {
-        if (j < nodes.length) stages[j].nodeEl = nodes[j];
-    }
-
-    // 自动滚动到当前进行中的节点
-    for (var k = 0; k < stages.length; k++) {
-        if (stages[k].status === 'processing' && stages[k].nodeEl) {
-            _scrollCurrentNode(track, stages[k].nodeEl);
-            break;
-        }
-    }
-}
-
-function _scrollCurrentNode(container, nodeEl) {
-    if (!container || !nodeEl) return;
-    var cLeft = container.scrollLeft;
-    var cWidth = container.clientWidth;
-    var nLeft = nodeEl.offsetLeft;
-    var nWidth = nodeEl.offsetWidth;
-    var target = nLeft - (cWidth / 2) + (nWidth / 2);
-    container.scrollTo({left: Math.max(0, target), behavior: 'smooth'});
-}
-
-function _selectStageDetail(st, stageId) {
-    if (!st || !st.thinking) return;
-    if (st.thinking.selectedStageId === stageId) {
-        // 再次点击同一节点 → 收起
-        st.thinking.detailEl.classList.remove('active');
-        st.thinking.selectedStageId = null;
-        return;
-    }
-
-    // 查找阶段
-    var stage = null;
-    for (var i = 0; i < st.thinking.stages.length; i++) {
-        if (st.thinking.stages[i].stage_id === stageId) {
-            stage = st.thinking.stages[i];
-            break;
-        }
-    }
-    if (!stage || stage.status === 'pending') return;
-
-    st.thinking.selectedStageId = stageId;
-    st.thinking.detailTitle.textContent = '当前阶段：' + (stage.stage_name || stageId);
-
-    // 构建详情内容
-    var content = stage.content || '';
-    if (!content.trim()) {
-        content = '本阶段无详细记录';
-    }
-    // 如果有工具调用信息，显示出来
-    if (stage.tool_name && stage.tool_arguments) {
-        content += '\n\n---\n工具: ' + stage.tool_name;
-        try {
-            var args = typeof stage.tool_arguments === 'string' ? JSON.parse(stage.tool_arguments) : stage.tool_arguments;
-            content += '\n参数: ' + JSON.stringify(args, null, 2);
-        } catch(e) {}
-    }
-    content += '\n\n耗时: ' + (stage.start_timestamp ? new Date(stage.start_timestamp * 1000).toLocaleTimeString() : '—');
-    if (stage.end_timestamp) {
-        var dur = stage.end_timestamp - stage.start_timestamp;
-        content += ' → ' + new Date(stage.end_timestamp * 1000).toLocaleTimeString() + ' (' + dur + 's)';
-    }
-
-    st.thinking.detailContent.textContent = content;
-    st.thinking.detailEl.classList.add('active');
-}
-
-function _skipThinking(st) {
-    if (!st || !st.thinking || st.thinking.globalStatus !== 'processing') return;
-    _finishThinking(st);
-    // 如果有已收到的内容，立即显示
-    _updateStreamDisplay(st);
-}
-
-function _copyStageDetail() {
-    var st = window._streamState;
-    if (!st || !st.thinking || !st.thinking.detailContent) return;
-    var text = st.thinking.detailContent.textContent;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).catch(function(){});
-    }
-}
-
-function _escHtml(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-// ===== END 阶段节点式思考过程组件 =====
+// ===== END 连续思考流 =====
 
 // ===== 全局 SSE 流式显示函数（sendMsg 和 regenerateResponse 共用） =====
 function _updateStreamDisplay(st) {
@@ -435,15 +535,14 @@ function _updateStreamDisplay(st) {
         st.firstChunk = false;
     }
     if (st.streamContent) {
-        // 隐藏占位文字
-        if (st.thinking.placeholderEl) st.thinking.placeholderEl.style.display = 'none';
         // 创建/更新答案内容区
-        if (!st.thinking.answerEl) {
-            st.thinking.answerEl = document.createElement('div');
-            st.thinking.answerEl.id = 'stream-content';
-            el.appendChild(st.thinking.answerEl);
+        if (!st.answerEl) {
+            st.answerEl = document.createElement('div');
+            st.answerEl.id = 'stream-content';
+            el.appendChild(st.answerEl);
         }
-        st.thinking.answerEl.innerHTML = md(st.streamContent);
+        st.answerEl.innerHTML = Md.renderSync(st.streamContent, md);
+        _processMermaidBlocks(st.answerEl);
     }
     scrollEnd();
 }
@@ -452,14 +551,17 @@ function _makeProcessChunk(st, reader, decoder, sid) {
     var buffer = '';
     return function processChunk(result) {
         if (result.done) {
-            _finishThinking(st);
-            _updateStreamDisplay(st);
-            st.done = true;
-            st.active = false;
-            window._streamState = null;
-            restoreSendBtn();
-            scrollEnd();
-            loadMsgs(sid);
+            if (!st._doneProcessed) {
+                st._doneProcessed = true;
+                _finishThinking(st);
+                _updateStreamDisplay(st);
+                st.done = true;
+                st.active = false;
+                window._streamState = null;
+                restoreSendBtn();
+                scrollEnd();
+                // 流式内容已在 DOM 中，不再通过 loadMsgs 清除重建
+            }
             return;
         }
 
@@ -473,10 +575,8 @@ function _makeProcessChunk(st, reader, decoder, sid) {
                 try {
                     var data = JSON.parse(line.substring(6));
                     if (data.done) {
-                        if (data.session_name) {
-                            var nameEl = document.getElementById('chat-header-name');
-                            if (nameEl) nameEl.textContent = data.session_name;
-                        }
+                        if (st._doneProcessed) continue;
+                        st._doneProcessed = true;
                         loadHistory();
                         _finishThinking(st);
                         _updateStreamDisplay(st);
@@ -485,12 +585,16 @@ function _makeProcessChunk(st, reader, decoder, sid) {
                         window._streamState = null;
                         restoreSendBtn();
                         scrollEnd();
-                        loadMsgs(sid);
-                        return;
-                    } else if (data.stage_start) {
-                        _handleStageStart(st, data.stage_start);
-                    } else if (data.stage_end) {
-                        _handleStageEnd(st, data.stage_end);
+                        // 流式内容已在 DOM 中，不再通过 loadMsgs 清除重建
+                        // 继续读取后续事件（如 session_name），直到流自然结束
+                    } else if (data.session_name) {
+                        var nameEl = document.getElementById('chat-header-name');
+                        if (nameEl) nameEl.textContent = data.session_name;
+                        loadHistory();
+                    } else if (data.thinking_stream) {
+                        _handleThinkingText(st, data.thinking_stream);
+                    } else if (data.thinking_start) {
+                        _initThinkingStream(st);
                     } else if (data.thinking_done) {
                         _finishThinking(st);
                     } else if (data.chunk) {
@@ -535,20 +639,15 @@ function createStreamState(sid, userMessage, ac) {
         userMessage: userMessage,
         abortController: ac,
         streamContent: '',
+        _doneProcessed: false,
         thinkingContainer: null,
         thinking: {
-            stages: [],
-            currentStageId: null,
-            globalStatus: 'processing',
-            selectedStageId: null,
-            processEl: null,
-            trackEl: null,
-            skipBtn: null,
-            detailEl: null,
-            detailTitle: null,
-            detailContent: null,
-            placeholderEl: null,
-            answerEl: null
+            thinkingText: '',
+            streamEl: null,
+            textEl: null,
+            headerEl: null,
+            dotEl: null,
+            status: 'thinking'  // 'thinking' | 'done'
         },
         done: false,
         firstChunk: true
@@ -646,9 +745,6 @@ function esc(t) {
     return d.innerHTML;
 }
 
-var _COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-var _CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-
 function makeCopyBtn(content) {
     var btn = document.createElement('button');
     btn.className = 'chat-action-btn';
@@ -656,7 +752,7 @@ function makeCopyBtn(content) {
     btn.innerHTML = _COPY_SVG;
     btn.onclick = function(e) {
         e.stopPropagation();
-        navigator.clipboard.writeText(content).then(function() {
+        copyToClipboard(content, function() {
             btn.innerHTML = _CHECK_SVG;
             btn.style.color = 'var(--color-success, #22c55e)';
             setTimeout(function() { btn.innerHTML = _COPY_SVG; btn.style.color = ''; }, 1500);
@@ -840,7 +936,9 @@ function addBubble(role, content, time, msgId, attachments, exportedFiles, think
     var bub = document.createElement('div');
     bub.className = 'chat-bubble md-body';
     if (role === 'assistant') {
-        bub.innerHTML = md(content || '');
+        Md.renderInto(content || '', bub, {
+            onDone: function(el) { _decorateDocPills(el); _processMermaidBlocks(el); }
+        });
     } else {
         // 附件胶囊：优先使用传入的 attachments 数据，否则从 content 中解析 [附件: xxx]
         var attachNames = [];
@@ -895,9 +993,16 @@ function addBubble(role, content, time, msgId, attachments, exportedFiles, think
     if (role === 'assistant' && thinkingJson) {
         try {
             var _tj = JSON.parse(thinkingJson);
-            if (_tj && _tj.stages && _tj.stages.length > 1) {
-                var _thinkEl = _createStaticThinking(_tj.stages);
-                wrap.insertBefore(_thinkEl, wrap.firstChild);
+            if (_tj) {
+                var thinkingText = _tj.thinking_text || '';
+                if (!thinkingText && (_tj.steps || _tj.stages)) {
+                    var steps = _tj.steps || _tj.stages;
+                    thinkingText = steps.map(function(s) { return s.thinking_text || s.stage_name || ''; }).join('\n');
+                }
+                if (thinkingText) {
+                    var _thinkEl = _renderHistoryThinking(thinkingText);
+                    wrap.insertBefore(_thinkEl, wrap.firstChild);
+                }
             }
         } catch(e) {}
     }
@@ -1011,7 +1116,7 @@ function resetRightPanel() {
 }
 
 // ===== Panel Resize (Drag) =====
-var _panelResizeState = { isDragging: false, startX: 0, startWidth: 0 };
+var _panelResizeState = { isDragging: false, startX: 0, startWidth: 0, _safetyTimer: null };
 
 function _onPanelResizeMouseDown(e) {
     var panel = document.getElementById('chat-right-panel');
@@ -1024,6 +1129,17 @@ function _onPanelResizeMouseDown(e) {
     panel.style.transition = 'none';
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    // 安全兜底：2 秒后自动恢复，防止 mouseup 丢失导致文字永久无法选中
+    clearTimeout(_panelResizeState._safetyTimer);
+    _panelResizeState._safetyTimer = setTimeout(function() {
+        if (_panelResizeState.isDragging) {
+            _panelResizeState.isDragging = false;
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (handle) handle.classList.remove('active');
+            if (panel) panel.style.transition = '';
+        }
+    }, 3000);
     e.preventDefault();
 }
 
@@ -1043,6 +1159,7 @@ function _onPanelResizeMouseMove(e) {
 function _onPanelResizeMouseUp() {
     if (!_panelResizeState.isDragging) return;
     _panelResizeState.isDragging = false;
+    clearTimeout(_panelResizeState._safetyTimer);
     var handle = document.getElementById('panel-resize-handle');
     var panel = document.getElementById('chat-right-panel');
     if (handle) handle.classList.remove('active');
@@ -1317,7 +1434,7 @@ function regenerateResponse(msgId, newContent, userRow, bubbleEl, fallbackHTML) 
         if (nextRow && nextRow.classList.contains('assistant')) nextRow.remove();
 
         // 用新内容触发流式重新生成
-        if (!sid || !userMsgId) return;
+        if (!sid || !msgId) return;
 
         // 创建 stream bubble
         createStreamBubble(userRow);
@@ -1362,8 +1479,7 @@ function fmtTime(iso) {
  */
 function _decorateDocPills(container) {
     if (!container) return;
-    var fileSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
-    var pathRe = /(?<!["'\w\/])([\u4e00-\u9fa5\w][\u4e00-\u9fa5\w\/\s-]*?\.(?:md|txt|markdown))(?!["'\w\/])/g;
+    var pathRe = /(?<!["'\w\/])([\u4e00-\u9fa5\w][^\s"'<>]*?\.(?:md|txt|markdown))(?!["'\w\/])/g;
 
     // 遍历文本节点（跳过 a/code/pre 内的）
     var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
@@ -1397,8 +1513,8 @@ function _decorateDocPills(container) {
             var span = document.createElement('span');
             span.className = 'doc-file-pill';
             span.title = trimmed;
-            span.setAttribute('onclick', "event.stopPropagation();previewDoc('" + trimmed.replace(/'/g, "\\'") + "')");
-            span.innerHTML = fileSvg + '<span class="pill-label">' + label + '</span>';
+            span.addEventListener('click', function(e) { e.stopPropagation(); previewDoc(trimmed); });
+            span.innerHTML = _FILE_SVG + '<span class="pill-label">' + label + '</span>';
             frag.appendChild(span);
             last = m.index + m[0].length;
         }
@@ -1409,6 +1525,10 @@ function _decorateDocPills(container) {
 
 function md(text) {
     if (!text) return '';
+    // 压缩 3 个及以上连续换行为 2 个，避免复制粘贴时出现多余空行
+    text = text.replace(/\n{3,}/g, '\n\n');
+    // 去掉头尾空白，避免开头/结尾空 <p></p>
+    text = text.replace(/^\s+/, '').replace(/\s+$/, '');
     var mdInline = function(t) {
         var _esc = function(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
         var _inlineFmt = function(s) {
@@ -1419,9 +1539,10 @@ function md(text) {
                 .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
         };
         var blocks = [];
-        t = t.replace(/```(\w*)\n([\s\S]*?)```/g, function(m) {
+        t = t.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang) {
             var code = m.replace(/^```\w*\n/, '').replace(/\n```$/, '');
-            blocks.push('<pre><code>' + _esc(code) + '</code></pre>');
+            var cls = lang ? ' class="language-' + lang + '"' : '';
+            blocks.push('<pre><code' + cls + '>' + _esc(code) + '</code></pre>');
             return '\x01B' + (blocks.length - 1) + '\x01';
         });
         t = t.replace(/^###### (.+)$/gm, function(_, c) { blocks.push('<h6>' + _inlineFmt(_esc(c)) + '</h6>'); return '\x01B' + (blocks.length - 1) + '\x01'; });
@@ -1437,7 +1558,8 @@ function md(text) {
             // 内部代码块
             var codeBlocks = [];
             inner = inner.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
-                codeBlocks.push(code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+                var cls = lang ? ' class="language-' + lang + '"' : '';
+                codeBlocks.push('<pre><code' + cls + '>' + code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>');
                 return '\x02C' + (codeBlocks.length - 1) + '\x02';
             });
             // 内部列表项
@@ -1518,12 +1640,11 @@ function md(text) {
     text = text.replace(/([\u4e00-\u9fa5\/-])(?:\r?\n)+([\u4e00-\u9fa5])/g, '$1$2');
     text = mdInline(text);
     text = text.replace(/\x00HTML(\d+)\x00/g, function(_, i) { return '</p>' + htmlBlocks[parseInt(i)] + '<p>'; });
-    // Make file paths clickable pills (e.g. 技术/Agent架构.md)
-    var fileSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
-    text = text.replace(/(?<!["'])([\u4e00-\u9fa5\w][\u4e00-\u9fa5\w\/\s-]*?\.(?:md|txt|markdown))(?!["'\w\/])/g, function(match) {
+    // Make file paths clickable pills
+    text = text.replace(/(?<!["'])([\u4e00-\u9fa5\w][^\s"'<>]*?\.(?:md|txt|markdown))(?!["'\w\/])/g, function(match) {
         var trimmed = match.trim();
         var label = trimmed.replace(/^.*[\/\\]/, '');
-        return '<span class="doc-file-pill" onclick="event.stopPropagation();previewDoc(\'' + trimmed.replace(/'/g, "\\'") + '\')" title="' + trimmed.replace(/"/g, '&quot;') + '">' + fileSvg + '<span class="pill-label">' + label + '</span></span>';
+        return '<span class="doc-file-pill" onclick="event.stopPropagation();previewDoc(\'' + trimmed.replace(/'/g, "\\'") + '\')" title="' + trimmed.replace(/"/g, '&quot;') + '">' + _FILE_SVG + '<span class="pill-label">' + label + '</span></span>';
     });
     return text.replace(/<p><\/p>/g, '');
 }
@@ -1543,7 +1664,7 @@ function scrollToBubble(bubbleEl) {
 
 var _uploadedFiles = [];
 var _kbBrowserPath = ''; // 当前浏览的知识库子目录
-var _chatMode = 'quick'; // 'quick' or 'expert'
+var _chatMode = 'expert'; // 'quick' or 'expert'
 
 function toggleAddMenu(e) {
     e.stopPropagation();
@@ -1967,7 +2088,7 @@ function sendMsg() {
         return;
     }
     var ta = document.getElementById('chat-input');
-    var text = ta.value.trim();
+    var text = ta.value.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     if (!text && _uploadedFiles.length === 0) return;
 
     var displayText = text;
@@ -2037,6 +2158,32 @@ function handleKey(e) {
 }
 
 function autoH(el) {
+    // 规范化换行：\r\n → \n，连续 3+ 换行 → 2 个换行
+    var v = el.value;
+    var nv = v.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    if (nv !== v) {
+        var ss = el.selectionStart;
+        var se = el.selectionEnd;
+        el.value = nv;
+        // 光标位置映射：在新值中找原光标位置对应的偏移
+        var mapPos = function(orig, clean, pos) {
+            var oi = 0, ci = 0;
+            while (oi < pos && ci < clean.length && oi < orig.length) {
+                if (orig[oi] === clean[ci]) { oi++; ci++; }
+                else if (orig[oi] === '\r' && orig[oi+1] === '\n' && clean[ci] === '\n') { oi += 2; ci++; }
+                else if (orig[oi] === '\n') {
+                    // 跳过被压缩的连续 \n
+                    var run = 1;
+                    while (oi + run < orig.length && orig[oi + run] === '\n') run++;
+                    if (run >= 3) { oi += run - 2; ci += 2; }
+                    else { oi++; ci++; }
+                } else { oi++; ci++; }
+            }
+            return ci;
+        };
+        el.selectionStart = mapPos(v, nv, ss);
+        el.selectionEnd = mapPos(v, nv, se);
+    }
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }

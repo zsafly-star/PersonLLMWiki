@@ -127,7 +127,7 @@ src/modules/mcp/
 ├── errors.py              # JSON-RPC 错误码常量 + MCPError 异常
 ├── tools_read.py          # Tier 1 只读工具 handlers（7 个）
 ├── tools_search.py        # Tier 2 检索工具 handlers（1 个）
-├── tools_write.py         # Tier 3 写入工具 handlers（7 个，含 submit_to_public / create_todo）
+├── tools_write.py         # Tier 3 写入工具 handlers（8 个，含 save_text_file / submit_to_public / create_todo）
 └── tools_office.py        # Tier 4 OfficeCLI 工具 handlers（9 个）
 
 src/common/

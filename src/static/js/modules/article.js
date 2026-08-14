@@ -327,14 +327,14 @@ function renderDocTreeNode(nodes) {
                     </span>
                     ${nodeIcon}
                     <span class="tree-item-name" onclick="loadArticle('${escapedPath}')">${escapeHtml(node.name)}</span>
-                    <span class="tree-item-menu" onclick="toggleTreeItemMenu(this)">
-                        <button class="tree-item-menu-btn">
+                    <span class="tree-item-menu" data-action="menu-toggle" data-path="${escapedPath}">
+                        <button class="tree-item-menu-btn" tabindex="-1">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                         </button>
                         <div class="tree-item-dropdown">
-                            ${isFolder ? `<button onclick="createDocument('${escapedPath}')">新建文档</button>` : ''}
-                            <button onclick="${isFolder ? `openFolderEditModal('${escapedPath}')` : `editArticle('${escapedPath}')`}">编辑</button>
-                            <button class="tree-dropdown-danger" onclick="deleteDocument('${escapedPath}')">删除</button>
+                            ${isFolder ? `<button data-action="create" data-path="${escapedPath}">新建文档</button>` : ''}
+                            <button data-action="edit" data-path="${escapedPath}">编辑</button>
+                            <button class="tree-dropdown-danger" data-action="delete" data-path="${escapedPath}">删除</button>
                         </div>
                     </span>
                 </div>
@@ -451,38 +451,109 @@ function renameDocument(filePath) {
     });
 }
 
-// 删除文档/文件夹
-function deleteDocument(filePath) {
-    if (!confirm('确定要删除吗？')) return;
+// 删除文档/文件夹（自定义确认模态框，替代原生 confirm）
+function showDeleteConfirm(filePath) {
+    if (window._articleDeleting) return;
 
-    // 关闭下拉菜单
-    document.querySelectorAll('.tree-item-dropdown').forEach(dropdown => {
-        dropdown.classList.remove('show');
-    });
+    // 关闭已打开的下拉菜单
+    document.querySelectorAll('.tree-item-dropdown').forEach(function(d) { d.classList.remove('show'); });
     closeAllToolbarDropdowns();
 
-    fetch(`/api/article/document?path=${encodeURIComponent(filePath)}`, {
-        method: 'DELETE'
-    })
-    .then(r => r.json())
-    .then(result => {
+    // 移除已存在的确认框
+    var existing = document.getElementById('article-delete-confirm');
+    if (existing) existing.remove();
+
+    var itemName = filePath.split(/[\\/]/).pop();
+    var isFolder = filePath && !filePath.endsWith('.md');
+    var typeLabel = isFolder ? '文件夹' : '文档';
+
+    var warnIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'article-delete-confirm';
+    overlay.className = 'article-confirm-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', '确认删除' + typeLabel);
+
+    overlay.innerHTML =
+        '<div class="article-confirm-modal">' +
+        '<div class="article-confirm-icon">' + warnIcon + '</div>' +
+        '<div class="article-confirm-body">' +
+        '<p class="article-confirm-title">确认删除' + typeLabel + '</p>' +
+        '<p class="article-confirm-desc">此操作不可撤销，删除后数据将永久丢失。</p>' +
+        '<span class="article-confirm-name">' + escapeHtml(itemName) + '</span>' +
+        '</div>' +
+        '<div class="article-confirm-actions">' +
+        '<button class="article-confirm-btn article-confirm-cancel">取消</button>' +
+        '<button class="article-confirm-btn article-confirm-ok">确认删除</button>' +
+        '</div></div>';
+
+    var cancelBtn = overlay.querySelector('.article-confirm-cancel');
+    var okBtn = overlay.querySelector('.article-confirm-ok');
+
+    function closeOverlay() {
+        if (overlay.parentNode) overlay.remove();
+    }
+
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeOverlay();
+    });
+
+    cancelBtn.addEventListener('click', closeOverlay);
+
+    okBtn.addEventListener('click', function() {
+        closeOverlay();
+        doDeleteDocument(filePath);
+    });
+
+    // 键盘支持：Escape 关闭 / Tab 焦点循环
+    overlay.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeOverlay();
+            return;
+        }
+        if (e.key === 'Tab') {
+            var focusable = overlay.querySelectorAll('button');
+            if (focusable.length === 0) return;
+            var first = focusable[0];
+            var last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+
+    document.body.appendChild(overlay);
+
+    // 聚焦取消按钮（安全默认）
+    cancelBtn.focus();
+}
+
+function doDeleteDocument(filePath) {
+    window._articleDeleting = true;
+
+    fetch('/api/article/document?path=' + encodeURIComponent(filePath), { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
         if (result.code === 200) {
             loadDocTree();
-            // 如果删除的是当前打开的文章，清空内容
-            const contentEl = document.getElementById('article-content');
-            if (contentEl) {
-                contentEl.innerHTML = '<div class="content-empty-hint">请选择一篇文章</div>';
-            }
-            const articleContent = contentEl ? contentEl.parentElement : null;
-            const toolbarEl = articleContent ? articleContent.querySelector('.article-toolbar') : null;
-            if (toolbarEl) { toolbarEl.style.display = 'none'; }
+            var ce = document.getElementById('article-content');
+            if (ce) ce.innerHTML = '<div class="content-empty-hint">请选择一篇文章</div>';
+            var ac = ce ? ce.parentElement : null;
+            var tb = ac ? ac.querySelector('.article-toolbar') : null;
+            if (tb) tb.style.display = 'none';
         } else {
             alert('删除失败');
         }
     })
-    .catch(() => {
-        alert('删除失败');
-    });
+    .catch(function() { alert('删除失败'); })
+    .finally(function() { window._articleDeleting = false; });
 }
 
 // 绑定文档树事件
@@ -665,6 +736,46 @@ function bindDocTreeEvents() {
         dropTarget = null;
         dropAction = '';
     });
+
+    // 树节点上下文菜单 click 事件委托（替代 inline onclick，SPA 安全）
+    if (!treeList._clickBound) {
+        treeList._clickBound = true;
+        treeList.addEventListener('click', function(e) {
+            var actionEl = e.target.closest('[data-action]');
+            if (!actionEl) return;
+
+            var action = actionEl.getAttribute('data-action');
+            var path = actionEl.getAttribute('data-path');
+
+            e.stopPropagation();
+
+            if (action === 'menu-toggle') {
+                toggleTreeItemMenu(actionEl);
+                return;
+            }
+
+            if (action === 'create') {
+                createDocument(path);
+                return;
+            }
+
+            if (action === 'edit') {
+                var treeItem = actionEl.closest('.tree-item');
+                var isFolder = treeItem && treeItem.getAttribute('data-type') === 'folder';
+                if (isFolder) {
+                    openFolderEditModal(path);
+                } else {
+                    editArticle(path);
+                }
+                return;
+            }
+
+            if (action === 'delete') {
+                showDeleteConfirm(path);
+                return;
+            }
+        });
+    }
 
     document.addEventListener('click', function(e) {
         const dropdown = document.getElementById('sidebar-dropdown');
@@ -885,7 +996,7 @@ function renderArticle(data) {
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             <span>编辑</span>
                         </button>
-                        <button class="toolbar-dropdown-item toolbar-dropdown-danger" onclick="deleteDocument('${escapedPath}')">
+                        <button class="toolbar-dropdown-item toolbar-dropdown-danger" onclick="showDeleteConfirm('${escapedPath}')">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             <span>删除</span>
                         </button>
@@ -964,7 +1075,7 @@ function renderArticle(data) {
             const action = this.getAttribute('data-action');
             const path = this.getAttribute('data-path');
             if (action === 'delete') {
-                deleteDocument(path);
+                showDeleteConfirm(path);
                 return;
             }
             closeAllToolbarDropdowns();

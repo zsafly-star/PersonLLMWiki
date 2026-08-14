@@ -4,6 +4,7 @@ import os
 import threading
 import queue as _q
 import time
+import requests
 from werkzeug.utils import secure_filename
 from common.llm import LLMService
 from config import Config
@@ -11,6 +12,10 @@ from .services import ChatService
 from common.response import success_response, error_response
 
 chat_bp = Blueprint('chat', __name__, template_folder='templates')
+
+# 流式输出延迟配置（秒）
+_STREAM_THINKING_TOKEN_DELAY = 0.01   # 思考文字逐字推送间隔
+_STREAM_CHUNK_DELAY = 0.02           # 答案分块推送间隔
 
 # 工具名中文映射表（两个 SSE 生成器共享）
 TOOL_CN_MAP = {
@@ -289,11 +294,9 @@ def kb_tree():
 
 
 def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_message=None):
-    """共享 Agent SSE 生成器。
+    """共享 Agent SSE 生成器（v4 连续流）。
 
-    供 stream_message 和 regenerate_response 调用，产出 SSE 事件字符串。
-    流程：分析问题 → 后台线程跑 agent_chat → stage_start/stage_end → thinking_done → chunk → done。
-    若 user_message 非空，结束时自动生成会话标题。
+    流程：后台线程跑 agent_chat → thinking_stream（逐字） → thinking_done → chunk → done。
     """
     from common.agent import agent_chat
     from app import app as _app
@@ -301,16 +304,9 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
     from .models import ChatMessage
 
     sep = '\n\n'
-    thinking_stages = []
-    stage_counter = [1]
+    thinking_text = ''          # 累积所有思考文字（字符串）
+    tool_calls_info = []        # 仅用于导出文件提取
 
-    # 初始阶段：分析问题
-    init_ts = int(time.time())
-    thinking_stages.append({'stage_id': 'stage_1', 'stage_name': '分析问题',
-                            'status': 'processing', 'start_timestamp': init_ts})
-    yield f"data: {json.dumps({'stage_start': thinking_stages[0]}, ensure_ascii=False)}{sep}"
-
-    # 后台线程执行 agent_chat，通过 queue 传递结果和进度
     result_queue = _q.Queue()
 
     def _run_agent():
@@ -327,64 +323,36 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
     agent_thread = threading.Thread(target=_run_agent, daemon=True)
     agent_thread.start()
 
-    # 轮询队列，推送进度事件和心跳
     while True:
         try:
             status, value = result_queue.get(timeout=2)
             if status == 'progress':
                 evt = value
-                if evt['type'] == 'tool_start':
+                if evt['type'] == 'thinking_text':
+                    text = evt['data'].get('text', '')
+                    if text:
+                        if not thinking_text:
+                            # 刚开始有思考文字，先发 thinking_start 让前端初始化 UI
+                            yield f"data: {json.dumps({'thinking_start': True}, ensure_ascii=False)}{sep}"
+                        thinking_text += text
+                        for i in range(0, len(text)):
+                            token = text[i:i+1]
+                            yield f"data: {json.dumps({'thinking_stream': {'token': token}}, ensure_ascii=False)}{sep}"
+                            time.sleep(_STREAM_THINKING_TOKEN_DELAY)
+                elif evt['type'] == 'tool_start':
                     d = evt['data']
-                    stage_counter[0] += 1
-                    stage_id = 'stage_' + str(stage_counter[0])
-                    cn_name = TOOL_CN_MAP.get(d['name'], d['name'])
-                    round_num = d.get('round', 0)
-                    if round_num > 1:
-                        cn_name += '(第{}轮)'.format(round_num)
-                    ts = int(time.time())
-                    stage_data = {
-                        'stage_id': stage_id, 'stage_name': cn_name,
-                        'tool_name': d['name'], 'tool_arguments': d['arguments'],
-                        'round': d['round'], 'status': 'processing',
-                        'start_timestamp': ts,
-                    }
-                    thinking_stages.append(stage_data)
-                    yield f"data: {json.dumps({'stage_start': stage_data}, ensure_ascii=False)}{sep}"
+                    # 首个工具调用且没有思考文字时，发 thinking_start
+                    if not thinking_text and not tool_calls_info:
+                        yield f"data: {json.dumps({'thinking_start': True}, ensure_ascii=False)}{sep}"
+                    tool_calls_info.append({
+                        'tool_name': d['name'],
+                        'tool_arguments': d.get('arguments', {}),
+                    })
                 elif evt['type'] == 'tool_result':
-                    d = evt['data']
-                    if thinking_stages:
-                        thinking_stages[-1]['status'] = 'completed'
-                        thinking_stages[-1]['end_timestamp'] = int(time.time())
-                        thinking_stages[-1]['content'] = d.get('result', '')
-                    stage_end_data = {
-                        'stage_id': thinking_stages[-1]['stage_id'] if thinking_stages else 'stage_unknown',
-                        'status': 'completed',
-                        'end_timestamp': int(time.time()),
-                        'content': d.get('result', '') if d.get('success', True)
-                                   else ('error: ' + str(d.get('error', ''))),
-                    }
-                    yield f"data: {json.dumps({'stage_end': stage_end_data}, ensure_ascii=False)}{sep}"
-                elif evt['type'] == 'custom_stage_start':
-                    d = evt['data']
-                    stage_counter[0] += 1
-                    stage_id = 'stage_' + str(stage_counter[0])
-                    ts = int(time.time())
-                    stage_data = {
-                        'stage_id': stage_id, 'stage_name': d.get('stage_name', ''),
-                        'status': 'processing', 'start_timestamp': ts,
-                    }
-                    thinking_stages.append(stage_data)
-                    yield f"data: {json.dumps({'stage_start': stage_data}, ensure_ascii=False)}{sep}"
-                elif evt['type'] == 'custom_stage_end':
-                    if thinking_stages:
-                        thinking_stages[-1]['status'] = 'completed'
-                        thinking_stages[-1]['end_timestamp'] = int(time.time())
-                    stage_end_data = {
-                        'stage_id': thinking_stages[-1]['stage_id'] if thinking_stages else 'stage_unknown',
-                        'status': 'completed',
-                        'end_timestamp': int(time.time()),
-                    }
-                    yield f"data: {json.dumps({'stage_end': stage_end_data}, ensure_ascii=False)}{sep}"
+                    # 不发送 SSE 事件，纯记录
+                    pass
+                elif evt['type'] in ('custom_stage_start', 'custom_stage_end'):
+                    pass  # 连续流不区分阶段
             elif status == 'ok':
                 result = value
                 break
@@ -398,48 +366,25 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
                 status, result = 'error', 'Agent 异常终止'
                 break
 
-    # 标记所有未完成阶段为已完成
-    for s in thinking_stages:
-        if s['status'] == 'processing':
-            s['status'] = 'completed'
-            if 'end_timestamp' not in s:
-                s['end_timestamp'] = int(time.time())
-
-    # 从 thinking_stages 中提取导出文件（按文件名去重，只保留最后一次）
+    # 提取导出文件
     exported_files = []
     _seen = set()
-    for s in reversed(thinking_stages):
-        if s.get('tool_name') == 'create_document':
-            args = s.get('tool_arguments', {})
+    for tc in reversed(tool_calls_info):
+        if tc['tool_name'] == 'create_document':
+            args = tc['tool_arguments']
             fpath = args.get('path', '') if isinstance(args, dict) else (args if isinstance(args, str) else '')
             fname = os.path.basename(fpath) if fpath else ''
             if fname and fname not in _seen:
                 _seen.add(fname)
                 exported_files.insert(0, {'filename': fname, 'path': fpath})
 
-    # 添加"生成回答"阶段
-    stage_counter[0] += 1
-    gen_stage = {
-        'stage_id': 'stage_' + str(stage_counter[0]),
-        'stage_name': '生成回答',
-        'status': 'processing',
-        'start_timestamp': int(time.time()),
-    }
-    thinking_stages.append(gen_stage)
-    yield f"data: {json.dumps({'stage_start': gen_stage}, ensure_ascii=False)}{sep}"
-
     yield f"data: {json.dumps({'thinking_done': True}, ensure_ascii=False)}{sep}"
-
-    # 标记"生成回答"阶段为已完成（前端 thinking_done 已折叠面板，此处仅为持久化）
-    if thinking_stages and thinking_stages[-1]['status'] == 'processing':
-        thinking_stages[-1]['status'] = 'completed'
-        thinking_stages[-1]['end_timestamp'] = int(time.time())
 
     if status == 'error':
         full_response = '执行失败: ' + result
         yield f"data: {json.dumps({'chunk': full_response}, ensure_ascii=False)}{sep}"
         ChatService.update_message(stream_msg_id, full_response)
-        thinking_payload = {'stages': thinking_stages, 'exported_files': exported_files}
+        thinking_payload = {'thinking_text': thinking_text, 'exported_files': exported_files}
         _msg = ChatMessage.query.get(stream_msg_id)
         if _msg:
             _msg.thinking_json = json.dumps(thinking_payload, ensure_ascii=False)
@@ -447,11 +392,7 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
         yield f"data: {json.dumps({'done': True, 'thinking': thinking_payload}, ensure_ascii=False)}{sep}"
     else:
         response_text = result.get('response', '')
-        tool_calls = result.get('tool_calls', [])
-        rounds = result.get('rounds', 0)
         full_response = response_text
-        if tool_calls:
-            full_response += '\n\n> 已调用 ' + str(len(tool_calls)) + ' 个工具（' + str(rounds) + ' 轮）'
 
         chunk_size = 32
         sent_chars = 0
@@ -461,7 +402,7 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
             try:
                 yield f"data: {payload}{sep}"
                 sent_chars = i + chunk_size
-                time.sleep(0.02)
+                time.sleep(_STREAM_CHUNK_DELAY)
             except (GeneratorExit, BrokenPipeError, ConnectionError):
                 break
 
@@ -469,7 +410,7 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
         if sent_chars < len(full_response):
             saved_content += '\n\n_[已停止生成]_'
         ChatService.update_message(stream_msg_id, saved_content)
-        thinking_payload = {'stages': thinking_stages, 'exported_files': exported_files}
+        thinking_payload = {'thinking_text': thinking_text, 'exported_files': exported_files}
         _msg = ChatMessage.query.get(stream_msg_id)
         if _msg:
             _msg.thinking_json = json.dumps(thinking_payload, ensure_ascii=False)
@@ -498,7 +439,7 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
 
     updated = ChatService.get_session_with_messages(session_id)
     session_name = updated['session']['name'] if updated else ''
-    yield f"data: {json.dumps({'done': True, 'session_name': session_name}, ensure_ascii=False)}{sep}"
+    yield f"data: {json.dumps({'session_name': session_name}, ensure_ascii=False)}{sep}"
 
 
 @chat_bp.route('/api/chat/sessions/<int:session_id>/stream', methods=['POST'])
@@ -852,3 +793,28 @@ def chat_completion():
         })
     except Exception as e:
         return error_response(f'请求失败: {str(e)}')
+
+
+# ---- Mermaid 代理（绕过浏览器 ORB 拦截） ----
+
+@chat_bp.route('/api/chat/mermaid-img', methods=['GET'])
+def mermaid_proxy():
+    """代理 mermaid.ink 图片请求，避免浏览器 ORB 拦截。"""
+    code = request.args.get('code', '').strip()
+    if not code:
+        return error_response('缺少 mermaid 代码')
+    try:
+        # mermaid.ink 支持直接 base64url 编码原始代码
+        import base64
+        encoded = base64.urlsafe_b64encode(code.encode('utf-8')).decode('ascii').rstrip('=')
+        url = 'https://mermaid.ink/img/' + encoded
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code >= 400:
+            return error_response(f'Mermaid 渲染失败 (HTTP {resp.status_code})，请检查语法')
+        content_type = resp.headers.get('Content-Type', 'image/png')
+        return Response(resp.content, mimetype=content_type,
+                        headers={'Cache-Control': 'public, max-age=3600'})
+    except requests.Timeout:
+        return error_response('Mermaid 渲染超时，图表可能过于复杂')
+    except Exception as e:
+        return error_response(f'Mermaid 渲染失败: {str(e)}')

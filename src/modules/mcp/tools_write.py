@@ -1,14 +1,16 @@
 """MCP 写入工具 handlers（Tier 3，变更需谨慎）。
 
 write_note 直接写文件系统，即时生效。路径必须在 article 根目录内。
+save_text_file 通用文本写入，锚定 RESOURCE_BASE_PATH，支持覆盖和追加。
 """
 import json
 import os
+import tempfile
 
 from flask import current_app
 
 from .errors import INVALID_PARAMS, MCPError
-from .security import resolve_article_path, validate_markdown_extension
+from .security import resolve_article_path, resolve_resource_path, validate_markdown_extension
 
 
 def _text_content(obj):
@@ -424,4 +426,106 @@ def handle_create_todo(args: dict) -> dict:
         'id': item.id,
         'title': item.title,
         'message': f'已创建待办：{title}',
+    })
+
+
+# ---------- 通用文本写入 ----------
+
+def handle_save_text_file(args: dict) -> dict:
+    """将任意文本/Markdown 内容写入指定文件。支持覆盖和追加。
+
+    默认路径相对于文章根目录（ARTICLE_PATH），与 write_note 同根，
+    因此 mode="append" 可以向已有知识库文章追加内容。
+    root="resource" 时路径相对于资源根目录（RESOURCE_BASE_PATH），
+    适用于写入 JSON/CSV/TXT 等非文章数据文件。
+
+    【超长内容】若单次写入受限，请分多次调用：
+    首次用 mode="overwrite" 创建文件，后续用 mode="append" 追加。
+
+    Args:
+        args: {
+            path: str (required),
+            content: str (required),
+            mode: str (optional, "overwrite" | "append", default "overwrite"),
+            root: str (optional, "article" | "resource", default "article"),
+            create_folders: bool (optional, default true),
+        }
+
+    Returns:
+        {
+            path: str,
+            bytes_written: int,
+            total_bytes: int,
+            mode: str,
+            created: bool,
+        }
+
+    Raises:
+        MCPError(-32602): path 缺失、content 缺失、路径越界、父目录不存在
+    """
+    if 'path' not in args or not args['path']:
+        raise MCPError(INVALID_PARAMS, 'path 参数必填')
+    if 'content' not in args or not isinstance(args['content'], str):
+        raise MCPError(INVALID_PARAMS, 'content 参数必填且必须是字符串')
+
+    raw_path = args['path']
+    content = args['content']
+    mode = args.get('mode', 'overwrite')
+    root = args.get('root', 'article')
+    create_folders = bool(args.get('create_folders', True))
+
+    if mode not in ('overwrite', 'append'):
+        raise MCPError(INVALID_PARAMS, 'mode 必须是 overwrite 或 append')
+    if root not in ('article', 'resource'):
+        raise MCPError(INVALID_PARAMS, 'root 必须是 article 或 resource')
+
+    # 路径安全校验：默认锚定 ARTICLE_PATH（与 write_note 同根）
+    if root == 'article':
+        abs_path = resolve_article_path(raw_path)
+    else:
+        abs_path = resolve_resource_path(raw_path)
+
+    # 父目录处理
+    parent_dir = os.path.dirname(abs_path)
+    if not os.path.isdir(parent_dir):
+        if create_folders:
+            os.makedirs(parent_dir, exist_ok=True)
+        else:
+            raise MCPError(INVALID_PARAMS, f'父目录不存在: {parent_dir}')
+
+    # 判断是创建还是覆盖/追加到已有文件
+    created = not os.path.exists(abs_path)
+
+    try:
+        if mode == 'overwrite':
+            # 原子写入：临时文件 + os.replace
+            fd, tmp_path = tempfile.mkstemp(dir=parent_dir)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                os.replace(tmp_path, abs_path)
+            except Exception:
+                # 清理临时文件
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+        else:
+            # 追加模式：直接追加到文件末尾
+            with open(abs_path, 'a', encoding='utf-8') as f:
+                f.write(content)
+    except (PermissionError, OSError) as e:
+        raise MCPError(INVALID_PARAMS, f'写入失败: {e}')
+
+    # 读取最终文件大小
+    try:
+        total_bytes = os.path.getsize(abs_path)
+    except OSError:
+        total_bytes = len(content.encode('utf-8'))
+
+    return _text_content({
+        'path': raw_path,
+        'bytes_written': len(content.encode('utf-8')),
+        'total_bytes': total_bytes,
+        'mode': mode,
+        'created': created,
     })

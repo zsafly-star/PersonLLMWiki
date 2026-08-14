@@ -1,15 +1,19 @@
 """桌面版打包编排脚本。
 
 用法：
-  python packaging/build_desktop.py 1.0.0
+  python packaging/build_desktop.py              # 自动递增版本号
+  python packaging/build_desktop.py 1.0.0.007    # 指定版本号
 
 流程：
   1. 调用 PyInstaller（用 desktop.spec）打 EXE
-  2. 调用 Inno Setup（ISCC.exe）打安装包
-  3. 产出到 release/ 目录
+  2. 复制 seed/ 到输出目录
+  3. 调用 Inno Setup（ISCC.exe）打安装包
+  4. 产出到 release/ 目录
 """
 
+import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +23,39 @@ PROJECT_DIR = os.path.dirname(THIS_DIR)
 SRC_DIR = os.path.join(PROJECT_DIR, 'src')
 PACKAGING_DIR = THIS_DIR
 RELEASE_DIR = os.path.join(PROJECT_DIR, 'release')
+
+
+def _get_base_version():
+    """读取 VERSION 文件获取基础版本号"""
+    version_file = os.path.join(PROJECT_DIR, 'VERSION')
+    if os.path.isfile(version_file):
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    return '1.0.0'
+
+
+def _get_next_build_number(base_version):
+    """扫描 installer 目录，返回下一个 build 号（3 位补零）"""
+    installer_dir = os.path.join(RELEASE_DIR, 'installer')
+    os.makedirs(installer_dir, exist_ok=True)
+    
+    pattern = re.compile(
+        re.escape(f'PersonLLMWiki-Setup-{base_version}.') + r'(\d+)\.exe$')
+    max_n = 0
+    for f in os.listdir(installer_dir):
+        m = pattern.match(f)
+        if m:
+            n = int(m.group(1))
+            if n > max_n:
+                max_n = n
+    return f'{max_n + 1:03d}'
+
+
+def auto_version():
+    """自动生成下一个版本号"""
+    base = _get_base_version()
+    build = _get_next_build_number(base)
+    return f'{base}.{build}'
 
 
 def run_pyinstaller():
@@ -45,22 +82,23 @@ def run_pyinstaller():
     print(f"[build] EXE 已生成: {exe_path}")
 
 
-def copy_bin_to_output():
-    """将 bin/ 复制到输出目录（EXE 同级，而非 _internal 内）"""
-    print("[build] === 复制 bin/ 到输出目录 ===")
-    bin_src = os.path.join(SRC_DIR, 'bin')
-    bin_dst = os.path.join(RELEASE_DIR, "dist", "PersonLLMWiki", "bin")
+def copy_seed_to_output():
+    """将 seed/ 复制到输出目录（EXE 同级，用于首次播种）"""
+    print("[build] === 复制 seed/ 到输出目录 ===")
+    seed_src = os.path.join(PROJECT_DIR, 'seed')
+    seed_dst = os.path.join(RELEASE_DIR, "dist", "PersonLLMWiki", "seed")
 
-    if not os.path.isdir(bin_src):
-        print(f"[build] 警告: 未找到 bin 目录: {bin_src}")
+    if not os.path.isdir(seed_src):
+        print(f"[build] 警告: 未找到 seed 目录: {seed_src}")
         return
 
-    if os.path.isdir(bin_dst):
-        print(f"[build] 移除旧 bin: {bin_dst}")
-        shutil.rmtree(bin_dst)
+    if os.path.isdir(seed_dst):
+        print(f"[build] 移除旧 seed: {seed_dst}")
+        shutil.rmtree(seed_dst)
 
-    shutil.copytree(bin_src, bin_dst)
-    print(f"[build] bin/ 已复制到: {bin_dst}")
+    shutil.copytree(seed_src, seed_dst,
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    print(f"[build] seed/ 已复制到: {seed_dst}")
 
 
 def find_iscc():
@@ -113,19 +151,17 @@ def run_inno_setup(version):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("用法: python build_desktop.py <version>")
-        print("示例: python build_desktop.py 1.0.0")
-        sys.exit(1)
-
-    version = sys.argv[1]
+    if len(sys.argv) >= 2:
+        version = sys.argv[1]
+    else:
+        version = auto_version()
 
     print(f"PersonLLMWiki 桌面版打包工具")
     print(f"版本: {version}")
     print()
 
     run_pyinstaller()
-    copy_bin_to_output()
+    copy_seed_to_output()
     installer_path = run_inno_setup(version)
 
     print(f"\n[build] 完成！安装包: {installer_path}")

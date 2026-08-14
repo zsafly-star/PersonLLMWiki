@@ -1943,3 +1943,166 @@
 .wiki-drawer-sources strong {
     color: var(--color-foreground-secondary);
 }
+
+/* ========== 删除确认模态框 ========== */
+.article-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: 16px;
+    animation: ac-fadein 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .article-confirm-overlay {
+        animation: none;
+    }
+}
+
+@keyframes ac-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.article-confirm-modal {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    padding: 24px;
+    max-width: 380px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: ac-scalein 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .article-confirm-modal {
+        animation: none;
+    }
+}
+
+@keyframes ac-scalein {
+    from { transform: scale(0.95) translateY(4px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* 警告图标 */
+.article-confirm-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #FEF2F2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.article-confirm-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--color-destructive);
+}
+
+/* 正文区 */
+.article-confirm-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+
+.article-confirm-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-foreground);
+    line-height: 1.4;
+    margin: 0;
+    font-family: var(--font-sans);
+}
+
+.article-confirm-desc {
+    font-size: 13px;
+    color: var(--color-foreground-secondary);
+    line-height: 1.5;
+    margin: 0;
+    font-family: var(--font-sans);
+}
+
+.article-confirm-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-foreground);
+    background: var(--color-primary-50);
+    padding: 4px 12px;
+    border-radius: 100px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 4px;
+    font-family: var(--font-sans);
+}
+
+/* 操作按钮 */
+.article-confirm-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.article-confirm-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+    line-height: 1.4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+}
+
+.article-confirm-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.article-confirm-cancel {
+    background: var(--color-border-light);
+    color: var(--color-foreground);
+}
+
+.article-confirm-cancel:hover {
+    background: var(--color-border);
+}
+
+.article-confirm-ok {
+    background: var(--color-destructive);
+    color: #FFFFFF;
+}
+
+.article-confirm-ok:hover {
+    background: #B91C1C;
+}
+
+.article-confirm-ok:active {
+    transform: scale(0.97);
+}

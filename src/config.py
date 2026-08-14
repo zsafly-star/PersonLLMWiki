@@ -2,27 +2,22 @@ import os
 import sys as _sys
 from dotenv import load_dotenv
 
-# 查找 .env：依次检查 app 同级目录（embedded 部署）、app 上级、当前目录
+# 用户数据目录（固定，不可自定义）
+_USER_HOME = os.path.expanduser('~')
+_USER_DATA_DIR = os.path.join(_USER_HOME, '.personllmwiki')
+
+# .env 只从用户数据目录读取
+_env_path = os.path.join(_USER_DATA_DIR, '.env')
+if os.path.isfile(_env_path):
+    load_dotenv(_env_path)
+
+# 种子数据目录（首次播种用，安装时自带）
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_THIS_DIR)
 if getattr(_sys, 'frozen', False):
-    _DEFAULT_RESOURCE_PATH = os.path.join(_PROJECT_ROOT, 'resource')
+    _SEED_DIR = os.path.join(os.path.dirname(_sys._MEIPASS), 'seed')
 else:
-    _DEFAULT_RESOURCE_PATH = os.path.join(os.path.dirname(_PROJECT_ROOT), 'resource')
-_env_candidates = [
-    os.path.join(_PROJECT_ROOT, '.env'),          # embedded: app/../.env
-    os.path.join(_THIS_DIR, '.env'),               # 开发模式: src/.env
-    os.path.join(os.getcwd(), '.env'),             # 当前目录
-]
-# 打包模式（PyInstaller）：优先检查 %APPDATA%\PersonLLMWiki\.env
-if getattr(_sys, 'frozen', False):
-    _appdata_env = os.path.join(
-        os.getenv('APPDATA', ''), 'PersonLLMWiki', '.env')
-    _env_candidates.insert(0, _appdata_env)
-for _env_candidate in _env_candidates:
-    if os.path.isfile(_env_candidate):
-        load_dotenv(_env_candidate)
-        break
+    _SEED_DIR = os.path.join(_PROJECT_ROOT, 'seed')
 
 
 class Config:
@@ -34,12 +29,26 @@ class Config:
     # 实例模式：single（默认，原始单实例）/ personal（个人版，可同步公共库）/ public（公共版）
     INSTANCE_MODE = os.getenv('INSTANCE_MODE', 'single')
 
-    RESOURCE_BASE_PATH = os.getenv('RESOURCE_BASE_PATH', _DEFAULT_RESOURCE_PATH)
+    SEED_DIR = _SEED_DIR
+
+    # ===== 路径体系 =====
+    # USER_DATA_DIR       ~/.personllmwiki/       固定，不可自定义
+    # INSTANCE_PATH       USER_DATA_DIR/instance/  数据库、配置
+    # MCP_DIR             USER_DATA_DIR/mcp/       MCP 二进制
+    # SKILLS_DIR          USER_DATA_DIR/skills/    技能定义
+    # RESOURCE_BASE_PATH  从 .env 读取，默认 USER_DATA_DIR/resource/  用户可自定义
+
+    USER_DATA_DIR = _USER_DATA_DIR
+    INSTANCE_PATH = os.path.join(USER_DATA_DIR, 'instance')
+    MCP_DIR = os.path.join(USER_DATA_DIR, 'mcp')
+    SKILLS_DIR = os.path.join(USER_DATA_DIR, 'skills')
+
+    RESOURCE_BASE_PATH = os.getenv('RESOURCE_BASE_PATH',
+                                   os.path.join(USER_DATA_DIR, 'resource'))
     ARTICLE_PATH = os.path.join(RESOURCE_BASE_PATH, 'article')
     IMAGE_PATH = os.path.join(RESOURCE_BASE_PATH, 'img')
     ATTACHMENT_PATH = os.path.join(RESOURCE_BASE_PATH, 'attachments')
     WIKI_PATH = os.path.join(RESOURCE_BASE_PATH, 'wiki')
-    INSTANCE_PATH = os.path.join(RESOURCE_BASE_PATH, 'instance')
 
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(INSTANCE_PATH, 'sseditor.db')
 

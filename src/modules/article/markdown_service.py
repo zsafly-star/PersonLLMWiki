@@ -10,6 +10,9 @@ MARKDOWN_EXTENSIONS = [
 
 
 def render_markdown(content):
+    # 压缩 3 个及以上连续换行为 2 个，避免复制粘贴时出现多余空行
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    content = content.strip()
     html_content = md_lib.markdown(content, extensions=MARKDOWN_EXTENSIONS)
     html_content = _convert_task_lists(html_content)
     html_content = _convert_wiki_links(html_content)

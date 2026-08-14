@@ -18,6 +18,7 @@
 import json
 
 import pytest
+from config import Config
 
 
 # ---------- helpers ----------
@@ -268,16 +269,19 @@ class TestParseErrors:
 class TestTokenAuth:
 
     def test_token_set_but_missing_header_returns_unauthorized(self, client, monkeypatch):
-        monkeypatch.setenv('ZSSNOTE_MCP_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_ADMIN_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_SUBMITTER_TOKEN', '')
         resp = rpc(client, 'ping')
         assert_rpc_error(resp, -32001)
 
     def test_token_set_wrong_value_returns_unauthorized(self, client, monkeypatch):
-        monkeypatch.setenv('ZSSNOTE_MCP_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_ADMIN_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_SUBMITTER_TOKEN', '')
         resp = rpc(client, 'ping', headers={'Authorization': 'Bearer wrong'})
         assert_rpc_error(resp, -32001)
 
     def test_token_set_correct_value_passes(self, client, monkeypatch):
-        monkeypatch.setenv('ZSSNOTE_MCP_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_ADMIN_TOKEN', 'secret')
+        monkeypatch.setattr(Config, 'MCP_SUBMITTER_TOKEN', '')
         resp = rpc(client, 'ping', headers={'Authorization': 'Bearer secret'})
         assert_rpc_success(resp)

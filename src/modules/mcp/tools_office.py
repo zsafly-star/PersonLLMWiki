@@ -12,12 +12,17 @@ import shutil
 import subprocess
 import platform
 
-_BIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'bin', 'mcp', 'officecli'))
+def _get_officecli_bin_dir():
+    """获取 OfficeCLI 二进制目录，统一从 Config.MCP_DIR 读取。"""
+    try:
+        from config import Config
+        return os.path.join(Config.MCP_DIR, 'officecli')
+    except Exception:
+        pass
+    return os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', '..', 'bin', 'mcp', 'officecli'))
 
-# 打包模式：bin/ 在 _internal/ 同级，而非 _internal/ 内部
-if getattr(sys, 'frozen', False):
-    _SRC_ROOT = os.path.dirname(sys._MEIPASS)
-    _BIN_DIR = os.path.join(_SRC_ROOT, 'bin', 'mcp', 'officecli')
+_BIN_DIR = _get_officecli_bin_dir()
 
 
 def _get_platform_id():

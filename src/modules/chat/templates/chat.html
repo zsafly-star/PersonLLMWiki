@@ -60,17 +60,17 @@
                     </div>
                     <div class="chat-mode-wrap">
                         <button class="chat-mode-btn" id="chat-mode-btn" onclick="toggleModeMenu(event)" title="切换模式" aria-label="切换模式">
-                            <svg id="chat-mode-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            <span id="chat-mode-label">快速</span>
+                            <svg id="chat-mode-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"/></svg>
+                            <span id="chat-mode-label">专家</span>
                             <svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                         </button>
                         <div class="chat-mode-dropdown" id="chat-mode-dropdown">
                             <div class="dd-head">对话模式</div>
-                            <div class="dd-item active" data-action="set-mode" data-mode="quick">
+                            <div class="dd-item" data-action="set-mode" data-mode="quick">
                                 <svg class="dd-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                                 <span>快速</span>
                             </div>
-                            <div class="dd-item" data-action="set-mode" data-mode="expert">
+                            <div class="dd-item active" data-action="set-mode" data-mode="expert">
                                 <svg class="dd-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5"/></svg>
                                 <span>专家</span>
                             </div>

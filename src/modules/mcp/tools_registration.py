@@ -22,6 +22,7 @@ from .tools_write import (
     handle_create_folder,
     handle_submit_to_public,
     handle_create_todo,
+    handle_save_text_file,
 )
 from .tools_office import (
     handle_read_document,
@@ -210,6 +211,53 @@ def _register_all():
                 'additionalProperties': False,
             },
             handler=handle_write_note,
+            cost='none',
+        ),
+        Tool(
+            name='save_text_file',
+            description=(
+                '将任意文本/Markdown 内容写入指定文件。支持覆盖和追加两种模式。'
+                '默认路径相对于文章根目录（ARTICLE_PATH），与 write_note 同根，'
+                '因此 mode="append" 可直接向已有知识库文章追加内容。'
+                'root="resource" 时路径相对于资源根目录（RESOURCE_BASE_PATH）。'
+                '【超长内容】若单次写入受限，请分多次调用：首次用 '
+                'mode="overwrite" 创建文件，后续用 mode="append" 追加。'
+            ),
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'path': {
+                        'type': 'string',
+                        'description': '相对路径。默认相对于文章根目录（如 "OpenHarmony/笔记.md"），root="resource" 时相对于资源根目录（如 "data/export.json"）',
+                    },
+                    'content': {
+                        'type': 'string',
+                        'description': (
+                            '要写入的文本内容。'
+                            '若内容过长导致单次传输失败，请分块并用 mode="append" 追加。'
+                        ),
+                    },
+                    'mode': {
+                        'type': 'string',
+                        'enum': ['overwrite', 'append'],
+                        'default': 'overwrite',
+                        'description': 'overwrite 覆盖写入（原子替换），append 追加到文件末尾',
+                    },
+                    'root': {
+                        'type': 'string',
+                        'enum': ['article', 'resource'],
+                        'default': 'article',
+                        'description': '路径锚定根目录。article=文章目录（默认），resource=资源根目录（用于 JSON/CSV 等数据文件）',
+                    },
+                    'create_folders': {
+                        'type': 'boolean', 'default': True,
+                        'description': 'true 时自动创建不存在的父目录',
+                    },
+                },
+                'required': ['path', 'content'],
+                'additionalProperties': False,
+            },
+            handler=handle_save_text_file,
             cost='none',
         ),
         Tool(

@@ -25,7 +25,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │  └─ response.py             统一 JSON 响应
 │
 ├─ modules/                   功能模块
-│  ├─ mcp/          MCP 双角色 (Server+Client) · 25 工具 + 内置服务管理
+│  ├─ mcp/          MCP 双角色 (Server+Client) · 25 工具 + 内置服务管理（含 save_text_file 覆盖/追加）
 │  ├─ chat/         对话页 · SSE 流式 · Agent 自动 · 阶段节点式思考过程 · 附件分流读取 · 模型切换
 │  ├─ wiki/         知识编译管道 · 混合检索 · 图谱
 │  ├─ article/      Markdown 文章 · 图片 · 附件
@@ -59,7 +59,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 | 线 | 核心 | 要点 |
 |----|------|------|
 | **LLM 知识编译** | `wiki/compiler/` | 文章 → 提取(LLM) → 合并 → 生成 → 审批 → 向量索引；SHA-256 增量 |
-| **MCP 双角色** | `modules/mcp/` + `common/mcp_client.py` | Server 25 工具 + Client 总线 + 内置服务管理器 |
+| **MCP 双角色** | `modules/mcp/` + `common/mcp_client.py` | Server 26 工具 + Client 总线 + 内置服务管理器 |
 | **Agent 无处不在** | `common/agent.py` | 对话页始终 Agent (≤30轮)，定时任务也走 Agent，专家模式强制知识库+联网搜索，Skills 注入提示词 |
 | **Skills 工作流编排** | `common/skill_loader.py` + `bin/skills/` | SKILL.md 声明式技能，Agent 自动匹配加载，编排 MCP 工具 |
 
@@ -70,12 +70,13 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 ### MCP 系统
 
 **[→ 完整设计文档](ZSSNote_MCP_%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88.md)**
+**[→ 通用文本写入工具设计](MCP_%E9%80%9A%E7%94%A8%E6%96%87%E6%9C%AC%E5%86%99%E5%85%A5%E5%B7%A5%E5%85%B7%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88.md)**
 
 ZSSNote 的 MCP 系统兼具 **Server** 和 **Client** 双角色：
 
 | 角色 | 模块 | 说明 |
 |------|------|------|
-| **Server** | `modules/mcp/routes.py` + `registry.py` | 对外暴露 25 个工具（JSON-RPC 2.0 over `/mcp`），供外部 AI 客户端调用 |
+| **Server** | `modules/mcp/routes.py` + `registry.py` | 对外暴露 26 个工具（JSON-RPC 2.0 over `/mcp`），供外部 AI 客户端调用 |
 | **Client** | `common/mcp_client.py` | `MCPClientBus` 总线，连接远程 MCP 服务器（`server__tool` 命名空间路由） |
 | **内置服务** | `common/builtin_mcp_manager.py` | 管理本地内置 MCP 服务（子进程拉起、健康检查、注册到总线） |
 | **统一 API** | `modules/mcp/client_routes.py` | 前端 MCP 管理页面的 REST API，合并内置 + 自定义服务 |
@@ -500,14 +501,17 @@ bin/mcp/websearch/
 后端单元测试基于 pytest，位于 `tests/` 目录。
 
 ```
-tests/
+Tests/
 ├── conftest.py            ← pytest fixture（Flask app context、DB 隔离）
 ├── mcp/                   ← MCP 工具单元测试
 │   └── test_tools_search.py
-└── chat/                  ← 对话与思考过程测试
-    ├── test_agent_expert.py   ← 专家模式强制流程（5 个测试）
-    ├── test_thinking_stages.py ← 思考阶段构建逻辑（8 个测试）
-    └── test_tool_map.py       ← TOOL_CN_MAP 映射完整性（5 个测试）
+├── chat/                  ← 对话与思考过程测试
+│   ├── test_agent_expert.py    ← 专家模式强制流程（5 个测试）
+│   ├── test_thinking_stages.py ← 思考阶段构建逻辑（8 个测试）
+│   ├── test_tool_map.py        ← TOOL_CN_MAP 映射完整性（5 个测试）
+│   └── test_mermaid_img.py     ← Mermaid 代理端点（10 个测试）
+└── common/                ← 共享层测试
+    └── test_seed_sync.py       ← 种子智能同步（12 个测试）
 ```
 
 **运行测试**：
@@ -516,6 +520,7 @@ tests/
 cd src
 python -m pytest tests/ -v          # 全部
 python -m pytest tests/chat/ -v     # 仅对话相关
+python -m pytest tests/common/ -v   # 仅共享层
 ```
 
 **测试策略**：
@@ -523,6 +528,40 @@ python -m pytest tests/chat/ -v     # 仅对话相关
 - 覆盖专家模式强制流程（自动搜索、结果注入、回调顺序、失败容错）
 - 覆盖思考阶段构建（阶段链顺序、轮次标注、completed 状态、JSON 序列化）
 - 回归保护：TOOL_CN_MAP 核心工具映射不遗漏
+- Mermaid 代理端点：base64url 编码、多图型代理、中文标签、错误处理
+- 种子同步：新增文件、更新文件、用户文件保留、子目录递归、源不存在容错
+
+---
+
+## 变更记录
+
+### 2026-08-12
+
+**对话页多项优化**（[chat.js](../static/js/modules/chat.js) / [chat.css](../static/css/components/chat.css)）
+
+- 源码面板白色蒙层修复：`.mermaid-source pre` 全部属性加 `!important`，容器固定深色背景 `#1e293b`，彻底覆写全局 markdown 样式
+- Mermaid 渲染语法纠正：前端弯引号→直引号自动替换、classDiagram 中文类名引号包裹、mindmap `(text)`→`["text"]` 转义
+- 连续流思考速度优化：打字机 50ms→10ms/字符，折叠后不再清除 DOM 重建
+- 对话模式默认为专家：`_chatMode = 'expert'`
+- SVG 常量模块级统一：6 个共享 SVG + `_escHtml()` 死代码移除
+- CSS 优化：合并重复 `@media` 查询，移除 ~100 行 v3 遗留 CSS
+
+**种子智能同步**（[app.py](../src/app.py)）
+
+- `_seed_smart_sync()` 替代 `_seed_user_dir()`：逐文件内容对比（`filecmp.cmp(shallow=False)`），seed 新增→追加、变更→覆盖、用户独有→保留
+- MCP 服务配置（`seed/mcp/*.service.json`）和 Skills 技能（`seed/skills/*/SKILL.md`）同步到运行时目录
+- 每次启动执行，不再限于首次；无变更时打印"已是最新"日志
+
+**Mermaid 图表技能**（[SKILL.md](../seed/skills/mermaid/SKILL.md) / [agent.py](../common/agent.py)）
+
+- 新建 `seed/skills/mermaid/SKILL.md`：8 条规范 + 审查清单，涵盖 flowchart/classDiagram/mindmap/subgraph/时序图
+- `_get_mermaid_prompt()` 从 skill 文件注入系统提示词（精简版 ~400 字符），不再在 system prompt 硬编码
+- 后端 Mermaid 代理：`GET /api/chat/mermaid-img?code=<base64url>` 解决浏览器 ORB 跨域
+
+**新增测试用例**
+
+- `tests/chat/test_mermaid_img.py`：10 个用例，覆盖 base64url 编码、4 种图型代理、空码/错误处理
+- `tests/common/test_seed_sync.py`：12 个用例，覆盖新增/更新/保留/递归/容错全场景
 
 ---
 
@@ -563,7 +602,52 @@ python -m pytest tests/chat/ -v     # 仅对话相关
 - `POST /api/settings/upgrade/check` — 检查远程是否有新版本
 - `POST /api/settings/upgrade/apply` — 下载并应用增量更新
 
-### 2026-08-06
+### 2026-08-11
+
+**SSE 流式响应修复**（[routes.py](../modules/chat/routes.py) / [chat.js](../static/js/modules/chat.js)）
+
+- 修复对话页 SSE 流式响应"网络错误"：服务端发送两个 `done` 事件导致客户端过早停止读取流、`reader.cancel()` 触发浏览器断连
+- 服务端第二个 `done` 改为 `session_name` 事件，客户端收到 `done` 后不取消 reader，让流自然结束
+- 修复 `Md.renderSync().then(...)` 错误：`renderSync` 是同步函数，改为直接赋值
+- 新增 `_doneProcessed` 守卫防重复处理
+
+**静态文件浏览器缓存**（[app.py](../src/app.py)）
+
+- `SEND_FILE_MAX_AGE_DEFAULT = 0` + `after_request` 添加 `Cache-Control: no-store`
+- 解决修改 JS/CSS 后浏览器使用缓存旧文件的问题
+
+**设置页路径保存修复**（[routes.py](../modules/settings/routes.py)）
+
+- 路径保存改为临时文件 + `os.replace` 原子替换，避免 PermissionError
+
+**fastmcp 版本冲突**（requirements.txt）
+
+- `fastmcp 3.4.7` 移除 `FastMCP` 类导致 pdf-mcp/websearch 不可用，回退到 `fastmcp==2.14.7`
+
+**文章删除确认重构**（[article.js](../static/js/modules/article.js) / [article.css](../static/css/components/article.css)）
+
+- 删除按钮行内 `onclick` 改为 `data-action` + `#tree-list` 事件委托
+- 原生 `confirm()` 改为自定义模态框（居中弹窗 + 取消/确认删除按钮 + 遮罩关闭）
+
+**剪贴板写入兜底**（[chat.js](../static/js/modules/chat.js)）
+
+- `navigator.clipboard.writeText()` 权限不足时回退到 `document.execCommand('copy')`（隐藏 textarea + 选中 + 复制）
+
+**save_text_file MCP 工具**（[tools_write.py](../modules/mcp/tools_write.py) / [tools_registration.py](../modules/mcp/tools_registration.py) / [security.py](../modules/mcp/security.py)）
+
+- 新增通用文本写入工具：支持覆盖/追加双模式，可选 `article`（默认，与 write_note 同根）/ `resource` 根目录
+- 覆盖模式使用临时文件 + `os.replace` 原子替换；追加模式直接 `open(path, 'a')`
+- 测试：22 个测试用例，覆盖覆盖/追加/路径越界/root 参数等场景
+
+**Wiki 编译状态移至源文件工具栏**（[wiki.html](../modules/wiki/templates/wiki.html)）
+
+- 编译状态指示从全局 header 移至 sources 标签页工具栏，仅编译相关页签显示
+
+**Wiki 字体大小优化**（[wiki.html](../modules/wiki/templates/wiki.html)）
+
+- 遵循 UX 排版规范：正文 ≥16px、标签 ≥12px、按钮 14px、卡片标题 15px
+
+### 2026-08-06（续）
 
 **对话页新建对话模式**（[chat.html](../modules/chat/templates/chat.html) / [chat.js](../static/js/modules/chat.js)）
 
