@@ -48,7 +48,7 @@ def _register_all():
         # ---------- Tier 1: 只读 ----------
         Tool(
             name='list_folders',
-            description='列出 ZSSNote 文章知识库的顶层目录结构。无副作用，无成本。返回每个文件夹的名称、路径、图标和笔记数量。',
+            description='列出 PersonLLMWiki 文章知识库的顶层目录结构。无副作用，无成本。返回每个文件夹的名称、路径、图标和笔记数量。',
             input_schema={
                 'type': 'object',
                 'properties': {},

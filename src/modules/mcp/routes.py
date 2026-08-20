@@ -29,7 +29,7 @@ from .registry import get_tool, list_tools
 
 
 MCP_PROTOCOL_VERSION = '2025-06-18'
-MCP_SERVER_NAME = 'ZSSNote'
+MCP_SERVER_NAME = 'PersonLLMWiki'
 MCP_SERVER_VERSION = '1.0.0'
 
 # 合法的 JSON-RPC 2.0 方法

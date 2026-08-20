@@ -32,7 +32,7 @@ def handle_write_note(args: dict) -> dict:
     """创建或覆盖一篇文章（Markdown）。
 
     自动提取 Markdown 中的内联 data URI 图片，保存到 resource/img/<文件名>/
-    目录下，并将 Markdown 中的引用替换为 ZSSNote 标准相对路径
+    目录下，并将 Markdown 中的引用替换为 PersonLLMWiki 标准相对路径
     img/<文件名>/xxx.png，兼容现有图片查看器和渲染管线。
 
     Args:
@@ -86,11 +86,11 @@ def handle_write_note(args: dict) -> dict:
     img_dir = os.path.join(img_root, md_stem)
 
     from .image_extractor import extract_inline_images
-    # Markdown 引用路径前缀：img/<文件名>/（ZSSNote 标准）
+    # Markdown 引用路径前缀：img/<文件名>/（PersonLLMWiki 标准）
     md_prefix = f'img/{md_stem}/'
     new_content, saved_paths = extract_inline_images(content, img_dir, md_prefix)
 
-    # 构造 ZSSNote 标准相对路径（img/<文件名>/xxx.png）
+    # 构造 PersonLLMWiki 标准相对路径（img/<文件名>/xxx.png）
     rel_image_paths = []
     for abs_img_path in saved_paths:
         # 取相对于 IMAGE_PATH 的相对路径，再转为正斜杠形式

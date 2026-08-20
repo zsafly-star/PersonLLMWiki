@@ -1,6 +1,6 @@
-"""ZSSNote MCP 模块。
+"""PersonLLMWiki MCP 模块。
 
-手写 JSON-RPC 2.0 Handler，通过 /mcp 端点把 ZSSNote 知识库
+手写 JSON-RPC 2.0 Handler，通过 /mcp 端点把 PersonLLMWiki 知识库
 暴露给 WorkBuddy 等 MCP 客户端。零新增依赖。
 """
 # 导入 routes 会顺带触发 tools_registration 注册所有工具

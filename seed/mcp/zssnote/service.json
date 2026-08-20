@@ -1,7 +1,0 @@
-{
-  "name": "zssnote",
-  "source": "builtin",
-  "location": "local",
-  "type": "embedded",
-  "description": "ZSSNote 自身 MCP Server，提供知识库读写、Wiki 编译、搜索等工具"
-}

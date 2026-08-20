@@ -262,7 +262,7 @@ def _check_binary_service(svc):
 # ─── embedded 服务 ────────────────────────────────────────
 
 def _check_embedded_service(svc):
-    """检查 embedded 类型的服务（如 ZSSNote 自身 MCP Server）。
+    """检查 embedded 类型的服务（如 PersonLLMWiki 自身 MCP Server）。
 
     嵌入在当前进程内，无需独立启动，始终可用。
     Returns: {available, running, tool_count}

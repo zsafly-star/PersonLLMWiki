@@ -1,14 +1,14 @@
 {
   "mcpServers": {
-    "zssnote": {
+    "personllmwiki": {
       "url": "http://localhost:5000/mcp",
       "transport": "streamable-http",
-      "_comment": "ZSSNote 知识库 MCP 服务器。需先启动 ZSSNote (python app.py)。若设置了 ZSSNOTE_MCP_TOKEN 环境变量，需额外加 headers.Authorization: Bearer <token>"
+      "_comment": "PersonLLMWiki 知识库 MCP 服务器。需先启动 PersonLLMWiki (python app.py)。若设置了 ZSSNOTE_MCP_TOKEN 环境变量，需额外加 headers.Authorization: Bearer <token>"
     }
   },
   "_with_token_example": {
     "mcpServers": {
-      "zssnote": {
+      "personllmwiki": {
         "url": "http://localhost:5000/mcp",
         "transport": "streamable-http",
         "headers": {

@@ -153,10 +153,10 @@ def list_all_services():
         seen_names.add(name)
         rt = runtime.get(name, {})
         st_type = st.get('type', '')
-        # embedded 类型：从 _BUILTIN_GROUPS 计算工具数，zssnote 返回全部
+        # embedded 类型：从 _BUILTIN_GROUPS 计算工具数，personllmwiki 返回全部
         if st_type == 'embedded':
-            if name == 'zssnote':
-                # zssnote 工具数 = 全部本地工具 - 已归入独立服务的工具
+            if name == 'personllmwiki':
+                # personllmwiki 工具数 = 全部本地工具 - 已归入独立服务的工具
                 _excluded = set()
                 for g in _BUILTIN_GROUPS:
                     if g.get('id', '') == 'officecli':
@@ -211,11 +211,11 @@ def list_all_services():
             'can_reconnect': True,
         })
 
-    # 3. ZSSNote 自身 MCP Server：embedded 类型，始终可用，不依赖后台线程
-    if 'zssnote' not in seen_names:
+    # 3. PersonLLMWiki 自身 MCP Server：embedded 类型，始终可用，不依赖后台线程
+    if 'personllmwiki' not in seen_names:
         services.append({
-            'name': 'zssnote',
-            'description': 'ZSSNote 自身 MCP Server，提供知识库读写、Wiki 编译、搜索等工具',
+            'name': 'personllmwiki',
+            'description': 'PersonLLMWiki 自身 MCP Server，提供知识库读写、Wiki 编译、搜索等工具',
             'source': 'builtin',
             'location': 'local',
             'type': 'embedded',
@@ -335,8 +335,8 @@ def list_server_tools(name):
                             '_original_name': t.name,
                         })
                 return success_response(local_tools)
-        # ZSSNote embedded：无分组匹配，返回核心本地工具（排除已归入独立服务的工具）
-        if name == 'zssnote':
+        # PersonLLMWiki embedded：无分组匹配，返回核心本地工具（排除已归入独立服务的工具）
+        if name == 'personllmwiki':
             # 排除已归入 officecli 服务的工具
             excluded = set()
             for g in _BUILTIN_GROUPS:

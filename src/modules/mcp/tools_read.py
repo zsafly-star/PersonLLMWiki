@@ -30,7 +30,7 @@ def _error_content(message: str):
 
 
 def handle_list_folders(args: dict) -> dict:
-    """列出 ZSSNote 文章知识库的顶层目录结构。
+    """列出 PersonLLMWiki 文章知识库的顶层目录结构。
 
     Args:
         args: {} 或 {depth: int}（当前只支持 depth=1）
