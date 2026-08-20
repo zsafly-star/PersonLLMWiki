@@ -45,8 +45,12 @@
                             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
                             <span>文章</span>
                         </a>
-                        <a href="/todo" data-nav class="item-menu {% if active_view == 'todo' %}is-active{% endif %}" aria-label="任务">
+                        <a href="/todo" data-nav class="item-menu {% if active_view == 'todo' %}is-active{% endif %}" aria-label="待办">
                             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            <span>待办</span>
+                        </a>
+                        <a href="/tasks" data-nav class="item-menu {% if active_view == 'tasks' %}is-active{% endif %}" aria-label="任务">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
                             <span>任务</span>
                         </a>
                         <a href="/wiki" data-nav class="item-menu {% if active_view == 'wiki' %}is-active{% endif %}" aria-label="Wiki">

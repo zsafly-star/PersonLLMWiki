@@ -1,6 +1,6 @@
 """自动化任务执行引擎。
 
-复用 Agent 循环逻辑，专门为定时任务设计：
+复用公共 react loop（common/agent_core.run_agent_loop），专门为定时任务设计：
 - 接受自定义 system prompt（即任务描述）
 - 支持按 MCP 服务器过滤工具
 - 执行结果写入 AutomationTask.last_result
@@ -11,9 +11,8 @@ import logging
 from datetime import datetime
 
 from extensions import db
-from common.llm_config import LLMConfigService
 from common.mcp_client import get_bus
-from common.llm import LLMService
+from common.agent_core import run_agent_loop, get_active_llm
 
 logger = logging.getLogger(__name__)
 
@@ -75,21 +74,11 @@ def run_task(task_id, trigger='scheduled'):
     db.session.flush()  # 获取 run.id
 
     # 获取活跃 LLM
-    config = LLMConfigService.get_active()
-    if not config:
+    provider, _, _ = get_active_llm()
+    if not provider:
         _finish_run(run, status='error', error='未配置活跃的 LLM')
         _update_task_last(task)
         return run.id
-
-    provider = config.provider
-    model = config.model or ''
-    kwargs = {}
-    if config.api_key:
-        kwargs['api_key'] = config.api_key
-    if config.base_url:
-        kwargs['base_url'] = config.base_url
-
-    adapter = LLMService.get_adapter(provider, **kwargs)
 
     # 获取工具（按 MCP 服务器过滤）
     tools = _filter_tools(task.mcp_servers)
@@ -105,64 +94,14 @@ def run_task(task_id, trigger='scheduled'):
         {'role': 'user', 'content': task.prompt},
     ]
 
-    tool_call_log = []
-    current_round = 0
-
     try:
-        while current_round < MAX_TOOL_ROUNDS:
-            current_round += 1
-
-            message = adapter.chat(messages, model=model, tools=tools if tools else None)
-
-            if isinstance(message, str):
-                _finish_run(run, status='ok', response=message, tool_calls=tool_call_log)
-                _update_task_last(task)
-                return run.id
-
-            has_tool_calls = hasattr(message, 'tool_calls') and message.tool_calls
-
-            if not has_tool_calls:
-                _finish_run(run, status='ok', response=message.content or '', tool_calls=tool_call_log)
-                _update_task_last(task)
-                return run.id
-
-            # 把 assistant 消息加入历史
-            msg_dict = _message_to_dict(message)
-            messages.append(msg_dict)
-
-            # 执行每个工具调用
-            bus = get_bus()
-            for tc in message.tool_calls:
-                tool_name = tc.function.name
-                try:
-                    tool_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                except json.JSONDecodeError:
-                    tool_args = {}
-
-                result = bus.call_tool(tool_name, tool_args)
-                result_text = _extract_result_text(result)
-
-                tool_call_log.append({
-                    'round': current_round,
-                    'name': tool_name,
-                    'arguments': tool_args,
-                    'result': result_text[:500],
-                })
-
-                messages.append({
-                    'role': 'tool',
-                    'tool_call_id': tc.id,
-                    'content': result_text,
-                })
-
-        # 超过最大轮次
-        _finish_run(run, status='ok', response='已达到最大工具调用次数限制。', tool_calls=tool_call_log)
+        result = run_agent_loop(messages, tools=tools, max_rounds=MAX_TOOL_ROUNDS)
+        _finish_run(run, status='ok', response=result['response'], tool_calls=result['tool_calls'])
         _update_task_last(task)
         return run.id
-
     except Exception as e:
         logger.error(f'[Automation] 任务 #{task_id} 执行异常: {e}')
-        _finish_run(run, status='error', error=f'执行异常: {str(e)}', tool_calls=tool_call_log)
+        _finish_run(run, status='error', error=f'执行异常: {str(e)}')
         _update_task_last(task)
         return run.id
 
@@ -189,47 +128,3 @@ def _update_task_last(task):
         'response': '完整记录见运行记录',
     }, ensure_ascii=False)
     db.session.commit()
-
-
-# ── 以下复刻自 common/agent.py，避免循环引入 ──
-
-def _message_to_dict(message):
-    """把 OpenAI message 对象转为 dict"""
-    d = {'role': message.role}
-    if message.content:
-        d['content'] = message.content
-    if hasattr(message, 'tool_calls') and message.tool_calls:
-        d['tool_calls'] = []
-        for tc in message.tool_calls:
-            d['tool_calls'].append({
-                'id': tc.id,
-                'type': 'function',
-                'function': {
-                    'name': tc.function.name,
-                    'arguments': tc.function.arguments,
-                },
-            })
-    return d
-
-
-def _extract_result_text(result):
-    """从工具返回的 MCP content 格式中提取纯文本"""
-    if isinstance(result, str):
-        return result
-
-    if isinstance(result, dict):
-        if result.get('isError'):
-            texts = []
-            for c in result.get('content', []):
-                if isinstance(c, dict) and c.get('type') == 'text':
-                    texts.append(c['text'])
-            return '工具执行出错: ' + '\n'.join(texts)
-
-        contents = result.get('content', [])
-        texts = []
-        for c in contents:
-            if isinstance(c, dict) and c.get('type') == 'text':
-                texts.append(c['text'])
-        return '\n'.join(texts) if texts else json.dumps(result, ensure_ascii=False)
-
-    return str(result)

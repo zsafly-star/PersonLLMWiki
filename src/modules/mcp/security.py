@@ -143,3 +143,42 @@ def resolve_resource_path(rel_path: str) -> str:
         raise MCPError(INVALID_PARAMS, '路径越界')
 
     return candidate_abs
+
+
+def resolve_workspace_path(rel_path: str) -> str:
+    """把相对路径解析为当前任务工作空间内的绝对路径。
+
+    锚定根目录来自线程本地上下文（common.workspace_ctx.get_workspace()）。
+    未设置工作空间时抛 MCPError。
+
+    Args:
+        rel_path: 相对于工作空间根目录的路径，例如 'src/main.py'
+
+    Returns:
+        解析后的绝对路径
+
+    Raises:
+        MCPError(-32602): 未设置工作空间 / 路径越界或非法
+    """
+    from common.workspace_ctx import get_workspace
+
+    ws = get_workspace()
+    if not ws:
+        raise MCPError(INVALID_PARAMS, '当前任务未设置工作空间')
+
+    if not rel_path or not isinstance(rel_path, str):
+        raise MCPError(INVALID_PARAMS, 'path 不能为空')
+
+    normalized_rel = rel_path.replace('\\', os.sep).replace('/', os.sep)
+    candidate = os.path.normpath(os.path.join(ws, normalized_rel))
+    candidate_abs = os.path.abspath(candidate)
+
+    try:
+        common = os.path.commonpath([ws, candidate_abs])
+    except ValueError:
+        raise MCPError(INVALID_PARAMS, '路径越界')
+
+    if common != ws:
+        raise MCPError(INVALID_PARAMS, '路径越界')
+
+    return candidate_abs

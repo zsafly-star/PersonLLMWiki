@@ -1,0 +1,313 @@
+# PersonLLMWiki × DeepSeek Harness 集成架构设计方案
+
+> 版本：v0.1（设计讨论稿）｜ 状态：待评审 ｜ 日期：2026-08-20
+> 关联文档：《多智能体PRD.md》《多智能体技术方案.md》《DESIGN.md》《分发部署方案.md》《ZSSNote_MCP_设计方案.md》
+> 本文是「知识库产品 × 智能体执行引擎」整合讨论的收敛结论，若与前述文档冲突，以本文为准。
+
+---
+
+## 1. 背景与目标
+
+### 1.1 原始愿景（设计之初）
+
+- PersonLLMWiki 可部署在云端服务器，产出**公共知识库**（如物料信息），公司同事直接使用，无需各自重复生产；
+- 个人实例可把自有知识库**共享到云端**供他人使用（已落地为 `INSTANCE_MODE=single/personal/public` + `COMMON_GIT_REPO` git 同步 + `submit_to_public` 提交审批机制）。
+
+### 1.2 新认知（视频启示 + 现状分析）
+
+- 除知识库外，**MCP 服务、Skills、智能体（agent）同样可以共享**——共享的是"定义层"而非"运行实例"；
+- PersonLLMWiki 控制台正在自研的多智能体编排（`src/modules/tasks/`：orchestrator/router/state_store/security），本质上是在重复实现 DeepSeek Harness（DSH）已有的 goal / subagent / workflow / skills 能力；
+- DSH 是独立的 Node 应用（npm 包 `@deepseek-ai/dsh`，当前 v0.1.0-rc.6），Web UI 运行在 3080 端口，具备 Web GUI、持久会话、headless CLI、MCP 客户端、插件系统。
+
+### 1.3 最终目标
+
+1. **停止重复造轮子**：搁置自研多智能体模块，执行/编排层交给 DSH；
+2. **保留并强化知识层**：wiki 编译管道、混合检索、审批流、文章管理、MCP Server 全部保留；
+3. **一体化分发**：以 PersonLLMWiki 为主体打包桌面端，DSH 作为可插拔的"智能体引擎"嵌入；
+4. **开发者原生体验**：提供 DSH 插件，让 DSH 用户一键接入 PersonLLMWiki 知识库；
+5. **共享闭环**：知识库 / MCP / Skills / 智能体定义均可共享（git 为主，注册中心为演进方向）。
+
+---
+
+## 2. 总体架构：三件套
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ ③ DSH 插件（开发者分发）                                      │
+│  @company/dsh-personllmwiki                                 │
+│  · MCP client 配置声明（连 ① 的 /mcp）                        │
+│  · 知识库 SKILL（教 agent 先 search_kb 再回答）               │
+│  · 可选：知识库检索面板（UI slot）                            │
+└───────────────┬────────────────────────────────────────────┘
+                │ MCP (JSON-RPC 2.0 over HTTP)
+┌───────────────┴────────────────────────────────────────────┐
+│ ① 共享后端（不变，云上 public 实例）                          │
+│  PersonLLMWiki Flask                                       │
+│  · wiki 编译/混合检索/审批流 · 文章图片 · SQLite              │
+│  · MCP Server：28 个工具（search_kb / read_wiki_page /       │
+│    write_note / compile_wiki / submit_to_public …）          │
+│  · INSTANCE_MODE=public，同事/其他 AI 客户端经 /mcp 接入      │
+└───────────────┬────────────────────────────────────────────┘
+                │ MCP + iframe + headless CLI
+┌───────────────┴────────────────────────────────────────────┐
+│ ② 产品分发（Plan B 桌面端）                                  │
+│  PersonLLMWiki 桌面 = 主体窗口（PyWebView）                  │
+│  · Tab 壳：工作台/对话/知识库/文章/…/【智能体=DSH iframe】    │
+│  · sidecar：dsh_bridge.py 管理 DSH 进程（发现/启停/版本门禁）  │
+│  · 设置页：DSH 关联/重装/更新                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2.1 三条通信路径（互不混用）
+
+| 路径 | 协议 | 方向 | 场景 | 归属 |
+|---|---|---|---|---|
+| 工具调用（主通道） | MCP / JSON-RPC 2.0 | DSH → PersonLLMWiki | agent 检索知识库、写文章、触发编译、提交共享 | ①②③ 共用 |
+| UI 嵌入 | iframe + postMessage | PersonLLMWiki 窗口 ↔ DSH web | 桌面端「智能体」Tab | ② |
+| 进程调用 | headless CLI | PersonLLMWiki → DSH | 控制台定时任务触发 `dsh --profile headless "job"` | ② |
+
+> **关键认知**：PersonLLMWiki 不感知插件的存在——它只看到 MCP 调用。插件是 DSH 侧的接入封装（声明连接 + 教用法），不是通信通道本身。
+
+---
+
+## 3. 组件一：共享后端（现状盘点 + 最小改动）
+
+### 3.1 已有设施（全部保留，无需重写）
+
+| 设施 | 位置 | 状态 |
+|---|---|---|
+| MCP Server 28 工具（Tier1 只读 7 / Tier2 检索 1 / Tier3 写入 7 / Office 9 / Todo 1 / Workspace 3） | `src/modules/mcp/tools_registration.py` | ✅ 已注册，`/mcp` 对外暴露 |
+| 混合检索（向量 0.7 + BM25 0.3，jieba 分词，内存常驻） | `src/modules/wiki/compiler/retrieval.py` | ✅ `hybrid_search()` |
+| 对话页"先找本地知识库"（eager 预检索 + 循环中按需） | `src/common/agent.py:185` | ✅ 同一 `search_kb` handler |
+| 公共库 git 同步 / 提交审批 | `src/common/sync_service.py` + `INSTANCE_MODE` + `MCP_SUBMITTER_TOKEN` | ✅ 已存在 |
+| 内置 MCP 服务统一管理（service.json 自包含发现） | `src/common/builtin_mcp_manager.py` | ✅ 已存在 |
+
+### 3.2 最小改动清单
+
+| 改动 | 说明 | 优先级 |
+|---|---|---|
+| `search_kb` 可选频控 | 云上 public 实例防 Embedding 配额滥用（本地可不做） | P2 |
+| MCP Server 鉴权文档化 | 明确 `MCP_ADMIN_TOKEN` / `MCP_SUBMITTER_TOKEN` 的对接方式（DSH 客户端、同事 AI 客户端） | P1 |
+| 公共实例部署文档 | 复用《分发部署方案》思路，补充 Linux 部署 + 常驻进程（systemd） | P1 |
+
+---
+
+## 4. 组件二：Plan B 桌面端
+
+### 4.1 桌面壳（Tab + iframe）
+
+- `desktop.pyw` 加载本地 shell 页（`templates/shell.html`），顶部 Tab：`[工作台] [对话] [知识库] [任务] [控制台] [文章] … [智能体(DSH)]`；
+- 「智能体」Tab = iframe 指向 DSH web（`http://127.0.0.1:3080`）；
+- **已验证**（2026-08-20）：DSH web 响应头无 `X-Frame-Options`、无 CSP `frame-ancestors`，可嵌入 iframe；PersonLLMWiki 已启用 flask-cors，跨源 API 无碍；
+- 端口固定：Flask 由 `find_free_port` 改为固定/可配（iframe 需要确定性 URL），写入 `instance/desktop_prefs.json`。
+
+### 4.2 sidecar 进程管理：`common/dsh_bridge.py`（唯一 DSH 交互入口）
+
+```
+发现   → DSH_URL（默认 :3080）health check
+       → 已在跑（用户自启）→ 直接复用
+       → 未在跑 → 按 DSH_CMD（PATH/配置）拉起
+版本门禁 → dsh --version ≥ 最低版本才启用「智能体」Tab
+headless → 控制台定时任务调用封装（CLI 语法变化收敛在此文件）
+```
+
+- 铁律：**只管理进程，不碰 DSH 文件**；`$DSH_HOME` 与 `~/.personllmwiki` 数据永不相交；
+- 优雅降级：DSH 缺失/版本过低 → 智能体 Tab 显示「未安装/未启用」占位，其余功能照常。
+
+### 4.3 设置页「DeepSeek Harness」区块（独立于「系统更新」）
+
+| 动作 | 流程 | 说明 |
+|---|---|---|
+| 关联已有 DSH | 浏览选择 `dsh.cmd`/安装目录 → `dsh --version` 探测 → 3080 健康检查 → 写入配置 | 不触碰已有 `$DSH_HOME`，只记 `DSH_CMD` / `DSH_URL` |
+| 重新安装 | 下载 dsh 运行时包（zip）→ 解压 → 自动关联 → 首次启动初始化 web profile | 同事无 Node 也可用（捆绑便携 Node） |
+| 更新检查 | 已装版本 vs 远程最新 → 一键更新 → 换 `app\`、留 `home\` → 重启 | 会话不丢（sessions 与 profiles 分离） |
+
+安装位置建议（无需管理员权限、按用户隔离、升级=换 app）：
+
+```
+%LOCALAPPDATA%\DeepSeekHarness\
+├── app\            ← DSH 安装本体：便携 Node + @deepseek-ai/dsh（替换=升级）
+├── home\           ← DSH_HOME（profiles/ sessions/ storages/，升级永不动）
+└── version.txt
+```
+
+更新源（并存，可配）：**公司镜像 zip**（同事，内网快、可离线，沿用 `bin-resources-*.zip` 分发习惯）+ **npm registry**（开发者，检查 `@deepseek-ai/dsh` latest 版本号）。
+
+> 注意：`profiles/web` 的整套依赖位于 `$DSH_HOME` 内（非安装目录），更新后需做一次 profile 同步（`dsh plugin` 或重初始化）；`sessions/` 与 `profiles/` 分离，重初始化不丢会话。
+
+### 4.4 界面编排原则（B 档：原样嵌入 + 入口缝合）
+
+- **不重新设计 DSH 页面**（npm 包、构建产物、独立升级，fork 成本不可接受）；
+- 分工：PersonLLMWiki 导航负责「应用级切换」，DSH 内部导航负责「会话级操作」；
+- **headless 桥**（已验证 V1：DSH web 不支持 URL 深链）：知识库概念卡「用智能体深入分析」→ 经 `dsh_bridge` 调 `dsh --profile headless "分析概念 X"`，结果展示在 PersonLLMWiki 侧（如控制台运行记录 / 详情弹层）；需要继续人工交互时再手动切到智能体 Tab 续聊。相比深链跳转，headless 桥更确定、可记录、可审计；
+- 壳层统一：shell 加统一顶栏（品牌 + 全局搜索），iframe 顶部对齐，不碰 DSH 内部样式。
+
+---
+
+## 5. 组件三：DSH 插件（开发者分发）
+
+### 5.1 定位与形态
+
+- npm 包 `@company/dsh-personllmwiki`（cordis 插件，`package.json` 声明 `dsh.client.inject` 扩展 Web UI slot）；
+- 安装：`dsh plugin --profile web add @company/dsh-personllmwiki`；
+- **L1 能力插件**（推荐范围），内容三件：
+  1. **MCP 连接声明**：`{name: personllmwiki, url: http://127.0.0.1:5000/mcp, token: <MCP_ADMIN_TOKEN>}`（等价现有 `mcp_servers.json` 结构，见 `resource/instance/mcp_servers.json`）；
+  2. **知识库 SKILL**：仿 `seed/skills/bom-picking/SKILL.md` 格式（frontmatter `name/description` + 正文），教 agent「回答前先调 `personllmwiki__search_kb`，必要时 `personllmwiki__read_wiki_page` 读全文」；
+  3. **可选 UI slot**：只读"知识库快速检索"面板（调 search_kb 展示结果）。
+
+### 5.2 为什么插件 ≠ 通信通道
+
+- 插件只做"告诉 DSH 去哪连 + 教它怎么用"；数据流通全靠 MCP 标准协议（JSON-RPC 2.0）；
+- PersonLLMWiki 侧**零代码改动**，`search_kb` 等 28 个工具原样暴露；
+- 插件本身就是可共享物（见 §7），随 npm 私服 / git 分发。
+
+### 5.3 与组件二的关系
+
+- 桌面端（②）与插件（③）**互不冲突、可叠加**：② 服务非技术同事与产品品牌；③ 服务开发者在 DSH 里的原生体验；
+- 共享后端（①）是两者共用的底座。
+
+---
+
+## 6. 知识供给机制（DSH 如何访问 wiki）
+
+### 6.1 现状：对话页的"先找本地知识库"
+
+- eager：`agent.py:185` 循环前 `bus.call_tool('search_kb', {'keyword': user_query})` 预检索注入；
+- lazy：system prompt 引导 agent 循环中自行调用 `search_kb` / `websearch__web_search`；
+- `search_kb` handler：`hybrid_search`（向量 0.7 + BM25 0.3）→ 返回 `slug/title/snippet/score/source`，personal 模式带公共库关键词兜底。
+
+### 6.2 DSH 接入三层次
+
+| 层次 | 做法 | 工作量 | 说明 |
+|---|---|---|---|
+| **L1（推荐）** | DSH MCP 客户端配置指向 `/mcp` | 配置级 | agent 会话内自动出现 `personllmwiki__search_kb` 等工具，行为与对话页 lazy 一致 |
+| **L2（可选）** | DSH profile 提示词 / SKILL 引导「必先检索」 | 配置级 | 复刻对话页 eager 语义 |
+| **L3（暂缓）** | PersonLLMWiki 侧加 `search_kb_full` 组合工具（检索+全文一次返回） | 小开发 | 实测 agent 检索质量不足再考虑 |
+
+### 6.3 闭环（DSH 不只是消费者，还是生产者）
+
+```
+DSH agent 提问 → search_kb 检索 → read_wiki_page 读全文 → 回答
+                                          ↓ 产出沉淀
+              write_note / save_text_file → 知识库
+              compile_wiki → 待审批 → approve_candidate
+              submit_to_public → 共享公共库
+```
+
+全部由现有 MCP 工具拼成，无需新代码。
+
+### 6.4 注意点
+
+- Embedding 配额：每次 `search_kb` 消耗 PersonLLMWiki 侧配置的 Embedding API（public 实例需频控）；
+- 检索依赖 Flask 进程常驻（索引内存化）：桌面端常驻满足，云上 public 实例常驻满足；
+- 安全：`search_kb`/`read_wiki_page` 只读；`approve_candidate` 已注明「LLM 不应自动批量审批」，DSH 侧 prompt 同样约束。
+
+---
+
+## 7. 共享中心（知识 / MCP / Skills / 智能体）
+
+### 7.1 共享对象分层
+
+| 层 | 内容 | 能否共享 |
+|---|---|---|
+| 定义层 | 提示词、Skills、Workflow 脚本、场景/流程定义、MCP 工具包装、agent.json、脱敏配置 | ✅ 共享的就是这个 |
+| 运行时层 | 正在跑的 goal、子代理、DSH profile/会话状态 | ❌ 单用户、会话态 |
+| 数据层 | 聊天记录、个人知识库、API key、SAP token | ❌ 永不外传 |
+
+> 结论：共享的是"文件/配置"，不是"运行实例"——这决定了所有机制都基于文件流转。
+
+### 7.2 四种机制（从轻到重）
+
+| 机制 | 做法 | 优点 | 缺点 | 阶段 |
+|---|---|---|---|---|
+| ① git 文件库 | 共享仓库 `shared/skills|workflows|agents/`，复用 `COMMON_GIT_REPO` 同步管道 | 零新基建、版本化 | 无发现能力 | **一期** |
+| ② wiki 目录 | 每个共享 agent 写成带安装说明 frontmatter 的文章，走编译管道 | 复用检索+审批流+溯源 | 非机器可安装格式 | 一期 |
+| ③ 一键安装市场 | 控制台「共享中心」tab：浏览 → 安装 → 复制/导入 | 低门槛，同事可用 | 需写轻量市场 UI | 二期 |
+| ④ MCP 化 | agent 包装为 `service.json`（embedded/subprocess）发布，别人"连接"即用 | 零安装、跨客户端 | 只适合工具型/服务型 | 高级形态 |
+
+### 7.3 统一 Manifest：agent.json（①③④ 的地基）
+
+仿照 service.json 的"自包含文件夹 + 清单"模式：
+
+```json
+{
+  "name": "annual-report",
+  "version": "1.2.0",
+  "type": "workflow | skill | scenario | goal-template",
+  "requires_mcp": ["pdf-mcp", "sap"],
+  "requires_llm": "claude",
+  "requires_dsh": ">=0.1.0",
+  "install": "copy-to | import | mcp-connect",
+  "author": "zhang.san"
+}
+```
+
+### 7.4 安全边界
+
+- 共享仓库永不放：`.env`、API key、`mcp_servers.json` 认证段、个人数据（发布前密钥扫描，可挂 wiki 审批流）；
+- 信任分级：公司公共实例官方库 > 同事发布 > 外部来源，安装时标注来源等级；
+- 安装动作 = 执行代码，需用户确认（对齐 PRD 威胁模型）。
+
+---
+
+## 8. 控制台改造
+
+| 部分 | 决策 |
+|---|---|
+| 自研多智能体 `src/modules/tasks/` | **搁置**（不删代码，转需求文档；编排能力由 DSH goal/workflow/subagent 承接） |
+| 定时自动化（APScheduler） | **保留薄壳**：表结构与运行记录不变；执行改为经 `dsh_bridge` 调 `dsh --profile headless "prompt"`（内部 react loop 作兜底）。**已验证 V2：dsh-schedule 是会话内提醒（无 cron 表达式、冷会话不执行），不能承担无人值守定时，薄壳结论不变** |
+| MCP / Skills 管理界面 | **保留**（服务端工具注册、客户端总线、内置服务管理是 PersonLLMWiki 自身的职责） |
+| 智能体场景定义 | 简化：场景/节点定义保留为"业务层"（审批流、业务语义），执行引擎不重复实现 |
+
+---
+
+## 9. 待验证项清单（Phase 0）
+
+| # | 验证项 | 结论（2026-08-20 实测/源码查证） | 影响 |
+|---|---|---|---|
+| V1 | DSH 深链支持 | ✅ **已验证：不支持**。SPA 无 URL 路由（bundle 仅含 React 事件名）；`dsh web` 无 resume 参数；`dsh-session:<base64url>` 是模型侧跨会话快照引用（明确"No live link"），非 UI 导航 | §4.4 深链桥改为 **headless 桥**（见 4.4 修订） |
+| V2 | dsh-schedule | ✅ **已验证：会话内提醒，非 cron**。`schedule_create/list/delete`；固定间隔 ≥5 分钟、**无日历/cron 表达式**；**冷会话不执行**（resume 后补发 overdue）；需显式装载插件 | §8 定时任务**保留 APScheduler 薄壳**；dsh-schedule 仅作未来会话内提醒补充 |
+| V3 | iframe 能力 | 🔶 **部分验证**：DSH 上传走标准拖拽/文件输入（AttachmentRail/DropOverlay），WebView2 内预期可用；会话导出下载行为需 P2 实机测试 | 下载若异常 → 「在浏览器打开」兜底 |
+| V4 | 插件 API 稳定性 | ⬜ 待验证：`dsh.client.inject` / UI slot 接口在 rc 阶段变化率 | 决定组件三投入 |
+| V5 | 插件分发渠道 | ✅ 已解决：Nexus（hosted 托管插件包 + proxy 代理 npmjs），git 分发作回退 | 插件走 Nexus npm，`dsh plugin add` 接入 |
+| V6 | 桌面打包体积 | 🔶 已量化：便携 Node ~50-80MB + dsh node_modules ~246MB + profile 依赖；可选裁剪 web profile | 决定是否捆绑、裁剪 |
+
+---
+
+## 10. 里程碑划分
+
+| 阶段 | 内容 | 验收标准 |
+|---|---|---|
+| **P0 验证**（~1 周） | V1~V6 全部验证并记录结论 | 每项有结论，设计文档据实修订 |
+| **P1 知识供给打通**（~1 周） | 本机配置 DSH MCP client 连 `127.0.0.1:5000/mcp`；验证 search_kb 在 DSH 会话可用 | DSH 会话内能检索并回答知识库问题 |
+| **P2 桌面端 Plan B**（~2 周） | shell Tab + dsh_bridge + 设置页 DSH 管理（关联/重装/更新） | 桌面端一个窗口内完成知识库+智能体，DSH 缺失时优雅降级 |
+| **P3 共享 + 插件**（~2 周） | 共享中心一期（git + wiki 目录 + agent.json）+ DSH 插件 L1 | 同事可发布/安装共享 agent；`dsh plugin add` 一条命令接入知识库 |
+
+---
+
+## 11. 风险与依赖
+
+| 风险 | 等级 | 缓解 |
+|---|---|---|
+| DSH 为 0.1.0-rc.6，插件 API / CLI 语法可能变化 | 中 | 所有 DSH 交互收敛于 `dsh_bridge.py`；版本门禁 + 降级提示 |
+| DSH 单用户、无账号体系，无法做公司共享入口 | 高 | 共享的永远是"物"（知识/MCP/Skills/定义文件），运行实例不共享 |
+| 双运行时（Python + Node）、双 LLM 配置 | 低 | 各自独立，互不干扰；桌面端统一入口 |
+| iframe 兼容性（未来 DSH 可能加 CSP/X-Frame-Options） | 中 | shell 检测加载失败 → 「在浏览器打开」兜底 |
+| Embedding/LLM 配额（public 实例被频繁调用） | 中 | search_kb 频控；compile_wiki 走审批 |
+| 便携 Node + dsh 依赖体积 | 低 | 可选捆绑；裁剪 web profile 依赖 |
+
+---
+
+## 12. 决策清单（已拍板，2026-08-20）
+
+| # | 决策点 | 选项 | 结论 |
+|---|---|---|---|
+| D1 | DSH server 命名（工具前缀） | `personllmwiki` / `zssnote` / 其他 | **`personllmwiki`**：品牌正式定为 PersonLLMWiki，同步改 mcp.json / service.json / 工具前缀；`zssnote` 视存量用户决定是否留别名 |
+| D2 | P1 验证环境 | 本机 `127.0.0.1` / 云上 public 实例 | **本机先行**：带 token 场景一起测，通过后上云复测频控 / Embedding 配额 / git 同步 |
+| D3 | 共享仓库位置 | 公司 git（复用 COMMON_GIT_REPO）/ 公共实例目录 | **git**（复用 COMMON_GIT_REPO） |
+| D4 | 共享中心一期范围 | 仅 ①+② / 含 ③ 市场 UI | **①+②**（市场 UI 二期） |
+| D5 | DSH 更新源 | 公司镜像 zip / npm registry / 并存 | **并存**：Nexus 管 npm 包（proxy npmjs + hosted 插件），公司镜像管运行时 zip |
+| D6 | 便携 Node 捆绑 | 捆绑（同事可用）/ 不捆绑（仅开发者） | **捆绑作为可选兜底**：无 Node 同事走重新安装；开发者走「关联已有 DSH」 |
+| D7 | 界面统一强度 | B 档（原样嵌入+缝合）/ C 档（功能重组） | **B 档** |
+| D8 | 插件 UI slot | 做只读检索面板 / 纯 agent 会话内调用 | **先纯会话，面板二期** |
+| D9 | DSH 最低版本门禁 | `>=0.1.0-rc.6` / 不设门禁只提示 | **软门禁 `>=0.1.0-rc.6`**：降级提示 + 可强制继续；版本号收敛到 dsh_bridge.py 单点维护 |

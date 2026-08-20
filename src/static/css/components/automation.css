@@ -1179,6 +1179,182 @@
     padding: 40px 20px;
 }
 
+/* ═══ Agent (智能体) Tab ═══ */
+.am-agent-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.am-agent-scenarios,
+.am-agent-nodes { margin-bottom: 0; }
+
+.am-agent-scenario-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.am-agent-scenario-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+    user-select: none;
+}
+
+.am-agent-scenario-item:hover { border-color: var(--color-border); }
+
+.am-agent-scenario-item.am-agent-active {
+    border-color: var(--color-primary);
+    background: rgba(13, 148, 136, 0.05);
+}
+
+.am-agent-scenario-main { min-width: 0; }
+
+.am-agent-scenario-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-foreground);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.am-agent-scenario-meta {
+    font-size: 11px;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+}
+
+.am-agent-scenario-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.am-agent-node-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.am-agent-node-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 10px;
+    background: var(--color-background);
+}
+
+.am-agent-node-index {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.am-agent-node-main { flex: 1; min-width: 0; }
+
+.am-agent-node-name-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.am-agent-node-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-foreground);
+}
+
+.am-agent-node-key {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-primary);
+    background: var(--color-primary-50, rgba(13, 148, 136, 0.08));
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.am-agent-node-prompt {
+    font-size: 12px;
+    color: var(--color-foreground-secondary);
+    line-height: 1.5;
+    margin-top: 6px;
+}
+
+.am-agent-node-tools {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-top: 6px;
+}
+
+.am-agent-node-tools code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--color-border-light);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--color-foreground-secondary);
+}
+
+.am-agent-node-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.am-agent-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 100px;
+    white-space: nowrap;
+}
+
+.am-agent-badge-gate { background: rgba(217, 119, 6, 0.1); color: #D97706; }
+.am-agent-badge-auto { background: rgba(5, 150, 105, 0.1); color: #059669; }
+
+.am-form-required { color: var(--color-destructive); }
+
+.am-agent-active-label {
+    width: fit-content;
+}
+
+.am-agent-skill-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
 /* ═══ Responsive ═══ */
 @media (max-width: 768px) {
     .am-page { padding: 24px 16px 60px; }
@@ -1186,6 +1362,9 @@
     .am-card-stats { flex-direction: column; gap: 12px; }
     .am-stat-sep { display: none; }
     .am-modal { width: 95%; max-height: 90vh; }
+    .am-agent-layout { grid-template-columns: 1fr; }
+    .am-agent-node-item { flex-wrap: wrap; }
+    .am-agent-node-actions { width: 100%; justify-content: flex-end; }
 }
 
 /* ═══ Reduced Motion ═══ */

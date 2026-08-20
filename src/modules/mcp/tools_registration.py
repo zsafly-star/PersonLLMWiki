@@ -35,6 +35,11 @@ from .tools_office import (
     handle_read_sheet,
     handle_write_cells,
 )
+from .tools_workspace import (
+    handle_list_workspace,
+    handle_read_workspace_file,
+    handle_write_workspace_file,
+)
 
 
 def _register_all():
@@ -552,6 +557,69 @@ def _register_all():
                 'additionalProperties': False,
             },
             handler=handle_create_todo,
+            cost='none',
+        ),
+
+        # ---------- Phase 8: 工作空间工具 ----------
+        Tool(
+            name='list_workspace',
+            description='列出当前任务工作空间目录的内容。path 为空表示根目录。返回每个条目是目录还是文件、相对路径和文件大小。无成本。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'path': {
+                        'type': 'string',
+                        'default': '',
+                        'description': '相对于工作空间根目录的子目录，空字符串表示根目录',
+                    },
+                },
+                'additionalProperties': False,
+            },
+            handler=handle_list_workspace,
+            cost='none',
+        ),
+        Tool(
+            name='read_workspace_file',
+            description='读取当前任务工作空间内的文本文件（UTF-8）。返回文件内容，超长自动截断。二进制文件无法读取。无成本。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'path': {
+                        'type': 'string',
+                        'description': '相对于工作空间根目录的文件路径，如 "src/main.py"',
+                    },
+                },
+                'required': ['path'],
+                'additionalProperties': False,
+            },
+            handler=handle_read_workspace_file,
+            cost='none',
+        ),
+        Tool(
+            name='write_workspace_file',
+            description='在当前任务工作空间内写入或追加文本文件。mode=overwrite 覆盖写入，mode=append 追加到末尾。会自动创建不存在的父目录。无成本。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'path': {
+                        'type': 'string',
+                        'description': '相对于工作空间根目录的文件路径，如 "README.md"',
+                    },
+                    'content': {
+                        'type': 'string',
+                        'description': '要写入的文本内容',
+                    },
+                    'mode': {
+                        'type': 'string',
+                        'enum': ['overwrite', 'append'],
+                        'default': 'overwrite',
+                        'description': 'overwrite 覆盖写入，append 追加到文件末尾',
+                    },
+                },
+                'required': ['path', 'content'],
+                'additionalProperties': False,
+            },
+            handler=handle_write_workspace_file,
             cost='none',
         ),
     ]

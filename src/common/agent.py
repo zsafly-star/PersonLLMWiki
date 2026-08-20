@@ -9,12 +9,11 @@ Tool-calling agent loop：
 最大循环次数限制：30（防止无限循环）
 """
 
-import json
 import os
 import time
 
-from common.llm_config import LLMConfigService
 from common.mcp_client import get_bus
+from common.agent_core import run_agent_loop, extract_tool_result_text
 
 
 MAX_TOOL_ROUNDS = 30
@@ -118,66 +117,6 @@ def _get_mermaid_prompt():
 """
 
 
-def _get_active_llm():
-    """获取活跃 LLM 配置"""
-    config = LLMConfigService.get_active()
-    if config:
-        provider = config.provider
-        model = config.model or ''
-        kwargs = {}
-        if config.api_key:
-            kwargs['api_key'] = config.api_key
-        if config.base_url:
-            kwargs['base_url'] = config.base_url
-        return provider, model, kwargs
-    return None, None, {}
-
-
-def _extract_tool_result_text(result):
-    """从工具返回的 MCP content 格式中提取纯文本"""
-    if isinstance(result, str):
-        return result
-
-    if isinstance(result, dict):
-        if result.get('isError'):
-            texts = []
-            for c in result.get('content', []):
-                if isinstance(c, dict) and c.get('type') == 'text':
-                    texts.append(c['text'])
-            return '工具执行出错: ' + '\n'.join(texts)
-
-        contents = result.get('content', [])
-        texts = []
-        for c in contents:
-            if isinstance(c, dict) and c.get('type') == 'text':
-                texts.append(c['text'])
-        return '\n'.join(texts) if texts else json.dumps(result, ensure_ascii=False)
-
-    return str(result)
-
-
-def _message_to_dict(message):
-    """把 OpenAI message 对象转为 dict（可序列化）"""
-    if isinstance(message, str):
-        return {'role': 'assistant', 'content': message}
-
-    d = {'role': message.role}
-    if message.content:
-        d['content'] = message.content
-    if hasattr(message, 'tool_calls') and message.tool_calls:
-        d['tool_calls'] = []
-        for tc in message.tool_calls:
-            d['tool_calls'].append({
-                'id': tc.id,
-                'type': 'function',
-                'function': {
-                    'name': tc.function.name,
-                    'arguments': tc.function.arguments,
-                },
-            })
-    return d
-
-
 def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
     """Agent 模式对话（非流式）。
 
@@ -194,22 +133,16 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             'rounds': int,          # 总共几轮工具调用
         }
     """
-    provider, model, kwargs = _get_active_llm()
-    if not provider:
-        return {'response': '未配置 LLM', 'tool_calls': [], 'rounds': 0}
-
-    from common.llm import LLMService
-    adapter = LLMService.get_adapter(provider, **kwargs)
-
     # 获取工具列表
     tools = None
     if use_tools:
         bus = get_bus()
         tools = bus.get_tools_for_llm()
 
-    # 确保 system prompt 在最前面（注入 Skills 列表 + 导出路径）
+    # 构建 system prompt（注入 Skills 列表 + 导出路径）
     full_messages = list(messages)
     has_system = any(m.get('role') == 'system' for m in full_messages)
+    system_prompt = None
     if not has_system:
         system_prompt = EXPERT_SYSTEM_PROMPT if mode == 'expert' else AGENT_SYSTEM_PROMPT
         # 注入导出目录路径和上传目录路径（基于配置的附件路径）
@@ -228,7 +161,6 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             pass
         # 注入 Mermaid 图表规范（从 skill 文件加载，始终生效）
         system_prompt += _get_mermaid_prompt()
-        full_messages.insert(0, {'role': 'system', 'content': system_prompt})
 
     # ── 专家模式强制流程：先查知识库 → 再联网搜 → 注入上下文 ──
     if mode == 'expert' and use_tools and progress_callback:
@@ -251,7 +183,7 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             kb_text = ''
             try:
                 kb_result = bus.call_tool('search_kb', {'keyword': user_query[:200]})
-                kb_text = _extract_tool_result_text(kb_result)
+                kb_text = extract_tool_result_text(kb_result)
             except Exception as e:
                 kb_text = f'知识库搜索失败: {e}'
             progress_callback('tool_result', {
@@ -269,7 +201,7 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             web_text = ''
             try:
                 web_result = bus.call_tool('websearch__web_search', {'query': user_query[:200]})
-                web_text = _extract_tool_result_text(web_result)
+                web_text = extract_tool_result_text(web_result)
             except Exception as e:
                 web_text = f'联网搜索失败: {e}'
             progress_callback('tool_result', {
@@ -290,106 +222,11 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
                            + '\n\n'.join(context_parts),
             })
 
-    tool_call_log = []
-    current_round = 0
-
-    while current_round < MAX_TOOL_ROUNDS:
-        current_round += 1
-
-        # 调用 LLM
-        if isinstance(adapter, type) :
-            adapter_instance = adapter(**kwargs) if isinstance(adapter, type) else adapter
-        else:
-            adapter_instance = adapter
-
-        message = adapter_instance.chat(full_messages, model=model, tools=tools)
-
-        # 如果返回的是字符串（错误），直接返回
-        if isinstance(message, str):
-            return {'response': message, 'tool_calls': tool_call_log, 'rounds': current_round - 1}
-
-        # 检查是否有 tool_calls
-        has_tool_calls = hasattr(message, 'tool_calls') and message.tool_calls
-
-        # 如果有思考文字（LLM 在调工具前输出的口语化文本），通知回调
-        thinking_text = (message.content or '').strip() if hasattr(message, 'content') else ''
-        if thinking_text and has_tool_calls and progress_callback:
-            try:
-                progress_callback('thinking_text', {'text': thinking_text})
-            except Exception:
-                pass
-
-        if not has_tool_calls:
-            # LLM 没有调用工具，返回最终回复
-            return {
-                'response': message.content or '',
-                'tool_calls': tool_call_log,
-                'rounds': current_round - 1,
-            }
-
-        # 有 tool_calls：把 assistant 消息加入历史
-        msg_dict = _message_to_dict(message)
-        full_messages.append(msg_dict)
-
-        # 执行每个工具调用
-        bus = get_bus()
-        for tc in message.tool_calls:
-            tool_name = tc.function.name
-            try:
-                tool_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-            except json.JSONDecodeError:
-                tool_args = {}
-
-            # 通知前端正在调用工具
-            if progress_callback:
-                try:
-                    progress_callback('tool_start', {
-                        'name': tool_name,
-                        'arguments': tool_args,
-                        'round': current_round,
-                    })
-                except Exception:
-                    pass
-
-            # 调用工具（异常保护：确保 tool_result 回调始终触发）
-            result = None
-            result_text = ''
-            try:
-                result = bus.call_tool(tool_name, tool_args)
-                result_text = _extract_tool_result_text(result)
-            except Exception as e:
-                result_text = f'工具调用失败: {str(e)}'
-
-            # 通知前端工具调用完成
-            if progress_callback:
-                try:
-                    progress_callback('tool_result', {
-                        'name': tool_name,
-                        'result': result_text[:300],
-                        'success': result is not None,
-                        'error': result_text if result is None else None,
-                        'round': current_round,
-                    })
-                except Exception:
-                    pass
-
-            tool_call_log.append({
-                'round': current_round,
-                'name': tool_name,
-                'arguments': tool_args,
-                'result': result_text[:500],
-            })
-
-            # 把工具结果加入消息历史
-            full_messages.append({
-                'role': 'tool',
-                'tool_call_id': tc.id,
-                'content': result_text,
-            })
-
-    # 超过最大轮次
-    return {
-        'response': '已达到最大工具调用次数限制，以下是最后一次工具调用的结果。请尝试简化您的请求。',
-        'tool_calls': tool_call_log,
-        'rounds': current_round,
-    }
+    # ── 复用公共 react loop ──
+    return run_agent_loop(
+        full_messages,
+        system_prompt=system_prompt,
+        tools=tools,
+        max_rounds=MAX_TOOL_ROUNDS,
+        progress_callback=progress_callback,
+    )
