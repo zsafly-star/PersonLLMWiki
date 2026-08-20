@@ -56,13 +56,11 @@ class TestConfig:
         dsh_bridge.set_config(
             dsh_cmd='C:/dsh/dsh.cmd',
             dsh_url='http://127.0.0.1:3080',
-            home_dir='C:/dsh/home',
             auto_start=True,
         )
         cfg = dsh_bridge.get_config()
         assert cfg['dsh_cmd'] == 'C:/dsh/dsh.cmd'
         assert cfg['dsh_url'] == 'http://127.0.0.1:3080'
-        assert cfg['home_dir'] == 'C:/dsh/home'
         assert cfg['auto_start'] is True
 
     def test_config_defaults(self, tmp_path, monkeypatch):

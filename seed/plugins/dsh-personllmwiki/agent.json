@@ -1,0 +1,11 @@
+{
+  "name": "dsh-personllmwiki",
+  "version": "0.1.0",
+  "type": "skill",
+  "requires_mcp": ["personllmwiki"],
+  "requires_llm": "",
+  "requires_dsh": ">=0.1.0-rc.6",
+  "install": "mcp-connect",
+  "author": "company",
+  "description": "接入 PersonLLMWiki 知识库：声明 MCP 连接，并教 agent 回答前先检索知识库"
+}

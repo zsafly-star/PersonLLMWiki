@@ -40,6 +40,19 @@ STATUS_VERSION_LOW = 'version_low'
 STATUS_NOT_RUNNING = 'not_running'
 STATUS_RUNNING = 'running'
 
+# 由本进程拉起的 DSH 句柄（用于 stop 时回收）
+_managed_proc = None
+
+# 版本探测结果缓存（避免每次状态查询都跑子进程）
+_VERSION_CACHE_TTL = 30.0
+_version_cache = {'ts': 0.0, 'value': None}
+
+
+def _valid_http_url(url):
+    """仅允许 http/https，防止 file:// 等 scheme 被当作健康检查目标或注入 iframe。"""
+    import re
+    return bool(re.match(r'^https?://', (url or '').strip()))
+
 
 # ─── 配置读写 ──────────────────────────────────────────────
 
@@ -84,23 +97,26 @@ def get_config():
     return {
         'dsh_cmd': cfg.get('dsh_cmd', ''),
         'dsh_url': cfg.get('dsh_url', DEFAULT_DSH_URL),
-        'home_dir': cfg.get('home_dir', ''),
         'auto_start': bool(cfg.get('auto_start', False)),
     }
 
 
-def set_config(dsh_cmd=None, dsh_url=None, home_dir=None, auto_start=None):
+def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
     """更新 DSH 配置（仅更新传入的非 None 字段）。返回完整配置。"""
     cfg = _read_config()
     if dsh_cmd is not None:
         cfg['dsh_cmd'] = dsh_cmd.strip()
     if dsh_url is not None:
-        cfg['dsh_url'] = (dsh_url or '').strip() or DEFAULT_DSH_URL
-    if home_dir is not None:
-        cfg['home_dir'] = (home_dir or '').strip()
+        url = (dsh_url or '').strip() or DEFAULT_DSH_URL
+        if not _valid_http_url(url):
+            raise ValueError('DSH URL 仅支持 http/https')
+        cfg['dsh_url'] = url
     if auto_start is not None:
         cfg['auto_start'] = bool(auto_start)
     _write_config(cfg)
+    # 命令变更后，版本缓存失效
+    _version_cache['ts'] = 0.0
+    _version_cache['value'] = None
     return get_config()
 
 
@@ -140,6 +156,10 @@ def get_version():
     Returns:
         str | None: 版本号字符串；None 表示无法获取。
     """
+    import time
+    if time.time() - _version_cache['ts'] < _VERSION_CACHE_TTL:
+        return _version_cache['value']
+
     cmd = _resolve_dsh_cmd()
     if not cmd:
         return None
@@ -150,9 +170,13 @@ def get_version():
             cwd=os.path.dirname(cmd),
         )
         text = (out.stdout or '').strip() or (out.stderr or '').strip()
-        return _parse_version(text)
+        version = _parse_version(text)
     except (subprocess.SubprocessError, OSError):
-        return None
+        version = None
+
+    _version_cache['ts'] = time.time()
+    _version_cache['value'] = version
+    return version
 
 
 def _parse_version(text):
@@ -188,15 +212,15 @@ def version_ok(version):
         version: str | None
 
     Returns:
-        bool: None（未知版本）按不满足处理。
+        bool: None（未知版本）或无法解析时按不满足处理（fail-closed）。
     """
     if not version:
         return False
     vt = _version_tuple(version)
     mt = _version_tuple(MIN_DSH_VERSION)
     if vt is None or mt is None:
-        # 无法解析时退化为字符串比较
-        return version >= MIN_DSH_VERSION
+        # 无法解析 → 门禁不通过（fail-closed），避免放行未知版本
+        return False
     return vt >= mt
 
 
@@ -209,6 +233,8 @@ def check_health(url=None, timeout=HEALTH_TIMEOUT):
         bool: True 表示 DSH web 正在运行。
     """
     target = (url or get_config().get('dsh_url') or DEFAULT_DSH_URL).rstrip('/')
+    if not _valid_http_url(target):
+        return False
     try:
         req = urllib.request.Request(target, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -251,7 +277,6 @@ def get_status():
         'running': running,
         'url': cfg.get('dsh_url') or DEFAULT_DSH_URL,
         'cmd': cmd or '',
-        'home_dir': cfg.get('home_dir', ''),
         'auto_start': cfg.get('auto_start', False),
         'min_version': MIN_DSH_VERSION,
     }
@@ -275,9 +300,10 @@ def start(timeout=30.0):
         return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
 
     cmd = _resolve_dsh_cmd()
+    global _managed_proc
     # 默认以 `dsh web` 启动（监听 3080）；DSH CLI 语法变化收敛于此
     try:
-        subprocess.Popen(
+        _managed_proc = subprocess.Popen(
             [cmd, 'web'],
             cwd=os.path.dirname(cmd),
             stdout=subprocess.DEVNULL,
@@ -285,6 +311,7 @@ def start(timeout=30.0):
             start_new_session=True,
         )
     except (OSError, subprocess.SubprocessError) as e:
+        _managed_proc = None
         return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}
 
     # 等待健康检查
@@ -300,10 +327,29 @@ def start(timeout=30.0):
 
 
 def stop():
-    """停止 DSH web（best-effort，仅 kill 由本进程拉起的子进程时可靠）。
+    """停止由本进程拉起的 DSH web（best-effort）。
 
-    实际上 DSH 可能由用户自启，此处仅做健康检查后的提示，不做强制 kill。
+    若 DSH 由用户自启（非本进程拉起），不强制 kill，仅做健康检查反馈。
     """
+    global _managed_proc
+    proc, _managed_proc = _managed_proc, None
+    if proc is not None and proc.poll() is None:
+        try:
+            if os.name == 'nt':
+                subprocess.run(
+                    ['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=10,
+                )
+            else:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+        except (OSError, subprocess.SubprocessError):
+            pass
+
     return {'stopped': not check_health()}
 
 
@@ -340,3 +386,33 @@ def run_headless(prompt, timeout=600):
         return {'success': False, 'output': '', 'error': f'执行超时（>{timeout}s）', 'exit_code': None}
     except (OSError, subprocess.SubprocessError) as e:
         return {'success': False, 'output': '', 'error': str(e), 'exit_code': None}
+
+
+# ─── 更新检查 ──────────────────────────────────────────────
+
+def check_update():
+    """检查 npm registry 上 @deepseek-ai/dsh 的最新版本。
+
+    Returns:
+        dict: {installed, latest, has_update, error}
+        installed / latest 可能为 None（无法获取）。
+    """
+    installed = get_version()
+
+    try:
+        req = urllib.request.Request(
+            'https://registry.npmjs.org/@deepseek-ai/dsh/latest',
+            headers={'User-Agent': 'PersonLLMWiki-DSHBridge'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        latest = data.get('version') if isinstance(data, dict) else None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return {'installed': installed, 'latest': None, 'has_update': False,
+                'error': f'获取最新版本失败: {e}'}
+
+    iv = _version_tuple(installed) if installed else None
+    lv = _version_tuple(latest) if latest else None
+    has_update = bool(iv and lv and lv > iv)
+
+    return {'installed': installed, 'latest': latest, 'has_update': has_update, 'error': ''}

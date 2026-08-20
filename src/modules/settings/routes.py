@@ -502,3 +502,55 @@ def _compare_versions(a, b):
         if va < vb:
             return -1
     return 0
+
+
+# ──────────── DeepSeek Harness ────────────
+
+@settings_bp.route('/api/settings/dsh', methods=['GET'])
+def get_dsh():
+    """DSH 配置 + 状态（设置页 DeepSeek Harness 区块）"""
+    from common import dsh_bridge
+    return success_response({
+        'config': dsh_bridge.get_config(),
+        'status': dsh_bridge.get_status(),
+    })
+
+
+@settings_bp.route('/api/settings/dsh', methods=['POST'])
+def save_dsh():
+    """关联已有 DSH：保存 DSH_CMD / DSH_URL，并立即探测版本与运行状态"""
+    from common import dsh_bridge
+    data = request.get_json(silent=True) or {}
+    try:
+        cfg = dsh_bridge.set_config(
+            dsh_cmd=data.get('dsh_cmd'),
+            dsh_url=data.get('dsh_url'),
+            auto_start=data.get('auto_start'),
+        )
+    except ValueError as e:
+        return error_response(str(e))
+    return success_response({
+        'config': cfg,
+        'status': dsh_bridge.get_status(),
+    }, '已保存关联')
+
+
+@settings_bp.route('/api/settings/dsh/start', methods=['POST'])
+def start_dsh():
+    """拉起 DSH web"""
+    from common import dsh_bridge
+    return success_response(dsh_bridge.start())
+
+
+@settings_bp.route('/api/settings/dsh/stop', methods=['POST'])
+def stop_dsh():
+    """停止 DSH（best-effort）"""
+    from common import dsh_bridge
+    return success_response(dsh_bridge.stop())
+
+
+@settings_bp.route('/api/settings/dsh/check', methods=['POST'])
+def check_dsh_update():
+    """更新检查：已装版本 vs npm registry 最新"""
+    from common import dsh_bridge
+    return success_response(dsh_bridge.check_update())

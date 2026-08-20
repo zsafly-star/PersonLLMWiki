@@ -10,7 +10,8 @@ from modules.weather.models import WeatherConfig
 from modules.tasks.models import Scenario, ScenarioNode, TaskState
 from modules import (
     article_bp, chat_bp, folder_bp, picture_bp,
-    home_bp, note_bp, todo_bp, plan_bp, settings_bp
+    home_bp, note_bp, todo_bp, plan_bp, settings_bp,
+    agent_bp
 )
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -51,6 +52,7 @@ app.register_blueprint(mcp_bp)
 app.register_blueprint(mcp_client_bp)
 app.register_blueprint(automation_bp)
 app.register_blueprint(tasks_bp)
+app.register_blueprint(agent_bp)
 
 @app.route('/api')
 def api_index():
@@ -364,6 +366,24 @@ with app.app_context():
             init_all_async()
     except Exception as e:
         print(f"[Builtin] 启动失败（非致命）: {e}")
+
+    # DeepSeek Harness 自动拉起（auto_start）：后台线程启动，不阻塞应用启动
+    try:
+        if is_main_worker:
+            from common import dsh_bridge
+            if dsh_bridge.get_config().get('auto_start'):
+                def _auto_start_dsh():
+                    try:
+                        result = dsh_bridge.start()
+                        if not result.get('started'):
+                            print(f"[DSH] 自动启动未成功: {result.get('error')}")
+                    except Exception as _e:
+                        print(f"[DSH] 自动启动失败（非致命）: {_e}")
+
+                threading.Thread(target=_auto_start_dsh, name='dsh-auto-start', daemon=True).start()
+                print("[DSH] auto_start 已开启，正在后台拉起")
+    except Exception as e:
+        print(f"[DSH] auto_start 检查失败（非致命）: {e}")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', '5000'))
