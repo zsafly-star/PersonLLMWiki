@@ -1,4 +1,4 @@
-"""桌面应用偏好读写（关闭行为、首次启动标记）。
+"""桌面应用偏好读写（关闭行为、首次启动标记、Flask 固定端口）。
 
 偏好文件存储在 ~/.personllmwiki/instance/desktop_prefs.json
 """
@@ -7,6 +7,9 @@ import json
 import os
 
 VALID_ACTIONS = {"minimize", "exit"}
+
+# Flask 默认固定端口（与 DSH 插件 mcp_servers.json 的 http://127.0.0.1:5000/mcp 对齐）
+DEFAULT_FLASK_PORT = 5000
 
 
 def _prefs_path():
@@ -78,4 +81,29 @@ def mark_launched():
     """标记已启动过（不再是首次）"""
     prefs = _read_prefs()
     prefs["launched"] = True
+    _write_prefs(prefs)
+
+
+def get_port():
+    """获取桌面端 Flask 固定端口（默认 5000）。
+
+    iframe / DSH 插件 MCP 地址需要确定性端口，故不再使用动态端口。
+    """
+    prefs = _read_prefs()
+    try:
+        port = int(prefs.get("flask_port", DEFAULT_FLASK_PORT))
+    except (TypeError, ValueError):
+        port = DEFAULT_FLASK_PORT
+    if not (1 <= port <= 65535):
+        port = DEFAULT_FLASK_PORT
+    return port
+
+
+def set_port(port):
+    """设置桌面端 Flask 固定端口（1-65535）。"""
+    port = int(port)
+    if not (1 <= port <= 65535):
+        raise ValueError(f"端口非法: {port}")
+    prefs = _read_prefs()
+    prefs["flask_port"] = port
     _write_prefs(prefs)

@@ -125,12 +125,19 @@
             title = '未检测到 DeepSeek Harness';
             desc = '智能体 Tab 需要 DeepSeek Harness（DSH）作为执行引擎。请先在「设置 → DeepSeek Harness」中关联已安装的 DSH，或安装 DSH 运行时。';
             actions = '<a class="btn btn-primary" href="/settings">去设置关联 DSH</a>';
+            btnStart.style.display = 'none';
         } else if (s.status === 'version_low') {
             icon = '<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>';
             iconCls = 'warn';
-            title = 'DSH 版本过低';
-            desc = '当前 DSH 版本不满足最低门禁，智能体功能暂不可用。请更新 DSH 后再试。';
-            actions = '<a class="btn btn-primary" href="/settings">去设置更新 DSH</a>';
+            if (s.version) {
+                title = 'DSH 版本过低';
+                desc = '当前 DSH 版本不满足最低门禁，智能体功能暂不可用。请更新 DSH 后再试。';
+            } else {
+                title = '无法获取 DSH 版本';
+                desc = '已检测到 DSH 命令，但无法获取其版本号。请检查 DSH 安装是否完整，或到「设置 → DeepSeek Harness」确认命令路径。';
+            }
+            actions = '<a class="btn btn-primary" href="/settings">去设置检查 DSH</a>';
+            btnStart.style.display = 'none';
         } else {
             icon = '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>';
             iconCls = 'ok';

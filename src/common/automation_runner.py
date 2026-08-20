@@ -13,6 +13,7 @@ from datetime import datetime
 from extensions import db
 from common.mcp_client import get_bus
 from common.agent_core import run_agent_loop, get_active_llm
+from common import dsh_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,19 @@ def run_task(task_id, trigger='scheduled'):
     run = TaskRun(task_id=task.id, trigger=trigger, status='running')
     db.session.add(run)
     db.session.flush()  # 获取 run.id
+
+    # §8：优先经 dsh_bridge 走 DSH headless 执行（DSH 有自己的 LLM 配置，与 PersonLLMWiki 独立）；
+    # DSH 不可用或执行失败时，回退到本地 react loop。
+    try:
+        if dsh_bridge.is_installed():
+            _hr = dsh_bridge.run_headless(task.prompt)
+            if _hr.get('success'):
+                _finish_run(run, status='ok', response=_hr.get('output', ''))
+                _update_task_last(task)
+                return run.id
+            logger.info(f'[Automation] DSH headless 执行失败，回退 react loop: {_hr.get("error")}')
+    except Exception as _e:
+        logger.warning(f'[Automation] DSH headless 桥异常，回退 react loop: {_e}')
 
     # 获取活跃 LLM
     provider, _, _ = get_active_llm()

@@ -1314,14 +1314,20 @@
             if (!badge) return;
 
             badge.className = 'dsh-status-badge ' + (s.status || 'not_installed');
-            badge.textContent = _DSH_STATUS_LABEL[s.status] || s.status || '未知';
+            badge.textContent = (s.status === 'version_low' && !s.version) ? '版本未知' : (_DSH_STATUS_LABEL[s.status] || s.status || '未知');
             version.textContent = s.version ? ('版本 ' + s.version + (s.version_ok ? '' : '（低于门禁 ' + s.min_version + '）')) : '';
 
             var lines = [];
             if (s.cmd) lines.push('<div>命令：' + _escDsh(s.cmd) + '</div>');
             lines.push('<div>地址：' + _escDsh(s.url) + '</div>');
             if (s.status === 'not_installed') lines.push('<div>提示：填写下方「DSH 命令 / 安装目录」并保存，或安装 DSH 运行时。</div>');
-            if (s.status === 'version_low') lines.push('<div>提示：请更新 DSH 至 ' + _escDsh(s.min_version) + ' 及以上版本。</div>');
+            if (s.status === 'version_low') {
+                if (s.version) {
+                    lines.push('<div>提示：请更新 DSH 至 ' + _escDsh(s.min_version) + ' 及以上版本。</div>');
+                } else {
+                    lines.push('<div>提示：无法获取 DSH 版本，请检查 DSH 命令是否完整。</div>');
+                }
+            }
             meta.innerHTML = lines.join('');
         }
 

@@ -40,6 +40,7 @@ import time
 import ctypes
 import threading
 import urllib.request
+import socket
 
 # 确保能 import 项目模块
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +48,7 @@ if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
 from common.port_utils import find_free_port
+from common.desktop_prefs import get_port, set_port
 
 # Flask 就绪超时（秒）
 FLASK_READY_TIMEOUT = 30
@@ -147,12 +149,21 @@ def main():
 
     # ========== 一次性初始化 ==========
 
-    # 1. 分配端口
+    # 1. 分配端口（固定默认 5000，与 DSH 插件 MCP 地址对齐；被占用则回退动态端口并持久化）
     try:
-        port = find_free_port()
-    except RuntimeError as e:
-        print(f"[Desktop] 错误: {e}")
-        sys.exit(1)
+        port = get_port()
+        _probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            _probe.bind(('127.0.0.1', port))
+        finally:
+            _probe.close()
+    except OSError:
+        try:
+            port = find_free_port()
+            set_port(port)
+        except RuntimeError as e:
+            print(f"[Desktop] 错误: {e}")
+            sys.exit(1)
     print(f"[Desktop] 使用端口 {port}")
 
     # 2. 启动 Flask 后端

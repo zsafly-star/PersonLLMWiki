@@ -174,7 +174,8 @@ def get_version():
     except (subprocess.SubprocessError, OSError):
         version = None
 
-    _version_cache['ts'] = time.time()
+    # 仅缓存成功的探测结果；失败(None)不落缓存，避免放大"版本过低"误判
+    _version_cache['ts'] = time.time() if version else 0.0
     _version_cache['value'] = version
     return version
 

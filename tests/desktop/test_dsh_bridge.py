@@ -7,6 +7,8 @@
 4. 状态机（无 DSH → not_installed；版本过低 → version_low）
 """
 
+import pytest
+
 from common import dsh_bridge
 
 
@@ -122,3 +124,81 @@ class TestStatus:
         st = dsh_bridge.get_status()
         assert st['status'] == dsh_bridge.STATUS_NOT_RUNNING
         assert st['running'] is False
+
+
+class TestValidHttpUrl:
+    def test_http_https_ok(self):
+        assert dsh_bridge._valid_http_url('http://127.0.0.1:3080') is True
+        assert dsh_bridge._valid_http_url('https://example.com:3080') is True
+
+    def test_non_http_rejected(self):
+        assert dsh_bridge._valid_http_url('file:///etc/passwd') is False
+        assert dsh_bridge._valid_http_url('javascript:alert(1)') is False
+        assert dsh_bridge._valid_http_url('') is False
+        assert dsh_bridge._valid_http_url(None) is False
+
+
+class TestSetConfigValidation:
+    def test_invalid_url_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        with pytest.raises(ValueError):
+            dsh_bridge.set_config(dsh_url='file:///etc/passwd')
+
+    def test_empty_url_falls_back_to_default(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        dsh_bridge.set_config(dsh_url='')
+        assert dsh_bridge.get_config()['dsh_url'] == dsh_bridge.DEFAULT_DSH_URL
+
+
+class TestVersionGateFailClosed:
+    def test_unparseable_or_empty(self):
+        assert dsh_bridge.version_ok('unknown') is False
+        assert dsh_bridge.version_ok('') is False
+
+
+class TestCheckHealth:
+    def test_invalid_url_returns_false(self):
+        assert dsh_bridge.check_health('file:///etc/passwd') is False
+        assert dsh_bridge.check_health('not-a-url') is False
+
+
+class TestResolveDshCmd:
+    def test_path_fallback(self, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, 'get_config', lambda: {
+            'dsh_cmd': '', 'dsh_url': 'http://127.0.0.1:3080', 'auto_start': False,
+        })
+        monkeypatch.setattr(dsh_bridge.shutil, 'which', lambda name: 'C:/node/dsh.cmd' if name == 'dsh' else None)
+        assert dsh_bridge._resolve_dsh_cmd() == 'C:/node/dsh.cmd'
+
+    def test_directory_localization(self, tmp_path, monkeypatch):
+        d = tmp_path / 'dsh'
+        d.mkdir()
+        (d / 'dsh.cmd').write_text('')
+        monkeypatch.setattr(dsh_bridge, 'get_config', lambda: {
+            'dsh_cmd': str(d), 'dsh_url': 'http://x', 'auto_start': False,
+        })
+        assert dsh_bridge._resolve_dsh_cmd() == str(d / 'dsh.cmd')
+
+
+class TestRunHeadless:
+    def test_not_installed_returns_error(self, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, 'get_status', lambda: {'status': dsh_bridge.STATUS_NOT_INSTALLED})
+        r = dsh_bridge.run_headless('hello')
+        assert r['success'] is False
+        assert 'DSH 不可用' in r['error']
+
+
+class TestCheckUpdate:
+    def test_registry_unreachable(self, monkeypatch):
+        import urllib.error
+        monkeypatch.setattr(dsh_bridge, 'get_version', lambda: '0.1.0-rc.6')
+
+        def _boom(*a, **k):
+            raise urllib.error.URLError('offline')
+
+        monkeypatch.setattr(dsh_bridge.urllib.request, 'urlopen', _boom)
+        r = dsh_bridge.check_update()
+        assert r['installed'] == '0.1.0-rc.6'
+        assert r['latest'] is None
+        assert r['has_update'] is False
+        assert r['error']
