@@ -54,6 +54,43 @@ def _valid_http_url(url):
     return bool(re.match(r'^https?://', (url or '').strip()))
 
 
+def _is_loopback_url(url):
+    """校验 URL host 为回环地址（127.x / localhost / ::1），防止 SSRF。"""
+    import ipaddress
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse((url or '').strip())
+    except ValueError:
+        return False
+    if parsed.scheme not in ('http', 'https'):
+        return False
+    host = (parsed.hostname or '').lower()
+    if host == 'localhost':
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def is_local_origin(origin):
+    """校验请求 Origin 是否为本机（回环/localhost），用于 DSH 写操作防 CSRF/Drive-by。"""
+    if not origin:
+        return True
+    import ipaddress
+    from urllib.parse import urlparse
+    try:
+        host = (urlparse(origin).hostname or '').lower()
+    except ValueError:
+        return False
+    if host == 'localhost':
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 # ─── 配置读写 ──────────────────────────────────────────────
 
 def _config_path():
@@ -105,11 +142,15 @@ def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
     """更新 DSH 配置（仅更新传入的非 None 字段）。返回完整配置。"""
     cfg = _read_config()
     if dsh_cmd is not None:
-        cfg['dsh_cmd'] = dsh_cmd.strip()
+        cmd = dsh_cmd.strip()
+        # 仅允许文件名以 dsh 命名的可执行文件；目录路径由 _resolve_dsh_cmd 收敛到候选文件名
+        if cmd and os.path.isfile(cmd) and os.path.basename(cmd).lower() not in ('dsh', 'dsh.exe', 'dsh.cmd'):
+            raise ValueError('DSH 命令文件必须是 dsh / dsh.exe / dsh.cmd')
+        cfg['dsh_cmd'] = cmd
     if dsh_url is not None:
         url = (dsh_url or '').strip() or DEFAULT_DSH_URL
-        if not _valid_http_url(url):
-            raise ValueError('DSH URL 仅支持 http/https')
+        if not _valid_http_url(url) or not _is_loopback_url(url):
+            raise ValueError('DSH URL 仅支持 http/https 且 host 必须为回环地址（127.0.0.1/localhost）')
         cfg['dsh_url'] = url
     if auto_start is not None:
         cfg['auto_start'] = bool(auto_start)
@@ -234,11 +275,17 @@ def check_health(url=None, timeout=HEALTH_TIMEOUT):
         bool: True 表示 DSH web 正在运行。
     """
     target = (url or get_config().get('dsh_url') or DEFAULT_DSH_URL).rstrip('/')
-    if not _valid_http_url(target):
+    if not _valid_http_url(target) or not _is_loopback_url(target):
         return False
     try:
+        # 禁用重定向跟随，防止回环地址被 302 引导至内网/云元数据（盲 SSRF 加固）
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(_NoRedirect)
         req = urllib.request.Request(target, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
             return resp.status == 200
     except (urllib.error.URLError, OSError, ValueError):
         return False

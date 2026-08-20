@@ -520,6 +520,8 @@ def get_dsh():
 def save_dsh():
     """关联已有 DSH：保存 DSH_CMD / DSH_URL，并立即探测版本与运行状态"""
     from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
     data = request.get_json(silent=True) or {}
     try:
         cfg = dsh_bridge.set_config(
@@ -539,6 +541,8 @@ def save_dsh():
 def start_dsh():
     """拉起 DSH web"""
     from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
     return success_response(dsh_bridge.start())
 
 
@@ -546,6 +550,8 @@ def start_dsh():
 def stop_dsh():
     """停止 DSH（best-effort）"""
     from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
     return success_response(dsh_bridge.stop())
 
 
@@ -553,4 +559,6 @@ def stop_dsh():
 def check_dsh_update():
     """更新检查：已装版本 vs npm registry 最新"""
     from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
     return success_response(dsh_bridge.check_update())

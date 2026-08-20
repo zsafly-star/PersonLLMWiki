@@ -81,10 +81,10 @@ class TestConfig:
             lambda: str(tmp_path / 'dsh_config.json'),
         )
         dsh_bridge.set_config(dsh_cmd='cmd')
-        dsh_bridge.set_config(dsh_url='http://x:3080')
+        dsh_bridge.set_config(dsh_url='http://127.0.0.1:3080')
         cfg = dsh_bridge.get_config()
         assert cfg['dsh_cmd'] == 'cmd'
-        assert cfg['dsh_url'] == 'http://x:3080'
+        assert cfg['dsh_url'] == 'http://127.0.0.1:3080'
         # 未设置字段保持默认
         assert cfg['auto_start'] is False
 
@@ -148,6 +148,28 @@ class TestSetConfigValidation:
         monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
         dsh_bridge.set_config(dsh_url='')
         assert dsh_bridge.get_config()['dsh_url'] == dsh_bridge.DEFAULT_DSH_URL
+
+    def test_non_loopback_url_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        with pytest.raises(ValueError):
+            dsh_bridge.set_config(dsh_url='http://example.com:3080')
+
+    def test_wrong_executable_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        evil = tmp_path / 'evil.exe'
+        evil.write_text('')
+        with pytest.raises(ValueError):
+            dsh_bridge.set_config(dsh_cmd=str(evil))
+
+
+class TestLoopbackUrl:
+    def test_loopback_ok(self):
+        assert dsh_bridge._is_loopback_url('http://127.0.0.1:3080') is True
+        assert dsh_bridge._is_loopback_url('http://localhost:3080') is True
+
+    def test_non_loopback_rejected(self):
+        assert dsh_bridge._is_loopback_url('http://example.com:3080') is False
+        assert dsh_bridge._is_loopback_url('http://169.254.169.254/latest/meta-data') is False
 
 
 class TestVersionGateFailClosed:
