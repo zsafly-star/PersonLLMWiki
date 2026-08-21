@@ -1,4 +1,4 @@
-# zssnote 设计规范
+# PersonLLMWiki 设计规范
 
 > 总设计索引。修改任何子系统前先查本文，按链接找到对应设计文档阅读。
 
@@ -49,7 +49,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │  └─ skills/                 Skills（Markdown 工作流）
 │     └─ bom-picking/         BOM 检查技能 (SKILL.md + scripts/)
 └─ doc/                       设计文档
-   ├─ DESIGN.md                  ★ 本文件
+   ├─ PersonLLMWiki设计规范.md      ★ 本文件
    ├─ ZSSNote_MCP_设计方案.md    MCP 完整设计
    └─ assets/                    架构图 (SVG)
 ```

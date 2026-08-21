@@ -1,7 +1,7 @@
 # PersonLLMWiki × DeepSeek Harness 集成架构设计方案
 
 > 版本：v0.4（2026-08-21）｜ 状态：已实现 v0.1~v0.3，v0.4 修复待实施 ｜ 日期：2026-08-20
-> 关联文档：《多智能体PRD.md》《多智能体技术方案.md》《DESIGN.md》《分发部署方案.md》《ZSSNote_MCP_设计方案.md》《DSH集成-变更实施说明.md》
+> 关联文档：《多智能体PRD.md》《多智能体技术方案.md》《PersonLLMWiki设计规范.md》《分发部署方案.md》《ZSSNote_MCP_设计方案.md》《DSH集成-变更实施说明.md》
 > 本文是「知识库产品 × 智能体执行引擎」整合讨论的收敛结论，若与前述文档冲突，以本文为准。
 
 ## 修订记录

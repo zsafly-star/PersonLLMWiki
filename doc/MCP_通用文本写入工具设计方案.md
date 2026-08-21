@@ -155,7 +155,7 @@ write 模式（append）：
 | `modules/mcp/security.py` | 修改 | 新增 `resolve_resource_path()` |
 | `modules/mcp/tools_write.py` | 修改 | 新增 `handle_save_text_file()` |
 | `modules/mcp/tools_registration.py` | 修改 | 注册 `save_text_file` 工具 |
-| `doc/DESIGN.md` | 修改 | 更新 MCP 工具列表文档 |
+| `doc/PersonLLMWiki设计规范.md` | 修改 | 更新 MCP 工具列表文档 |
 
 ---
 

@@ -1,8 +1,20 @@
-# DSH 集成 - 变更实施说明（v0.1 → v0.2 模式切换壳）
+# DSH 集成 - 变更实施说明（v0.1 → v0.4）
 
-> 用途：本文件是给 **Trae**（或其他编码 Agent）的增量实施指令，请先阅读《DSH集成架构设计方案.md》（v0.2）相关章节，再按本文件逐项实施。
+> 用途：本文件是给 **Trae**（或其他编码 Agent）的增量实施指令，请先阅读《DSH集成架构设计方案.md》（v0.4）相关章节，再按本文件逐项实施。
 > 基线：当前代码已由 Trae 按 v0.1 方案实现并提交（commit `2f47a30`~`1d53810`，工作树干净）。
 > 原则：**只改变更涉及的部分，未变更功能一律不动**；每项变更附验收标准，实施完成后逐项自检。
+
+## 完成状态速览（2026-08-21）
+
+| 节 | 内容 | 状态 |
+|---|---|---|
+| §10.4 | shell 修复 + 菜单排序 | ✅ `e11ace4` |
+| §10.5 | 无损瘦身 | ✅ `2c8cf52` |
+| §10.6 | 控制台拆解 | ✅ `3626463` |
+| §10.7 | 设置页 DSH 重装/更新 | ✅ `c46eceb` |
+| §10.8 | dsh-runtime 构建脚本 | ✅ `8d3a3cb`（模式 A，GitLab 写路径恢复后跑全链路） |
+| P1 | 知识供给打通 | ✅ 2026-08-21：MCP 客户端配置（`$DSH_HOME/profiles/web/cordis.patch.yml` 用 `insert:` 语法）+ 知识库 SKILL（`$DSH_HOME/skills/knowledge-base/SKILL.md`，watcher 实时生效） |
+| §10.9 | 有损裁剪计划 | 📋 规划中（C1~C7 清单 + 触发条件，未执行）；2026-08-21 触发条件已核对：均未满足，暂缓 |
 
 ---
 
@@ -360,3 +372,60 @@ def shell():
 > **待复测（运维处理后）**：① 建 tag → ② 建 Release → ③ 加资产链接 → ④ 上传正式 dsh-runtime zip（direct 或外部链接）。
 > **不阻塞**：Nexus raw 通道已验证（上传 204 / 匿名下载 200）；§10.8 按模式 B（文件体 Nexus raw + Release 挂链接）先行；GitLab 恢复后切模式 A（direct asset）零成本。
 > **遗留**：项目 606 uploads 下有探测文件 `gl-upload-probe.txt`（30 字节，无删除 API，无害）。
+
+---
+
+## 10.9 有损裁剪计划（2026-08-21，规划中，非立即执行）
+
+> 原则：**先隐藏后删除**；**替代者确认可用才动**；每项可回滚（git 历史保留）；开工前更新本节触发条件核对表。
+> 背景：DSH 集成验证后，PLW 中与 DSH 能力重叠/低价值的模块进入裁剪通道。当前均**未执行**，仅规划。
+
+### 裁剪项清单
+
+| # | 项 | 现状 | 目标 | 触发条件 | 验证方式 | 优先级 |
+|---|---|---|---|---|---|---|
+| C1 | **officecli 退役**（28 工具中 9 个 Office 工具 → 19） | PLW vendored v1.0.143 + `tools_office.py` + `bin/mcp/officecli` | 从 /mcp 暴露面移除；PLW 降级薄壳 → 退役 | ①确认**无非 DSH 用户**在用 ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 ③上游二进制先升 v1.0.144 过渡 | 同事入口无回归；DSH 独立完成文档读写（SKILL 方式） | P1 |
+| C2 | **chat 收敛 RAG 问答** | 全量 agent（LLM+MCP 编排） | 知识问答优先（search_kb/websearch）；通用编排引导去 DSH 模式 | §10.7 一键更新/headless 桥稳定运行后 | 对话页知识问答正常；日常编排走 DSH | P1 |
+| C3 | **automation 执行引擎剥离** | react loop 兜底保留 | 仅 headless 桥执行；内部 loop 删除 | headless 执行稳定 N 轮（无回退触发） | 定时任务全走 headless | P2 |
+| C4 | **pdf-mcp / websearch 退役**（`bin/mcp/`） | builtin 拉起 | 移除（DSH 用**自研 pdf-mcp 直连 :17654** + 自带 websearch） | **自研 pdf-mcp 直连 DSH 实测通过**（2026-08-21 已接入配置，待重启验证）。⚠️ 生态替代实测不合格：`@modelcontextprotocol/server-pdf` 是 viewer 工具集（read_pdf_bytes，非文本提取）；`pdf-mcp-server` 依赖原生 canvas（node-gyp 编译失败） | DSH 独立处理 PDF/搜索 | P2 |
+| C5 | **笔记页移除** | `/note` 页面 | 隐藏 → 删除 | 使用率观察期 1~2 月 | 无使用、无死链 | P3 |
+| C6 | **文件夹**（仅此一项） | 已无侧边栏入口 | 路由删除（可选） | 观察期后确认无人用 | 无死链 | P3 |
+| C7 | **tasks 模块清理** | 已搁置（路由保留） | 代码归档/删除 | 需求确认不再需要 | git 历史可回溯 | P4 |
+
+### 执行节奏
+
+- **第一批（P1）**：C1（officecli 退役）+ C2（chat 收敛）——触发条件核对后开工；
+- **第二批（P2）**：C3（automation 剥离）+ C4（pdf/websearch 退役）；
+- **第三批（P3）**：C5（笔记）+ C6（文件夹）；
+- **归档（P4）**：C7（tasks）。
+
+> ⚠️ **保留项**：**天气、计划为待开发项**（模块已建、功能待开发），**不纳入裁剪**，保留并继续按计划开发。C6 仅指**文件夹**模块。
+
+### 执行规范
+
+- 每批开工前：更新本节"触发条件核对表"（逐条打勾/不满足原因）；
+- 每项完成：git commit + 验收清单打勾（对应 §10.5 的"先隐藏后删除"风格）；
+- 涉及 MCP 暴露面变化的项（C1/C4）需同步更新：`tools_registration.py`、`bin/mcp/`、能力供给管理页（§10.6 迁入设置页的区块）；
+
+### 触发条件核对表（2026-08-21）
+
+> 核对结论：C1~C7 触发条件**均未全部满足**，维持「规划中、未执行」。仅 C6 的「已无侧边栏入口」一项已满足（入口已删，等待观察期）。
+
+| # | 触发条件 | 核对结果 | 证据 / 说明 |
+|---|---|---|---|
+| C1 | ①无非 DSH 用户在用 | 🕐 待确认 | 无法从代码确认，需业务侧确认 |
+| C1 | ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 | ❌ 未通过 | 无实测证据 |
+| C1 | ③上游二进制先升 v1.0.144 | ❌ 未满足 | 当前 vendored **v1.0.143**（`src/modules/mcp/client_routes.py`、`src/bin/mcp/officecli/service.json`） |
+| C2 | §10.7 一键更新/headless 桥稳定运行后 | ❌ 未满足 | §10.7 刚提交（`c46eceb`），尚未观察稳定运行 |
+| C3 | headless 执行稳定 N 轮（无回退触发） | ❌ 未满足 | 需运行观察；`automation_runner.py` 仍为 headless 优先 + react loop 回退 |
+| C4 | 自研 pdf-mcp 直连 DSH 实测通过（:17654） | 🔶 待重启验证 | 2026-08-21 已接入 DSH 配置（`cordis.patch.yml` mcp-pdf → `http://127.0.0.1:17654/mcp`），dump-config 通过，待重启 DSH 后新会话实测。⚠️ 生态替代不合格：server-pdf 是 viewer（read_pdf_bytes）、pdf-mcp-server 依赖原生 canvas（node-gyp 编译失败） |
+| C5 | 使用率观察期 1~2 月 | ❌ 未满足 | 观察期未到；`/note` 仍在侧边栏（`base.html`） |
+| C6 | 观察期后确认无人用 | 🕐 部分满足 | 「已无侧边栏入口」✅（`base.html` 无 `/folder`）；「观察期确认无人用」未到 |
+| C7 | 需求确认不再需要 | 🕐 待确认 | 需业务确认；`src/modules/tasks/` 仍在（路由保留，侧边栏入口已删） |
+
+**代码现状快照（本次核对）**：
+
+- 侧边栏菜单（`src/templates/base.html`）：工作台 / 对话 / Wiki / 文章 / 图片 / 待办 / 自动化 / 笔记 / 设置——**无 `/folder`、无 `/tasks`、无 `/agent`**；
+- OfficeCLI：9 个工具仍在 `tools_registration.py` 注册，`_BUILTIN_GROUPS` 含 `officecli` 分组（`client_routes.py`）；
+- `pdf-mcp` / `websearch`：均为 `builtin` + `subprocess`（`src/bin/mcp/*/service.json`），在 `app.py` 内置服务注册，仍被 chat/agent 引用；
+- `automation_runner.py`：已 headless 优先 + react loop 回退（C3 剥离的前提代码形态已就位，仅差「稳定 N 轮」观察）。
