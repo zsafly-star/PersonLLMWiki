@@ -17,16 +17,18 @@ class TrayManager:
     在独立线程中运行 pystray，避免阻塞 WebView 主线程。
     """
 
-    def __init__(self, icon_path, on_show_window, on_quit):
+    def __init__(self, icon_path, on_show_window, on_quit, on_toggle_mode=None):
         """
         Args:
             icon_path: 图标文件路径（.png）
             on_show_window: 回调，显示/聚焦主窗口
             on_quit: 回调，退出应用
+            on_toggle_mode: 可选回调，切换 Wiki/DSH 模式
         """
         self._icon_path = icon_path
         self._on_show_window = on_show_window
         self._on_quit = on_quit
+        self._on_toggle_mode = on_toggle_mode
         self._icon = None
         self._thread = None
 
@@ -55,18 +57,29 @@ class TrayManager:
         # 加载图标
         image = self._load_icon()
 
-        menu = pystray.Menu(
+        menu_items = [
             pystray.MenuItem(
                 "显示主窗口",
                 self._on_show_window,
                 default=True,  # 左键单击触发
             ),
-            pystray.Menu.SEPARATOR,
+        ]
+        if self._on_toggle_mode:
+            menu_items.append(
+                pystray.MenuItem(
+                    "切换 Wiki/DSH 模式",
+                    self._on_toggle_mode,
+                )
+            )
+        menu_items.append(pystray.Menu.SEPARATOR)
+        menu_items.append(
             pystray.MenuItem(
                 "退出",
                 self._on_quit,
-            ),
+            )
         )
+
+        menu = pystray.Menu(*menu_items)
 
         self._icon = pystray.Icon(
             "PersonLLMWiki",

@@ -286,13 +286,21 @@ def main():
 
     from common.tray_manager import TrayManager
 
+    def _toggle_mode():
+        """托盘回调：切换 shell 页的 Wiki/DSH 模式（iframe 聚焦时键盘快捷键无效，托盘兜底）。"""
+        try:
+            window.evaluate_js("window.__shellToggleMode && window.__shellToggleMode()")
+        except Exception as e:
+            print(f"[Desktop] 切换模式失败: {e}")
+
     tray = TrayManager(
         icon_path=_get_icon_path(),
         on_show_window=_restore_window,
         on_quit=_quit_app,
+        on_toggle_mode=_toggle_mode,
     )
 
-    url = f"http://127.0.0.1:{port}"
+    url = f"http://127.0.0.1:{port}/shell"
     print(f"[Desktop] 创建窗口: {url}")
 
     window = webview.create_window(

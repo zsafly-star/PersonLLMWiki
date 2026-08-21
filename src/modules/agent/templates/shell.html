@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PersonLLMWiki</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f7; }
+
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── 36px 模式条 ── */
+    .shell-bar {
+        height: 36px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 12px;
+        background: #1e1f22;
+        color: #e5e7eb;
+        border-bottom: 1px solid #2a2b2e;
+        -webkit-app-region: drag; /* 允许拖拽窗口（若宿主支持） */
+    }
+    .shell-bar .brand {
+        font-size: 12px;
+        font-weight: 600;
+        color: #9ca3af;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+    .shell-seg {
+        display: inline-flex;
+        align-items: center;
+        background: #2a2b2e;
+        border-radius: 6px;
+        padding: 2px;
+        -webkit-app-region: no-drag;
+    }
+    .shell-seg button {
+        appearance: none;
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 3px 14px;
+        border-radius: 5px;
+        cursor: pointer;
+        line-height: 1.4;
+        transition: background 0.15s, color 0.15s;
+    }
+    .shell-seg button:hover { color: #e5e7eb; }
+    .shell-seg button.is-active { background: #3b82f6; color: #fff; }
+    .shell-seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .shell-status {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #9ca3af;
+        white-space: nowrap;
+        -webkit-app-region: no-drag;
+    }
+    .shell-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+    .shell-status.online .dot { background: #10b981; }
+    .shell-status.missing .dot { background: #9ca3af; }
+    .shell-status.version_low .dot { background: #f59e0b; }
+    .shell-status.stopped .dot { background: #ef4444; }
+
+    /* ── 舞台：双 iframe 常驻 ── */
+    .shell-stage { flex: 1; position: relative; background: #fff; }
+    .shell-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #fff; }
+
+    /* DSH 不可用/未加载时的占位遮罩 */
+    .shell-mask {
+        position: absolute; inset: 0; display: none;
+        align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+        background: #fff; text-align: center; padding: 24px; z-index: 5;
+    }
+    .shell-mask.show { display: flex; }
+    .shell-mask .icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; }
+    .shell-mask .icon.ok { background: #0d9488; }
+    .shell-mask .icon.warn { background: #f59e0b; }
+    .shell-mask .icon.err { background: #ef4444; }
+    .shell-mask h3 { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+    .shell-mask p { font-size: 13px; color: #6b7280; max-width: 440px; line-height: 1.6; }
+    .shell-mask .actions { display: flex; gap: 8px; }
+    .shell-btn {
+        display: inline-block; border: none; cursor: pointer; text-decoration: none;
+        font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px;
+        background: #3b82f6; color: #fff;
+    }
+    .shell-btn:hover { opacity: 0.92; }
+    .shell-btn.ghost { background: #eef2ff; color: #4338ca; }
+
+    /* 简单 toast */
+    #shell-toast {
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+        background: rgba(17, 24, 39, 0.92); color: #fff; font-size: 13px;
+        padding: 9px 18px; border-radius: 8px; display: none; z-index: 100; max-width: 80vw;
+    }
+</style>
+</head>
+<body>
+<div class="shell">
+    <div class="shell-bar">
+        <span class="brand">PersonLLMWiki</span>
+        <div class="shell-seg" role="tablist" aria-label="模式切换">
+            <button id="seg-wiki" class="is-active" type="button" data-mode="wiki">Wiki</button>
+            <button id="seg-dsh" type="button" data-mode="dsh" disabled>DSH</button>
+        </div>
+        <span class="shell-status" id="dsh-status" title="">
+            <span class="dot"></span>
+            <span id="dsh-status-txt">检测中…</span>
+        </span>
+    </div>
+    <div class="shell-stage">
+        <iframe id="iframe-wiki" src="{{ request.host_url }}" title="PersonLLMWiki" allow="clipboard-read; clipboard-write"></iframe>
+        <iframe id="iframe-dsh" style="display:none;" title="DeepSeek Harness" allow="clipboard-read; clipboard-write"></iframe>
+        <div class="shell-mask" id="dsh-mask">
+            <div class="icon err" id="dsh-mask-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <h3 id="dsh-mask-title">未检测到 DeepSeek Harness</h3>
+            <p id="dsh-mask-desc">DSH 模式需要 DeepSeek Harness（DSH）作为执行引擎。请先在「设置 → DeepSeek Harness」中关联已安装的 DSH。</p>
+            <div class="actions" id="dsh-mask-actions">
+                <a class="shell-btn" href="/settings">去设置关联 DSH</a>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="shell-toast"></div>
+
+<script>
+(function () {
+    var MODE_KEY = 'dsh_shell_mode';
+    var STATUS_LABEL = { running: 'DSH 在线', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
+
+    var currentMode = localStorage.getItem(MODE_KEY) === 'dsh' ? 'dsh' : 'wiki';
+    var dshStatus = null;
+    var dshLoaded = false;
+    var pollCount = 0;
+
+    var els = {
+        segWiki: document.getElementById('seg-wiki'),
+        segDsh: document.getElementById('seg-dsh'),
+        iframeWiki: document.getElementById('iframe-wiki'),
+        iframeDsh: document.getElementById('iframe-dsh'),
+        mask: document.getElementById('dsh-mask'),
+        maskIcon: document.getElementById('dsh-mask-icon'),
+        maskTitle: document.getElementById('dsh-mask-title'),
+        maskDesc: document.getElementById('dsh-mask-desc'),
+        maskActions: document.getElementById('dsh-mask-actions'),
+        status: document.getElementById('dsh-status'),
+        statusTxt: document.getElementById('dsh-status-txt'),
+    };
+
+    function safeHttpUrl(u) {
+        return /^https?:\/\//i.test(String(u || ''));
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function showToast(msg) {
+        var t = document.getElementById('shell-toast');
+        t.textContent = msg;
+        t.style.display = 'block';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(function () { t.style.display = 'none'; }, 2600);
+    }
+
+    function canUseDsh() {
+        return dshStatus && dshStatus.status === 'running';
+    }
+
+    function updateSeg() {
+        els.segWiki.classList.toggle('is-active', currentMode === 'wiki');
+        els.segDsh.classList.toggle('is-active', currentMode === 'dsh');
+
+        var blocked = dshStatus && (dshStatus.status === 'not_installed' || dshStatus.status === 'version_low');
+        els.segDsh.disabled = !!blocked;
+    }
+
+    function renderStatus() {
+        var st = dshStatus ? dshStatus.status : null;
+        els.status.className = 'shell-status' + (st === 'running' ? ' online' : st === 'version_low' ? ' version_low' : st === 'not_running' ? ' stopped' : ' missing');
+        els.statusTxt.textContent = STATUS_LABEL[st] || '检测中…';
+        els.status.title = els.statusTxt.textContent;
+        updateSeg();
+    }
+
+    function renderMask() {
+        if (!dshStatus || dshStatus.status === 'running') { return; }
+
+        if (dshStatus.status === 'not_installed') {
+            els.maskIcon.className = 'icon err';
+            els.maskTitle.textContent = '未检测到 DeepSeek Harness';
+            els.maskDesc.textContent = 'DSH 模式需要 DeepSeek Harness（DSH）作为执行引擎。请先在「设置 → DeepSeek Harness」中关联已安装的 DSH。';
+            els.maskActions.innerHTML = '<a class="shell-btn" href="/settings">去设置关联 DSH</a>';
+        } else if (dshStatus.status === 'version_low') {
+            els.maskIcon.className = 'icon warn';
+            if (dshStatus.version) {
+                els.maskTitle.textContent = 'DSH 版本过低';
+                els.maskDesc.textContent = '当前 DSH 版本 ' + esc(dshStatus.version) + ' 低于门禁 ' + esc(dshStatus.min_version) + '，请更新 DSH 后再试。';
+            } else {
+                els.maskTitle.textContent = '无法获取 DSH 版本';
+                els.maskDesc.textContent = '已检测到 DSH 命令，但无法获取其版本号。请到「设置 → DeepSeek Harness」确认命令路径。';
+            }
+            els.maskActions.innerHTML = '<a class="shell-btn" href="/settings">去设置检查 DSH</a>';
+        } else if (dshStatus.status === 'not_running') {
+            els.maskIcon.className = 'icon ok';
+            els.maskTitle.textContent = 'DSH 已安装但未运行';
+            els.maskDesc.textContent = '点击下方按钮启动 DSH，或确认 DSH 已在本机启动。';
+            els.maskActions.innerHTML = '<button class="shell-btn" id="dsh-mask-start" type="button">启动 DSH</button>';
+            var b = document.getElementById('dsh-mask-start');
+            if (b) b.addEventListener('click', startDsh);
+        }
+    }
+
+    function applyMode() {
+        var dshOn = currentMode === 'dsh';
+        els.iframeWiki.style.display = dshOn ? 'none' : '';
+        els.iframeDsh.style.display = dshOn ? '' : 'none';
+        els.mask.classList.toggle('show', dshOn && !canUseDsh());
+
+        if (dshOn && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
+            els.iframeDsh.src = dshStatus.url;
+            dshLoaded = true;
+        }
+        updateSeg();
+        localStorage.setItem(MODE_KEY, currentMode);
+    }
+
+    function switchMode(mode) {
+        if (mode === 'dsh') {
+            if (!dshStatus || dshStatus.status === 'not_installed' || dshStatus.status === 'version_low') {
+                showToast('请到「设置 → DeepSeek Harness」关联或安装 DSH');
+                return;
+            }
+            if (dshStatus.status === 'not_running') {
+                startDsh();
+                return;
+            }
+            currentMode = 'dsh';
+        } else {
+            currentMode = 'wiki';
+        }
+        applyMode();
+    }
+
+    function startDsh() {
+        var b = document.getElementById('dsh-mask-start');
+        if (b) { b.disabled = true; b.textContent = '启动中…'; }
+        fetch('/api/agent/start', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                var d = res.data || {};
+                if (d.started) {
+                    showToast('DSH 已启动');
+                    setTimeout(refreshStatus, 1200);
+                } else {
+                    showToast(d.error || 'DSH 启动失败');
+                    if (b) { b.disabled = false; b.textContent = '启动 DSH'; }
+                }
+            })
+            .catch(function () {
+                showToast('启动请求失败');
+                if (b) { b.disabled = false; b.textContent = '启动 DSH'; }
+            });
+    }
+
+    function refreshStatus() {
+        fetch('/api/agent/status')
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                dshStatus = res.data || {};
+                renderStatus();
+                renderMask();
+                // 当前处于 DSH 模式且刚检测到可用 → 懒加载 iframe
+                if (currentMode === 'dsh' && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
+                    els.iframeDsh.src = dshStatus.url;
+                    dshLoaded = true;
+                }
+                applyMode();
+                schedulePoll();
+            })
+            .catch(function () { schedulePoll(); });
+    }
+
+    function schedulePoll() {
+        pollCount++;
+        var delay = pollCount < 3 ? 2000 : 10000;
+        setTimeout(refreshStatus, delay);
+    }
+
+    // 托盘/外部调用入口：切换 Wiki/DSH
+    window.__shellToggleMode = function () {
+        switchMode(currentMode === 'wiki' ? 'dsh' : 'wiki');
+    };
+
+    // 分段开关点击
+    els.segWiki.addEventListener('click', function () { switchMode('wiki'); });
+    els.segDsh.addEventListener('click', function () { switchMode('dsh'); });
+
+    // 键盘快捷键：Ctrl+Shift+M 切换；Alt+1/2 直达（iframe 聚焦时无效，托盘为兜底）
+    window.addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
+            e.preventDefault();
+            switchMode(currentMode === 'wiki' ? 'dsh' : 'wiki');
+        } else if (e.altKey && (e.key === '1' || e.key === '2')) {
+            e.preventDefault();
+            switchMode(e.key === '1' ? 'wiki' : 'dsh');
+        }
+    });
+
+    // 初始：应用记忆模式并拉取状态
+    applyMode();
+    refreshStatus();
+})();
+</script>
+</body>
+</html>

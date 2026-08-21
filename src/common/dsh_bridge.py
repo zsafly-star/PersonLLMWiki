@@ -4,7 +4,7 @@ PersonLLMWiki 与 DSH 的唯一交互入口，收敛 DSH 的进程管理与 CLI 
 
 职责：
 - 发现：DSH_URL 健康检查；已在跑 → 复用；未在跑 → 按 DSH_CMD 拉起
-- 版本门禁：dsh --version ≥ 最低版本才启用「智能体」Tab
+- 版本门禁：dsh --version ≥ 最低版本才启用 DSH 模式
 - headless：控制台定时任务调用封装（dsh --profile headless "prompt"）
 
 铁律：
@@ -315,7 +315,7 @@ def check_health(url=None, timeout=HEALTH_TIMEOUT):
 # ─── 状态 ──────────────────────────────────────────────────
 
 def get_status():
-    """获取 DSH 完整状态，供前端「智能体」Tab 与设置页使用。
+    """获取 DSH 完整状态，供桌面壳 DSH 模式与设置页使用。
 
     Returns:
         dict:

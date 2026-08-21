@@ -4,7 +4,7 @@
 <div class="agent-view" id="agent-view">
     <div class="agent-header">
         <div class="agent-heading">
-            <h2>智能体</h2>
+            <h2>DSH 模式</h2>
             <span class="agent-subtitle">DeepSeek Harness 执行引擎</span>
         </div>
         <div class="agent-actions">
@@ -123,7 +123,7 @@
             icon = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>';
             iconCls = 'err';
             title = '未检测到 DeepSeek Harness';
-            desc = '智能体 Tab 需要 DeepSeek Harness（DSH）作为执行引擎。请先在「设置 → DeepSeek Harness」中关联已安装的 DSH，或安装 DSH 运行时。';
+            desc = 'DSH 模式需要 DeepSeek Harness（DSH）作为执行引擎。请先在「设置 → DeepSeek Harness」中关联已安装的 DSH，或安装 DSH 运行时。';
             actions = '<a class="btn btn-primary" href="/settings">去设置关联 DSH</a>';
             btnStart.style.display = 'none';
         } else if (s.status === 'version_low') {
@@ -131,7 +131,7 @@
             iconCls = 'warn';
             if (s.version) {
                 title = 'DSH 版本过低';
-                desc = '当前 DSH 版本不满足最低门禁，智能体功能暂不可用。请更新 DSH 后再试。';
+                desc = '当前 DSH 版本不满足最低门禁，DSH 模式暂不可用。请更新 DSH 后再试。';
             } else {
                 title = '无法获取 DSH 版本';
                 desc = '已检测到 DSH 命令，但无法获取其版本号。请检查 DSH 安装是否完整，或到「设置 → DeepSeek Harness」确认命令路径。';
