@@ -1,10 +1,16 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, redirect, url_for
 from common.response import success_response
 from config import Config
 
 home_bp = Blueprint('home', __name__, template_folder='templates')
 
 @home_bp.route('/')
+def index():
+    """浏览器访问 / 也统一进入 Wiki/DSH 模式壳。"""
+    return redirect(url_for('agent.shell'))
+
+
+@home_bp.route('/home')
 def home():
     return render_template('home.html', active_view='home')
 

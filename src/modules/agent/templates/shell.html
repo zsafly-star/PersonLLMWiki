@@ -118,7 +118,7 @@
         </span>
     </div>
     <div class="shell-stage">
-        <iframe id="iframe-wiki" src="{{ request.host_url }}" title="PersonLLMWiki" allow="clipboard-read; clipboard-write"></iframe>
+        <iframe id="iframe-wiki" src="{{ url_for('home.home') }}" title="PersonLLMWiki" allow="clipboard-read; clipboard-write"></iframe>
         <iframe id="iframe-dsh" style="display:none;" title="DeepSeek Harness" allow="clipboard-read; clipboard-write"></iframe>
         <div class="shell-mask" id="dsh-mask">
             <div class="icon err" id="dsh-mask-icon">
