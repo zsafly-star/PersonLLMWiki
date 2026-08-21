@@ -15,6 +15,7 @@
 | §10.8 | dsh-runtime 构建脚本 | ✅ `8d3a3cb`（模式 A，GitLab 写路径恢复后跑全链路） |
 | P1 | 知识供给打通 | ✅ 2026-08-21：MCP 客户端配置（`$DSH_HOME/profiles/web/cordis.patch.yml` 用 `insert:` 语法）+ 知识库 SKILL（`$DSH_HOME/skills/knowledge-base/SKILL.md`，watcher 实时生效） |
 | §10.9 | 有损裁剪计划 | 📋 规划中（C1~C7 清单 + 触发条件，未执行）；2026-08-21 触发条件已核对：均未满足，暂缓 |
+| §10.10 | 共享中心一期（浏览/详情/安装） | 📋 待实施（规格见设计文档 §7.5，实施项见本节 §10.10） |
 
 ---
 
@@ -429,3 +430,37 @@ def shell():
 - OfficeCLI：9 个工具仍在 `tools_registration.py` 注册，`_BUILTIN_GROUPS` 含 `officecli` 分组（`client_routes.py`）；
 - `pdf-mcp` / `websearch`：均为 `builtin` + `subprocess`（`src/bin/mcp/*/service.json`），在 `app.py` 内置服务注册，仍被 chat/agent 引用；
 - `automation_runner.py`：已 headless 优先 + react loop 回退（C3 剥离的前提代码形态已就位，仅差「稳定 N 轮」观察）。
+
+---
+
+## 10.10 共享中心一期：浏览 / 详情 / 安装（2026-08-21）
+
+> 规格见《DSH集成架构设计方案.md》§7.5（v0.5）。本项实现 UI 骨架，**复用** `INSTANCE_MODE=personal` + `COMMON_GIT_REPO` 的 git 同步管道，共享中心只是其 UI 化。发布（git 提交）与审批流留二期。
+
+### 新增模块 `src/modules/shared/`（共享中心）
+
+1. **路由**：
+   - `GET /shared` → 共享中心页面（render template，active_view='shared'）；
+   - `GET /api/shared/items` → 读取共享仓库（`shared/` 同步目录）：解析 `INDEX.md` + 目录清单，返回 `[{name, type, version, description, author, source_level, requires_*}]`；
+   - `GET /api/shared/items/<path>` → 单条 manifest 详情（解析 agent.json / SKILL.md frontmatter / service.json）；
+   - `POST /api/shared/install` → 执行安装（body: `{path}`），按 manifest `install.kind/target` 映射（§7.5 安装映射表）。
+2. **前端**：列表（来源等级标注：官方库/同事/外部）+ 详情抽屉（manifest 渲染）+ 「安装」按钮（安装前二次确认）。
+3. **侧边栏**：`base.html` 新增「共享中心」菜单（href `/shared`，放「自动化」之后）。
+
+### 安装动作实现要点
+
+- `copy-to skills/` → 复制到 `~/.personllmwiki/skills/`（PLW 侧）或 DSH skills 目录（配置目标）；
+- `mcp-connect mcp/` → 读 service.json → 生成 DSH `cordis.patch.yml` 条目（`insert:` 语法，追加到 DSH 配置）+ 提示重启；或注册 PLW builtin（可选）；
+- 安装前：来源等级展示 + 用户确认；安装后：回读验证（文件存在 / manifest 解析）。
+
+### 禁止改动
+
+`dsh_bridge.py`、`automation_runner.py`、`desktop.pyw`、`shell.html`、既有 MCP 工具注册、wiki 编译/检索代码。共享仓库结构（§7.5）由共享中心自身维护，不碰其他模块。
+
+### 验证清单
+
+- [ ] 侧边栏「共享中心」→ `/shared` 页面 200；`shared/` 目录（含 INDEX.md + 至少一个 agent.json 示例）可浏览
+- [ ] 详情抽屉正确渲染 manifest（版本/依赖/来源等级）
+- [ ] 安装 `copy-to skills/` 后文件落位、`skill_loader` 可识别（PLW 侧）
+- [ ] 安装 `mcp-connect` 后 DSH `cordis.patch.yml` 追加条目格式正确（dump-config 可合成）
+- [ ] 安装动作有二次确认；`git diff` 仅涉及新模块 + base.html；测试通过

@@ -1,6 +1,6 @@
 # PersonLLMWiki × DeepSeek Harness 集成架构设计方案
 
-> 版本：v0.4（2026-08-21）｜ 状态：已实现 v0.1~v0.3，v0.4 修复待实施 ｜ 日期：2026-08-20
+> 版本：v0.5（2026-08-21）｜ 状态：已实现 v0.1~v0.3，v0.4 修复待实施 ｜ 日期：2026-08-20
 > 关联文档：《多智能体PRD.md》《多智能体技术方案.md》《PersonLLMWiki设计规范.md》《分发部署方案.md》《ZSSNote_MCP_设计方案.md》《DSH集成-变更实施说明.md》
 > 本文是「知识库产品 × 智能体执行引擎」整合讨论的收敛结论，若与前述文档冲突，以本文为准。
 
@@ -12,6 +12,7 @@
 | v0.2 | 2026-08-21 | 桌面壳由「Tab 壳」改为「Trae 式 Wiki/DSH 模式切换」（§4.1）；深链桥改为 headless 桥（§4.4）；实施指引见《DSH集成-变更实施说明.md》。代码现状：Trae 已按 v0.1 实现并提交（`2f47a30`~`1d53810`） |
 | v0.3 | 2026-08-21 | ①PLW 侧边栏「知识组 / 效率组」分组（§4.5）；②企微待办 → 智能体自动执行场景纳入规划（§13）；③效率组形态定案：不拆应用、不做 DSH 插件，能力经 MCP 工具互通（D10/D11） |
 | v0.4 | 2026-08-21 | **撤销 v0.3 侧边栏分组**（用户反馈菜单分组文字不符合预期 + 浏览器入口看不到 Wiki/DSH 开关）；改为**统一入口**：`/` → shell 壳页，浏览器与桌面端均显示顶栏开关；侧边栏恢复平铺（§4.5 重写，实施见《DSH集成-变更实施说明.md》§10） |
+| v0.5 | 2026-08-21 | P3 共享中心**落地规格**：共享仓库目录结构 + agent.json manifest 定稿 + 安装动作映射 + 一期 UI 范围（§7.5）；P1 知识供给打通完成、DSH 生态实测结论（server-pdf/pdfs-mcp-server/dsh-office 不合格，自研直连） |
 
 ---
 
@@ -271,6 +272,60 @@ DSH agent 提问 → search_kb 检索 → read_wiki_page 读全文 → 回答
 - 共享仓库永不放：`.env`、API key、`mcp_servers.json` 认证段、个人数据（发布前密钥扫描，可挂 wiki 审批流）；
 - 信任分级：公司公共实例官方库 > 同事发布 > 外部来源，安装时标注来源等级；
 - 安装动作 = 执行代码，需用户确认（对齐 PRD 威胁模型）。
+
+### 7.5 落地规格：共享仓库结构、manifest 定稿与安装映射（v0.5）
+
+**共享仓库目录结构**（`COMMON_GIT_REPO` 同步，personal 模式）：
+
+```
+shared/
+├── skills/            # SKILL.md 技能（目录包：SKILL.md + scripts/）
+│   └── bom-picking/
+├── workflows/         # DSH workflow 脚本（JS + meta）
+├── agents/            # agent 定义（goal 模板/场景定义，含 agent.json）
+│   └── annual-report/
+├── mcp/               # MCP 服务定义（service.json，凭证留空）
+│   └── websearch/
+├── INDEX.md           # 索引（供共享中心浏览；wiki 编译入口候选）
+└── README.md
+```
+
+**agent.json manifest（定稿，升级 §7.3 初版）**：
+
+```json
+{
+  "name": "annual-report",
+  "version": "1.2.0",
+  "type": "skill | workflow | agent | goal-template | mcp-server",
+  "description": "一句话说明（共享中心列表显示）",
+  "requires_dsh": ">=0.1.0",
+  "requires_mcp": ["pdf", "personllmwiki"],
+  "install": {
+    "kind": "copy-to | mcp-connect | import",
+    "target": "skills/ | workflows/ | agents/ | mcp/"
+  },
+  "author": "zhang.san",
+  "sources": ["wiki 概念 slug 或文档链接"]
+}
+```
+
+- type 明确**五类**；install 由字符串升级为**对象（kind + target）**，机器可执行；
+- 凭证类字段一律禁止（P0）。
+
+**安装动作映射（共享中心「安装」→ 具体动作）**：
+
+| install.kind | target | 动作 |
+|---|---|---|
+| copy-to | skills/ | 复制到 DSH skills（`$DSH_HOME/skills/`）或 PLW skills（`~/.personllmwiki/skills/`） |
+| copy-to | workflows/ | 复制到 DSH workflow 目录 |
+| copy-to | agents/ | 复制到 DSH agents 目录（goal 模板供实例化） |
+| mcp-connect | mcp/ | 读 service.json → 生成 DSH `cordis.patch.yml` 条目（或 PLW builtin 注册） |
+| import | — | 导入为 PLW 场景/任务定义（预留） |
+
+**一期范围（UI 骨架）**：
+- 侧边栏新增「共享中心」菜单 → 独立页面：**浏览**（读共享仓库 INDEX.md + 目录清单）→ **详情**（manifest 渲染：版本/依赖/来源等级）→ **安装**（按映射执行，用户确认）；
+- 同步复用 `INSTANCE_MODE=personal` + `COMMON_GIT_REPO`（git 管道已有，共享中心只是 UI 化）；
+- 发布（git 提交）与审批流（wiki 候选机制）留二期/三期。
 
 ---
 
