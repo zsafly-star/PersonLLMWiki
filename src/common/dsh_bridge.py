@@ -141,10 +141,12 @@ def get_config():
         'dsh_cmd': cfg.get('dsh_cmd', ''),
         'dsh_url': cfg.get('dsh_url', DEFAULT_DSH_URL),
         'auto_start': bool(cfg.get('auto_start', False)),
+        'dsh_mirror_url': cfg.get('dsh_mirror_url', ''),
+        'dsh_registry': cfg.get('dsh_registry', ''),
     }
 
 
-def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
+def set_config(dsh_cmd=None, dsh_url=None, auto_start=None, dsh_mirror_url=None, dsh_registry=None):
     """更新 DSH 配置（仅更新传入的非 None 字段）。返回完整配置。"""
     cfg = _read_config()
     if dsh_cmd is not None:
@@ -164,6 +166,20 @@ def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
         cfg['dsh_url'] = url
     if auto_start is not None:
         cfg['auto_start'] = bool(auto_start)
+    if dsh_mirror_url is not None:
+        if not isinstance(dsh_mirror_url, str):
+            raise ValueError('DSH 下载源必须是字符串')
+        mirror = dsh_mirror_url.strip()
+        if mirror and not _valid_http_url(mirror):
+            raise ValueError('DSH 下载源仅支持 http/https')
+        cfg['dsh_mirror_url'] = mirror
+    if dsh_registry is not None:
+        if not isinstance(dsh_registry, str):
+            raise ValueError('DSH npm registry 必须是字符串')
+        registry = dsh_registry.strip()
+        if registry and not _valid_http_url(registry):
+            raise ValueError('DSH npm registry 仅支持 http/https')
+        cfg['dsh_registry'] = registry
     _write_config(cfg)
     # 命令变更后，版本缓存失效
     with _version_lock:
@@ -500,3 +516,365 @@ def check_update():
     has_update = bool(iv and lv and lv > iv)
 
     return {'installed': installed, 'latest': latest, 'has_update': has_update, 'error': ''}
+
+
+# ─── 运行时安装 / 更新 ────────────────────────────────────
+
+# DSH 运行时安装目录（按用户隔离，升级=换 app、留 home）
+DSH_HOME_BASE = os.path.join(
+    os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'DeepSeekHarness')
+
+# 默认 npm registry（增量更新用）
+DSH_DEFAULT_REGISTRY = 'https://registry.npmjs.org'
+
+
+def get_dsh_home():
+    r"""DSH 运行时安装目录（%LOCALAPPDATA%\DeepSeekHarness）。"""
+    return DSH_HOME_BASE
+
+
+def _get_mirror_url():
+    """下载源：环境变量 DSH_MIRROR_URL 优先，其次配置 dsh_mirror_url。空串表示未配置。"""
+    env = (os.environ.get('DSH_MIRROR_URL') or '').strip()
+    if env:
+        return env
+    return (_read_config().get('dsh_mirror_url') or '').strip()
+
+
+def _get_registry():
+    """npm registry：环境变量 DSH_NPM_REGISTRY 优先，其次配置，最后默认 npmjs。"""
+    env = (os.environ.get('DSH_NPM_REGISTRY') or '').strip()
+    if env:
+        return env
+    return (_read_config().get('dsh_registry') or '').strip() or DSH_DEFAULT_REGISTRY
+
+
+def get_runtime_info():
+    """运行时安装/更新元信息（设置页「重新安装 / 一键更新」展示与决策用）。"""
+    return {
+        'home': get_dsh_home(),
+        'app_dir': os.path.join(get_dsh_home(), 'app'),
+        'mirror_url': _get_mirror_url(),
+        'registry': _get_registry(),
+        'installed': is_installed(),
+        'version': get_version(),
+    }
+
+
+def _install_guidance():
+    """下载源未配置时的降级文本引导。"""
+    return ('尚未配置 DSH 运行时下载源（DSH_MIRROR_URL / dsh_mirror_url）。'
+            '请配置公司镜像 zip 或 npm registry 后重试，'
+            '或使用「关联已有 DSH」填写已安装的 dsh.cmd / 安装目录。')
+
+
+def _fetch_runtime_manifest(mirror):
+    """从下载源读取 dsh-runtime-latest.json 清单（Nexus raw 兜底路径）。
+
+    清单格式：{"version": "0.1.0-rc.6", "url": "...zip", "sha256": "..."}
+    """
+    url = mirror.rstrip('/') + '/dsh-runtime-latest.json'
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        return None
+    if isinstance(data, dict) and data.get('url'):
+        return {
+            'version': data.get('version'),
+            'url': data.get('url'),
+            'sha256': data.get('sha256') or '',
+        }
+    return None
+
+
+def get_runtime_latest():
+    """获取运行时 zip 最新版本信息（下载地址 + SHA256）。
+
+    zip 场景查公司镜像清单 dsh-runtime-latest.json；下载源为空时返回空 url（降级文本引导）。
+    """
+    mirror = _get_mirror_url()
+    if not mirror:
+        return {'version': None, 'url': '', 'sha256': '', 'error': ''}
+    m = _fetch_runtime_manifest(mirror)
+    if m:
+        return {'version': m['version'], 'url': m['url'], 'sha256': m['sha256'], 'error': ''}
+    return {'version': None, 'url': '', 'sha256': '',
+            'error': '无法从下载源获取 dsh-runtime-latest.json 清单'}
+
+
+def _sha256_file(path):
+    """计算文件 SHA256（十六进制）。"""
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _download_file(url, dest):
+    """下载文件到 dest（流式）。"""
+    req = urllib.request.Request(url, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        with open(dest, 'wb') as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
+
+
+def _extract_runtime(zip_path, home, replace_app=True):
+    r"""解压运行时 zip 到 home。
+
+    - app\   ：replace_app=True 时整体替换（带备份回滚），否则只补缺
+    - home\  ：永不覆盖，仅补缺（会话保留）
+    - 其余根文件（如 version.txt）写入 home 根
+    """
+    import zipfile
+    app_dir = os.path.join(home, 'app')
+    home_dir = os.path.join(home, 'home')
+    os.makedirs(home_dir, exist_ok=True)
+
+    with zipfile.ZipFile(zip_path) as z:
+        names = [n for n in z.namelist() if not n.endswith('/')]
+
+        # 归一化顶层目录（zip 可能包了一层根目录）
+        top_dirs = set()
+        for n in names:
+            parts = [p for p in n.split('/') if p]
+            if parts:
+                top_dirs.add(parts[0])
+        wrapper = next(iter(top_dirs)) if len(top_dirs) == 1 else None
+
+        def rel_parts(name):
+            parts = [p for p in name.split('/') if p]
+            if wrapper and parts and parts[0] == wrapper:
+                parts = parts[1:]
+            return parts
+
+        # 替换 app 前先备份，失败可回滚
+        backup = None
+        if replace_app and os.path.isdir(app_dir):
+            backup = app_dir + '_backup'
+            if os.path.isdir(backup):
+                shutil.rmtree(backup)
+            shutil.move(app_dir, backup)
+
+        try:
+            for name in names:
+                parts = rel_parts(name)
+                if not parts:
+                    continue
+                top = parts[0].lower()
+                if top == 'home':
+                    dest = os.path.join(home_dir, *parts[1:])
+                    if os.path.exists(dest):
+                        continue  # home 永不覆盖
+                elif top == 'app':
+                    dest = os.path.join(app_dir, *parts[1:])
+                else:
+                    dest = os.path.join(home, *parts)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with z.open(name) as src, open(dest, 'wb') as dst:
+                    shutil.copyfileobj(src, dst)
+        except Exception:
+            if backup and os.path.isdir(backup):
+                if os.path.isdir(app_dir):
+                    shutil.rmtree(app_dir)
+                shutil.move(backup, app_dir)
+            raise
+        else:
+            if backup and os.path.isdir(backup):
+                shutil.rmtree(backup)
+
+
+def _write_version_file(home, version):
+    """写入 version.txt。"""
+    try:
+        with open(os.path.join(home, 'version.txt'), 'w', encoding='utf-8') as f:
+            f.write(version or '')
+    except OSError:
+        pass
+
+
+def _auto_link_app(home):
+    """重装后自动关联 app 内 dsh 可执行文件到配置。"""
+    app_dir = os.path.join(home, 'app')
+    for candidate in ('dsh.cmd', 'dsh.exe', 'dsh'):
+        p = os.path.join(app_dir, candidate)
+        if os.path.isfile(p):
+            set_config(dsh_cmd=p)
+            return p
+    for candidate in ('dsh.cmd', 'dsh.exe', 'dsh'):
+        p = os.path.join(app_dir, 'node_modules', '.bin', candidate)
+        if os.path.isfile(p):
+            set_config(dsh_cmd=p)
+            return p
+    return None
+
+
+def install_runtime():
+    """重新安装：下载运行时 zip → 校验 SHA256 → 解压到 home（app 替换 + home 初建）→ 自动关联。
+
+    不覆盖 home\（会话保留）；下载源未配置或清单缺失时返回文本引导。
+    """
+    latest = get_runtime_latest()
+    url = latest.get('url')
+    if not url:
+        return {'success': False, 'error': _install_guidance()}
+
+    sha256 = latest.get('sha256') or ''
+    version = latest.get('version')
+    home = get_dsh_home()
+    os.makedirs(home, exist_ok=True)
+
+    # 停止正在运行的 DSH，避免 app 文件句柄占用
+    stop()
+
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix='dsh_runtime_')
+    zip_path = os.path.join(tmp, 'dsh-runtime.zip')
+    try:
+        _download_file(url, zip_path)
+        if sha256:
+            actual = _sha256_file(zip_path)
+            if actual.lower() != sha256.lower():
+                shutil.rmtree(tmp, ignore_errors=True)
+                return {'success': False,
+                        'error': 'SHA256 校验失败，安装已中止（期望 ' + sha256[:16] + '…）'}
+        _extract_runtime(zip_path, home, replace_app=True)
+    except Exception as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return {'success': False, 'error': '安装失败: ' + str(e)}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    _write_version_file(home, version)
+    linked = _auto_link_app(home)
+
+    msg = 'DSH 运行时安装完成（' + (version or 'latest') + '）'
+    if linked:
+        msg += '，已自动关联'
+    else:
+        msg += '，但未找到 dsh 可执行文件，请手动关联'
+    return {'success': True, 'message': msg, 'version': version, 'home': home, 'error': ''}
+
+
+def _is_npm_app(app_dir):
+    """app 目录是否声明了 @deepseek-ai/dsh 依赖（npm 增量更新适用）。"""
+    pkg = os.path.join(app_dir, 'package.json')
+    if not os.path.isfile(pkg):
+        return False
+    try:
+        with open(pkg, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return False
+    deps = data.get('dependencies') or {}
+    return '@deepseek-ai/dsh' in deps or 'dsh' in deps
+
+
+def _locate_node(app_dir):
+    """定位便携/系统 node 可执行文件。"""
+    for p in (os.path.join(app_dir, 'node', 'node.exe'),
+              os.path.join(app_dir, 'node.exe'),
+              os.path.join(get_dsh_home(), 'node', 'node.exe')):
+        if os.path.isfile(p):
+            return p
+    return shutil.which('node')
+
+
+def _npm_update(app_dir):
+    """npm 增量更新：npm install @deepseek-ai/dsh@latest（cwd=app）。"""
+    registry = _get_registry()
+    node = _locate_node(app_dir)
+    npm_cli = os.path.join(os.path.dirname(node), 'node_modules', 'npm', 'bin', 'npm-cli.js') if node else ''
+
+    if node and os.path.isfile(npm_cli):
+        cmd = [node, npm_cli, 'install', '@deepseek-ai/dsh@latest', '--registry', registry]
+    else:
+        npm = shutil.which('npm') or shutil.which('npm.cmd')
+        if not npm:
+            return {'success': False, 'method': 'npm',
+                    'error': '未找到 npm，无法增量更新；请使用「重新安装」'}
+        cmd = [npm, 'install', '@deepseek-ai/dsh@latest', '--registry', registry]
+
+    stop()
+    try:
+        proc = subprocess.run(cmd, cwd=app_dir, capture_output=True, text=True,
+                              encoding='utf-8', errors='replace', timeout=600)
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'method': 'npm', 'error': 'npm 安装超时（>600s）'}
+    except (OSError, subprocess.SubprocessError) as e:
+        return {'success': False, 'method': 'npm', 'error': 'npm 安装失败: ' + str(e)}
+
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or '').strip()[-500:]
+        return {'success': False, 'method': 'npm', 'error': 'npm 安装失败: ' + detail}
+
+    _sync_profile(app_dir)
+    with _version_lock:
+        _version_cache['ts'] = 0.0
+        _version_cache['value'] = None
+    return {'success': True, 'method': 'npm',
+            'message': 'DSH 增量更新完成，请重启 DSH 生效', 'error': ''}
+
+
+def _sync_profile(app_dir):
+    """更新后做一次 profile 同步（best-effort，失败不致命）。"""
+    cmd = _resolve_dsh_cmd()
+    if not cmd:
+        return
+    try:
+        subprocess.run([cmd, 'plugin', '--profile', 'web'],
+                       capture_output=True, text=True, encoding='utf-8',
+                       errors='replace', timeout=60, cwd=os.path.dirname(cmd))
+    except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+        pass
+
+
+def update_runtime():
+    r"""一键更新：npm 增量优先；否则走 zip 换 app\ 留 home\。"""
+    home = get_dsh_home()
+    app_dir = os.path.join(home, 'app')
+
+    if _is_npm_app(app_dir):
+        return _npm_update(app_dir)
+
+    # zip 路径
+    latest = get_runtime_latest()
+    url = latest.get('url')
+    if not url:
+        return {'success': False, 'method': 'zip', 'error': _install_guidance()}
+
+    sha256 = latest.get('sha256') or ''
+    version = latest.get('version')
+    os.makedirs(home, exist_ok=True)
+    stop()
+
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix='dsh_update_')
+    zip_path = os.path.join(tmp, 'dsh-runtime.zip')
+    try:
+        _download_file(url, zip_path)
+        if sha256:
+            actual = _sha256_file(zip_path)
+            if actual.lower() != sha256.lower():
+                shutil.rmtree(tmp, ignore_errors=True)
+                return {'success': False, 'method': 'zip',
+                        'error': 'SHA256 校验失败，更新已中止'}
+        _extract_runtime(zip_path, home, replace_app=True)
+    except Exception as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return {'success': False, 'method': 'zip', 'error': '更新失败: ' + str(e)}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    _write_version_file(home, version)
+    _auto_link_app(home)
+    return {'success': True, 'method': 'zip',
+            'message': 'DSH 运行时更新完成（' + (version or 'latest') + '），请重启 DSH 生效',
+            'version': version, 'error': ''}

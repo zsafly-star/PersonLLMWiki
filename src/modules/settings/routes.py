@@ -508,11 +508,12 @@ def _compare_versions(a, b):
 
 @settings_bp.route('/api/settings/dsh', methods=['GET'])
 def get_dsh():
-    """DSH 配置 + 状态（设置页 DeepSeek Harness 区块）"""
+    """DSH 配置 + 状态 + 运行时信息（设置页 DeepSeek Harness 区块）"""
     from common import dsh_bridge
     return success_response({
         'config': dsh_bridge.get_config(),
         'status': dsh_bridge.get_status(),
+        'runtime': dsh_bridge.get_runtime_info(),
     })
 
 
@@ -528,6 +529,8 @@ def save_dsh():
             dsh_cmd=data.get('dsh_cmd'),
             dsh_url=data.get('dsh_url'),
             auto_start=data.get('auto_start'),
+            dsh_mirror_url=data.get('dsh_mirror_url'),
+            dsh_registry=data.get('dsh_registry'),
         )
     except ValueError as e:
         return error_response(str(e))
@@ -562,3 +565,27 @@ def check_dsh_update():
     if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
         return error_response('跨源请求被拒绝', 403)
     return success_response(dsh_bridge.check_update())
+
+
+@settings_bp.route('/api/settings/dsh/reinstall', methods=['POST'])
+def reinstall_dsh():
+    """重新安装：下载运行时 zip → 校验 SHA256 → 解压 → 自动关联"""
+    from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
+    result = dsh_bridge.install_runtime()
+    if result.get('success'):
+        return success_response(result, result.get('message') or '重新安装完成')
+    return error_response(result.get('error') or '重新安装失败')
+
+
+@settings_bp.route('/api/settings/dsh/update', methods=['POST'])
+def update_dsh_runtime():
+    """一键更新：npm 增量优先，否则 zip 换 app 留 home"""
+    from common import dsh_bridge
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
+    result = dsh_bridge.update_runtime()
+    if result.get('success'):
+        return success_response(result, result.get('message') or '更新完成')
+    return error_response(result.get('error') or '更新失败')
