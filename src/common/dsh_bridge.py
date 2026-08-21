@@ -190,6 +190,11 @@ def _resolve_dsh_cmd():
             p = os.path.join(configured, candidate)
             if os.path.isfile(p):
                 return p
+        # npm 安装：可执行文件位于 node_modules/.bin/ 下（如 D:\DeepSeek Harness）
+        for candidate in ('dsh.cmd', 'dsh.exe', 'dsh'):
+            p = os.path.join(configured, 'node_modules', '.bin', candidate)
+            if os.path.isfile(p):
+                return p
     # 回退 PATH
     found = shutil.which('dsh')
     return found

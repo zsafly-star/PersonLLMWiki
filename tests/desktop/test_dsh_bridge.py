@@ -224,6 +224,16 @@ class TestResolveDshCmd:
         })
         assert dsh_bridge._resolve_dsh_cmd() == str(d / 'dsh.cmd')
 
+    def test_npm_node_modules_bin_localization(self, tmp_path, monkeypatch):
+        # npm 安装的 dsh：可执行文件在 <dir>/node_modules/.bin/dsh.cmd
+        d = tmp_path / 'harness'
+        (d / 'node_modules' / '.bin').mkdir(parents=True)
+        (d / 'node_modules' / '.bin' / 'dsh.cmd').write_text('')
+        monkeypatch.setattr(dsh_bridge, 'get_config', lambda: {
+            'dsh_cmd': str(d), 'dsh_url': 'http://x', 'auto_start': False,
+        })
+        assert dsh_bridge._resolve_dsh_cmd() == str(d / 'node_modules' / '.bin' / 'dsh.cmd')
+
 
 class TestRunHeadless:
     def test_not_installed_returns_error(self, monkeypatch):
