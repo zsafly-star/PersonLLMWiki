@@ -21,7 +21,6 @@
         background: #1e1f22;
         color: #e5e7eb;
         border-bottom: 1px solid #2a2b2e;
-        -webkit-app-region: drag; /* 允许拖拽窗口（若宿主支持） */
     }
     .shell-bar .brand {
         font-size: 12px;
@@ -36,7 +35,6 @@
         background: #2a2b2e;
         border-radius: 6px;
         padding: 2px;
-        -webkit-app-region: no-drag;
     }
     .shell-seg button {
         appearance: none;
@@ -62,7 +60,6 @@
         font-size: 12px;
         color: #9ca3af;
         white-space: nowrap;
-        -webkit-app-region: no-drag;
     }
     .shell-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
     .shell-status.online .dot { background: #10b981; }
@@ -109,8 +106,8 @@
     <div class="shell-bar">
         <span class="brand">PersonLLMWiki</span>
         <div class="shell-seg" role="tablist" aria-label="模式切换">
-            <button id="seg-wiki" class="is-active" type="button" data-mode="wiki">Wiki</button>
-            <button id="seg-dsh" type="button" data-mode="dsh" disabled>DSH</button>
+            <button id="seg-wiki" class="is-active" type="button" data-mode="wiki" role="tab" aria-selected="true">Wiki</button>
+            <button id="seg-dsh" type="button" data-mode="dsh" role="tab" aria-selected="false" disabled>DSH</button>
         </div>
         <span class="shell-status" id="dsh-status" title="">
             <span class="dot"></span>
@@ -142,6 +139,7 @@
     var currentMode = localStorage.getItem(MODE_KEY) === 'dsh' ? 'dsh' : 'wiki';
     var dshStatus = null;
     var dshLoaded = false;
+    var statusLoaded = false;
     var pollCount = 0;
 
     var els = {
@@ -181,8 +179,11 @@
     }
 
     function updateSeg() {
-        els.segWiki.classList.toggle('is-active', currentMode === 'wiki');
-        els.segDsh.classList.toggle('is-active', currentMode === 'dsh');
+        var wikiOn = currentMode === 'wiki';
+        els.segWiki.classList.toggle('is-active', wikiOn);
+        els.segDsh.classList.toggle('is-active', !wikiOn);
+        els.segWiki.setAttribute('aria-selected', wikiOn ? 'true' : 'false');
+        els.segDsh.setAttribute('aria-selected', wikiOn ? 'false' : 'true');
 
         var blocked = dshStatus && (dshStatus.status === 'not_installed' || dshStatus.status === 'version_low');
         els.segDsh.disabled = !!blocked;
@@ -228,7 +229,7 @@
         var dshOn = currentMode === 'dsh';
         els.iframeWiki.style.display = dshOn ? 'none' : '';
         els.iframeDsh.style.display = dshOn ? '' : 'none';
-        els.mask.classList.toggle('show', dshOn && !canUseDsh());
+        els.mask.classList.toggle('show', statusLoaded && dshOn && !canUseDsh());
 
         if (dshOn && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
             els.iframeDsh.src = dshStatus.url;
@@ -264,7 +265,8 @@
                 var d = res.data || {};
                 if (d.started) {
                     showToast('DSH 已启动');
-                    setTimeout(refreshStatus, 1200);
+                    currentMode = 'dsh';
+                    refreshStatus();
                 } else {
                     showToast(d.error || 'DSH 启动失败');
                     if (b) { b.disabled = false; b.textContent = '启动 DSH'; }
@@ -288,6 +290,7 @@
                     els.iframeDsh.src = dshStatus.url;
                     dshLoaded = true;
                 }
+                statusLoaded = true;
                 applyMode();
                 schedulePoll();
             })
