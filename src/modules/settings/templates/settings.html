@@ -25,6 +25,10 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.71-2.34A2.5 2.5 0 0 1 3 15.5a2.5 2.5 0 0 1 2.5-2.5c.36 0 .7.07 1 .21M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.71-2.34A2.5 2.5 0 0 0 21 15.5a2.5 2.5 0 0 0-2.5-2.5c-.36 0-.7.07-1 .21"/></svg>
                         <span>向量模型</span>
                     </button>
+                    <button class="settings-menu-item" data-setting="capabilities" role="tab" aria-selected="false">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h6v6H9z"/><path d="M3 9h2"/><path d="M3 15h2"/><path d="M19 9h2"/><path d="M19 15h2"/><path d="M9 3v2"/><path d="M15 3v2"/><path d="M9 19v2"/><path d="M15 19v2"/></svg>
+                        <span>能力供给</span>
+                    </button>
                     <button class="settings-menu-item" data-setting="paths" role="tab" aria-selected="false">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         <span>路径设置</span>
@@ -162,6 +166,30 @@
                                 </button>
                             </div>
                             <div id="embedding-status" class="status-line"></div>
+                        </div>
+                    </div>
+
+                    <div id="setting-capabilities" class="setting-content-section" style="display:none;" role="tabpanel" aria-label="能力供给">
+                        <div class="section-header">
+                            <h3>能力供给</h3>
+                            <p class="section-desc">管理 MCP 服务与工具，为自动化和智能问答提供外部能力</p>
+                        </div>
+                        <div class="am-card">
+                            <div class="am-card-head">
+                                <h2 class="am-card-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+                                    MCP 服务
+                                </h2>
+                                <div class="am-card-actions">
+                                    <button class="am-btn-primary am-btn-sm" onclick="showAddServerModal()">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                        添加服务器
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="am-mcp-list" id="mcp-server-list">
+                                <div class="am-loading">加载中…</div>
+                            </div>
                         </div>
                     </div>
 
@@ -464,6 +492,39 @@
     </div>
 
     <div id="settings-toast-container" aria-live="polite"></div>
+
+    <!-- ═══ Add Server Modal ═══ -->
+    <div class="am-modal-overlay" id="add-server-modal" style="display:none" onclick="if(event.target===this)hideAddServerModal()">
+        <div class="am-modal">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title">添加自定义 MCP 服务</h3>
+                <button class="am-modal-close" onclick="hideAddServerModal()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body">
+                <p class="am-modal-hint">粘贴远程 MCP 服务配置（JSON 格式），支持一次添加多个。内置服务请通过 <code>bin/mcp/</code> 目录管理。</p>
+                <textarea id="server-json-input" class="am-json-input" spellcheck="false" placeholder='{
+  "mcpServers": {
+    "sap-mcp": {
+      "type": "sse",
+      "url": "http://192.168.195.191:8001/mcp",
+      "timeout": 600000
+    },
+    "personllmwiki": {
+      "url": "http://localhost:5000/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}'></textarea>
+                <div class="am-modal-error" id="server-json-error"></div>
+            </div>
+            <div class="am-modal-foot">
+                <button class="am-btn-ghost" onclick="hideAddServerModal()">取消</button>
+                <button class="am-btn-primary" onclick="submitServerJson()">添加</button>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
@@ -1420,6 +1481,288 @@
                 .catch(function() { if (el) el.textContent = '更新检查失败'; });
         }
 
+        /* ═══ MCP Servers（能力供给） ═══ */
+        function escAttr(str) { return (str || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        function addLog(msg, type) { /* no-op: log UI removed */ }
+
+        function loadMcpServers() {
+            fetch('/api/mcp/services')
+                .then(function(r) { return r.json().catch(function() { throw new Error('响应解析失败 (HTTP ' + r.status + ')'); }); })
+                .then(function(result) {
+                    if (result.code !== 200) {
+                        var msg = result.message || '未知错误';
+                        document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">加载 MCP 服务失败: ' + esc(msg) + '</div>';
+                        return;
+                    }
+                    renderMcpServers((result.data && result.data.services) || []);
+                })
+                .catch(function(e) {
+                    document.getElementById('mcp-server-list').innerHTML = '<div class="am-empty">无法加载 MCP 服务: ' + esc(e.message || '网络错误') + '</div>';
+                })
+                .finally(function() {
+                    var el = document.getElementById('mcp-server-list');
+                    if (el && el.querySelector('.am-loading')) {
+                        el.innerHTML = '<div class="am-empty">暂无 MCP 服务</div>';
+                    }
+                });
+        }
+
+        function renderMcpServers(servers) {
+            var container = document.getElementById('mcp-server-list');
+            if (!servers || servers.length === 0) {
+                container.innerHTML = '<div class="am-empty">尚未连接任何 MCP 服务</div>';
+                return;
+            }
+            container.innerHTML = servers.map(function(s) {
+                var connected = s.connected || s.status === 'connected';
+                var toolCount = s.tool_count || (s.tools ? s.tools.length : 0);
+                var hasError = s.error && s.error.length > 0;
+                var statusClass = connected ? (hasError ? 'am-srv-warn' : 'am-srv-on') : 'am-srv-off';
+                var statusText = connected ? (hasError ? '异常' : '已连接') : '未连接';
+                var chevron = connected ? '<svg class="am-mcp-chevron am-srv-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '';
+                var clickable = connected ? ' am-mcp-card' : '';
+                var sourceTag = s.source === 'builtin'
+                    ? '<span class="am-tag am-tag-builtin">内置</span>'
+                    : '<span class="am-tag am-tag-custom">自定义</span>';
+                var locationTag = s.location === 'local'
+                    ? '<span class="am-tag am-tag-local">本地</span>'
+                    : '<span class="am-tag am-tag-remote">远程</span>';
+                var errorCapsule = '';
+                if (hasError && !connected) {
+                    errorCapsule = '<span class="am-srv-err-capsule" data-tip="' + escAttr(s.error) + '">错误信息</span>';
+                }
+                var actions = '';
+                if (s.can_reconnect) {
+                    actions += '<button class="am-btn-ghost am-btn-xs" onclick="event.stopPropagation();reconnectServer(\'' + esc(s.name) + '\')">重连</button>';
+                }
+                if (s.can_delete) {
+                    actions += '<button class="am-btn-ghost am-btn-xs am-btn-danger" onclick="event.stopPropagation();removeServer(\'' + esc(s.name) + '\')">移除</button>';
+                }
+                return '<div class="am-mcp-card am-srv-card' + clickable + '" data-name="' + esc(s.name) + '">'
+                     + '<div class="am-mcp-head am-srv-head"' + (connected ? ' onclick="toggleServerTools(\'' + esc(s.name) + '\')"' : '') + '>'
+                     + '<div class="am-mcp-info am-srv-info">'
+                     + '<div class="am-mcp-name-row am-srv-name-row">'
+                     + chevron
+                     + '<span class="am-mcp-name am-srv-name">' + esc(s.name) + '</span>'
+                     + sourceTag + locationTag
+                     + '<span class="am-mcp-badge am-srv-tool-badge">' + toolCount + ' 工具</span>'
+                     + '</div>'
+                     + '<span class="am-mcp-sub am-srv-url">' + esc(s.url || s.description || '') + '</span>'
+                     + '</div>'
+                     + '<span class="am-mcp-status am-srv-status ' + statusClass + '">'
+                     + '<span class="am-mcp-status-dot am-srv-dot"></span>' + statusText
+                     + '</span>'
+                     + errorCapsule
+                     + '</div>'
+                     + '<div class="am-srv-tools-panel" id="tools-' + esc(s.name) + '" style="display:none">'
+                     + '<div class="am-srv-tools-loading">加载工具列表…</div>'
+                     + '</div>'
+                     + (actions ? '<div class="am-srv-actions">' + actions + '</div>' : '')
+                     + '</div>';
+            }).join('');
+        }
+
+        function toggleServerTools(name) {
+            var panel = document.getElementById('tools-' + name);
+            if (!panel) return;
+            var card = panel.closest('.am-srv-card');
+            if (panel.style.display === 'none') {
+                panel.style.display = '';
+                card.classList.add('am-mcp-expanded');
+                card.querySelector('.am-srv-chevron').style.transform = 'rotate(180deg)';
+                if (!panel.dataset.loaded) {
+                    loadServerTools(name);
+                }
+            } else {
+                panel.style.display = 'none';
+                card.classList.remove('am-mcp-expanded');
+                card.querySelector('.am-srv-chevron').style.transform = '';
+            }
+        }
+
+        function loadServerTools(name) {
+            var panel = document.getElementById('tools-' + name);
+            if (!panel) return;
+            fetch('/api/mcp/servers/' + encodeURIComponent(name) + '/tools')
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    panel.dataset.loaded = '1';
+                    if (res.code !== 200 || !res.data || res.data.length === 0) {
+                        fetch('/api/mcp/servers')
+                            .then(function(r2) { return r2.json(); })
+                            .then(function(srvRes) {
+                                var srv = (srvRes.data || []).find(function(x) { return x.name === name; });
+                                if (srv && srv.error) {
+                                    panel.innerHTML = '<div class="am-srv-tools-error">' + esc(srv.error) + '</div>';
+                                } else {
+                                    panel.innerHTML = '<div class="am-srv-tools-empty">暂无工具</div>';
+                                }
+                            });
+                        return;
+                    }
+                    panel.innerHTML = res.data.map(function(t) {
+                        var origName = t._original_name || t.name;
+                        var desc = t.description || '无描述';
+                        return '<div class="am-mcp-tool am-srv-tool" title="' + escAttr(desc) + '">'
+                             + '<code class="am-mcp-tool-name am-srv-tool-name">' + esc(origName) + '</code>'
+                             + '</div>';
+                    }).join('');
+                })
+                .catch(function() {
+                    panel.innerHTML = '<div class="am-srv-tools-empty">加载失败</div>';
+                });
+        }
+
+        function showAddServerModal() {
+            document.getElementById('add-server-modal').style.display = '';
+            document.getElementById('server-json-input').value = '';
+            document.getElementById('server-json-error').textContent = '';
+            setTimeout(function() { document.getElementById('server-json-input').focus(); }, 100);
+        }
+
+        function hideAddServerModal() {
+            document.getElementById('add-server-modal').style.display = 'none';
+        }
+
+        function submitServerJson() {
+            var raw = document.getElementById('server-json-input').value.trim();
+            var errEl = document.getElementById('server-json-error');
+            errEl.textContent = '';
+
+            if (!raw) {
+                errEl.textContent = '请输入 JSON 配置';
+                return;
+            }
+
+            var config;
+            try {
+                config = JSON.parse(raw);
+            } catch (e) {
+                errEl.textContent = 'JSON 解析失败: ' + e.message;
+                return;
+            }
+
+            var servers = {};
+            if (config.mcpServers && typeof config.mcpServers === 'object') {
+                servers = config.mcpServers;
+            } else {
+                servers = config;
+            }
+
+            var entries = [];
+            Object.keys(servers).forEach(function(name) {
+                var s = servers[name];
+                if (!s || typeof s !== 'object') return;
+                if (s.disabled === true) return;
+                var url = s.url || s.endpoint || s.serverUrl;
+                if (!url) return;
+                entries.push({
+                    name: name,
+                    url: url.trim(),
+                    token: s.token || s.headers && s.headers.Authorization || '',
+                    description: s.description || s.type || s.transport || ''
+                });
+            });
+
+            if (entries.length === 0) {
+                errEl.textContent = '未找到有效的服务器配置（需要 name 和 url）';
+                return;
+            }
+
+            var completed = 0;
+            var success = 0;
+            var errors = [];
+
+            function submitNext() {
+                if (completed >= entries.length) {
+                    if (errors.length > 0) {
+                        errEl.textContent = '部分失败: ' + errors.join('; ');
+                    } else {
+                        hideAddServerModal();
+                        loadMcpServers();
+                        addLog('已添加 ' + success + ' 个 MCP 服务器', 'ok');
+                    }
+                    return;
+                }
+
+                var entry = entries[completed];
+                fetch('/api/mcp/servers', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(entry)
+                }).then(function(r) { return r.json(); })
+                  .then(function(res) {
+                      completed++;
+                      if (res.code === 200) { success++; }
+                      else { errors.push(entry.name + ': ' + (res.message || '失败')); }
+                      submitNext();
+                  })
+                  .catch(function(e) {
+                      completed++;
+                      errors.push(entry.name + ': ' + e);
+                      submitNext();
+                  });
+            }
+
+            submitNext();
+        }
+
+        function reconnectServer(name) {
+            var card = document.querySelector('.am-srv-card[data-name="' + CSS.escape(name) + '"]');
+            var btn = card ? card.querySelector('button') : null;
+            var statusEl = card ? card.querySelector('.am-mcp-status') : null;
+            var origBtnText = btn ? btn.textContent : '重连';
+            if (btn) { btn.disabled = true; btn.textContent = '重连中...'; }
+            if (statusEl) {
+                statusEl.className = 'am-mcp-status am-srv-status am-srv-warn';
+                statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>重连中...';
+            }
+
+            fetch('/api/mcp/servers/' + encodeURIComponent(name) + '/reconnect', { method: 'POST' })
+                .then(function(r) { return r.json().catch(function() { throw new Error('HTTP ' + r.status); }); })
+                .then(function(res) {
+                    if (res.code === 200) {
+                        if (statusEl) {
+                            statusEl.className = 'am-mcp-status am-srv-status am-srv-off';
+                            statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>已断开';
+                        }
+                        setTimeout(function() { loadMcpServers(); }, 600);
+                        addLog('MCP 服务器 ' + name + ' 重连成功', 'ok');
+                    } else {
+                        if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+                        var errMsg = res.message || '未知错误';
+                        var showMsg = errMsg.length > 120 ? errMsg.substring(0, 120) + '…' : errMsg;
+                        if (statusEl) {
+                            statusEl.className = 'am-mcp-status am-srv-status am-srv-off am-srv-error';
+                            statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span><span title="' + escAttr(errMsg) + '">' + esc(showMsg) + '</span>';
+                        }
+                        addLog(name + ' 重连失败: ' + errMsg, 'err');
+                    }
+                })
+                .catch(function(e) {
+                    if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+                    var errText = e.message || '网络错误';
+                    if (statusEl) {
+                        statusEl.className = 'am-mcp-status am-srv-status am-srv-off am-srv-error';
+                        statusEl.innerHTML = '<span class="am-mcp-status-dot am-srv-dot"></span>' + esc(errText);
+                    }
+                    addLog(name + ' 重连失败: ' + errText, 'err');
+                });
+        }
+
+        function removeServer(name) {
+            customConfirm('确定移除服务器 ' + name + '？', '移除服务器').then(function(ok) {
+                if (!ok) return;
+                _doRemoveServer(name);
+            });
+        }
+        function _doRemoveServer(name) {
+            fetch('/api/mcp/servers/' + encodeURIComponent(name), { method: 'DELETE' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.code === 200) { loadMcpServers(); addLog('MCP 服务器 ' + name + ' 已移除', 'ok'); }
+                });
+        }
+
         onPageReady(function() {
             initSettingsPage();
             loadCurrentPath();
@@ -1428,6 +1771,7 @@
             loadWeatherConfig();
             loadProfileSettings();
             loadEmbeddingConfig();
+            loadMcpServers();
             loadVersionInfo();
             loadDshSettings();
             bindSettingsEvents();
