@@ -27,18 +27,6 @@ _BUILTIN_GROUPS = [
         ],
     },
     {
-        'id': 'officecli',
-        'name': 'OfficeCLI 文档办公',
-        'icon': 'file',
-        'description': '读写 Word/Excel/PPT 文档，v1.0.143',
-        'tool_patterns': [
-            'read_document', 'get_document_structure', 'get_document_outline',
-            'create_document', 'add_element', 'set_element',
-            'list_sheets', 'read_sheet', 'write_cells',
-        ],
-        'status_provider': 'officecli',
-    },
-    {
         'id': 'task',
         'name': '任务管理',
         'icon': 'check',
@@ -50,15 +38,6 @@ _BUILTIN_GROUPS = [
 ]
 
 
-def _get_officecli_status():
-    """获取 OfficeCLI 状态"""
-    try:
-        from .tools_office import get_officecli_status as _s
-        return _s()
-    except Exception:
-        return {'available': False, 'error': '模块加载失败'}
-
-
 def _get_local_tool_safe(name):
     """安全获取本地工具（不存在返回 None）"""
     try:
@@ -66,11 +45,6 @@ def _get_local_tool_safe(name):
         return _get(name)
     except Exception:
         return None
-
-
-_BUILTIN_STATUS_PROVIDERS = {
-    'officecli': _get_officecli_status,
-}
 
 
 @mcp_client_bp.route('/api/mcp/builtin', methods=['GET'])
@@ -99,15 +73,6 @@ def list_builtin():
             'tool_count': len(tools),
             'available': True,
         }
-
-        # 特殊状态（如 OfficeCLI）
-        provider_key = g.get('status_provider')
-        if provider_key:
-            provider = _BUILTIN_STATUS_PROVIDERS.get(provider_key)
-            if provider:
-                status = provider()
-                group['available'] = status.get('available', False)
-                group['status_detail'] = status
 
         groups.append(group)
 
@@ -156,12 +121,8 @@ def list_all_services():
         # embedded 类型：从 _BUILTIN_GROUPS 计算工具数，personllmwiki 返回全部
         if st_type == 'embedded':
             if name == 'personllmwiki':
-                # personllmwiki 工具数 = 全部本地工具 - 已归入独立服务的工具
-                _excluded = set()
-                for g in _BUILTIN_GROUPS:
-                    if g.get('id', '') == 'officecli':
-                        _excluded.update(g.get('tool_patterns', []))
-                tc = sum(1 for t in _local_tool_count() if t.name not in _excluded)
+                # personllmwiki 工具数 = 全部本地工具
+                tc = len(_local_tool_count())
             else:
                 tc = sum(1 for g in _BUILTIN_GROUPS
                          if g.get('id') == name
@@ -307,7 +268,7 @@ def list_server_tools(name):
     """列出指定 MCP 服务器的工具。
 
     对于 subprocess/remote 类型，从 MCPClientBus 获取工具列表。
-    对于内置 binary 类型（如 officecli），从本地 MCP Server 注册表获取对应工具。
+    对于内置 binary/embedded 类型，从本地 MCP Server 注册表获取对应工具。
     """
     bus = get_bus()
     tools = bus.get_server_tools(name)
@@ -335,27 +296,15 @@ def list_server_tools(name):
                             '_original_name': t.name,
                         })
                 return success_response(local_tools)
-        # PersonLLMWiki embedded：无分组匹配，返回核心本地工具（排除已归入独立服务的工具）
+        # PersonLLMWiki embedded：无分组匹配，返回全部本地工具
         if name == 'personllmwiki':
-            # 排除已归入 officecli 服务的工具
-            excluded = set()
-            for g in _BUILTIN_GROUPS:
-                if g.get('id', '') == 'officecli':
-                    excluded.update(g.get('tool_patterns', []))
             all_tools = _list_local_tools()
             return success_response([{
                 'name': t.name,
                 'description': t.description,
                 'inputSchema': t.input_schema,
                 '_original_name': t.name,
-            } for t in all_tools if t.name not in excluded])
-        # officecli binary：无分组匹配，返回 office 工具
-        all_local = _list_local_tools()
-        return success_response([t.to_public_dict() for t in all_local if t.name in {
-            'read_document', 'get_document_structure', 'get_document_outline',
-            'create_document', 'add_element', 'set_element',
-            'list_sheets', 'read_sheet', 'write_cells',
-        }])
+            } for t in all_tools])
 
     return success_response([])
 

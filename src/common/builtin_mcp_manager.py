@@ -5,7 +5,7 @@
 
 服务类型：
 - subprocess：pip 安装的 MCP 服务器，子进程拉起 → 健康检查 → 注册到 MCPClientBus
-- binary：预编译二进制（如 OfficeCLI），由 tools_*.py 直接调用，此处仅做状态探测
+- binary：预编译二进制，由 tools_*.py 直接调用，此处仅做状态探测
 
 新增一个内置服务只需在 bin/mcp/ 下创建文件夹 + service.json，无需写新的 runner。
 
@@ -237,7 +237,7 @@ def _start_subprocess_service(svc):
 
 
 def _check_binary_service(svc):
-    """检查 binary 类型的服务（如 OfficeCLI）是否可用。
+    """检查 binary 类型的服务是否可用。
 
     Returns: {available, running, error, tool_count}
     """

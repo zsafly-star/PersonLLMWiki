@@ -66,7 +66,6 @@ CN_MAP = {
     'search_kb': '搜索知识库',
     'websearch__web_search': '联网搜索',
     'read_note': '读取笔记',
-    'create_document': '创建文档',
 }
 
 

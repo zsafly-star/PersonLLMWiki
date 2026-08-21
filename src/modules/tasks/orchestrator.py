@@ -213,8 +213,6 @@ def _build_node_system_prompt(node, task=None):
             f"当前任务的工作空间（电脑文件夹）绝对路径：{task.workspace}\n"
             "- 读写该文件夹内的文本/代码文件，用 list_workspace / read_workspace_file / write_workspace_file，"
             "path 参数填相对于工作空间根目录的相对路径。\n"
-            "- 生成 Office 文档（.pptx/.docx/.xlsx）时，用 create_document 等工具，"
-            "path 参数请填「工作空间绝对路径 + 文件名」。\n"
             "- 只能在该工作空间内读写，不要越界访问其他目录。"
         )
 

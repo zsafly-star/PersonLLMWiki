@@ -65,14 +65,6 @@ def dashboard():
     except Exception:
         pass
 
-    # OfficeCLI 可用性
-    officecli_available = False
-    try:
-        from modules.mcp.tools_office import is_officecli_available
-        officecli_available = is_officecli_available()
-    except Exception:
-        pass
-
     return jsonify({
         'code': 200,
         'data': {
@@ -88,7 +80,6 @@ def dashboard():
                 'total_tools': total_tools,
             },
             'sync': sync_status,
-            'officecli_available': officecli_available,
         }
     })
 

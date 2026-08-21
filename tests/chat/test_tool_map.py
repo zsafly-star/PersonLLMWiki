@@ -27,11 +27,11 @@ class TestToolCnMap:
         assert 'search_kb' in m
         assert m['search_kb'] == '搜索知识库'
 
-    def test_create_document_in_map(self):
-        """create_document 在映射表中（用于导出文件提取）。"""
+    def test_read_note_in_map(self):
+        """read_note 在映射表中。"""
         m = self._get_map()
-        assert 'create_document' in m
-        assert m['create_document'] == '创建文档'
+        assert 'read_note' in m
+        assert m['read_note'] == '读取笔记'
 
     def test_all_values_are_non_empty_chinese(self):
         """所有映射值为非空中文字符串。"""
@@ -52,7 +52,6 @@ class TestToolCnMap:
         # 核心工具必须在映射表中
         core_tools = {
             'search_kb', 'read_note', 'write_note',
-            'create_document', 'add_element',
         }
         missing = core_tools - set(m.keys())
         assert len(missing) == 0, f"核心工具缺少中文映射: {missing}"

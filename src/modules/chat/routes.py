@@ -19,11 +19,7 @@ _STREAM_CHUNK_DELAY = 0.02           # 答案分块推送间隔
 
 # 工具名中文映射表（两个 SSE 生成器共享）
 TOOL_CN_MAP = {
-    'create_document': '创建文档', 'add_element': '写入内容',
-    'get_structure': '获取结构', 'get_outline': '获取大纲',
-    'set_element': '设置元素', 'read_document': '读取文档',
-    'read_sheet': '读取表格', 'write_cells': '写入数据',
-    'list_sheets': '获取表格', 'search_kb': '搜索知识库',
+    'search_kb': '搜索知识库',
     'read_note': '读取笔记', 'read_wiki_page': '读取Wiki',
     'list_folders': '列出目录', 'write_note': '保存笔记',
     'compile_wiki': '编译Wiki', 'approve_candidate': '审批内容',
@@ -32,9 +28,6 @@ TOOL_CN_MAP = {
     'websearch__web_search': '联网搜索',
 }
 
-
-# Office 文件扩展名 → 用 OfficeCLI 读取
-_OFFICE_EXTS = {'.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt'}
 
 # PDF 文件扩展名 → 提示 LLM 通过 pdf-mcp 工具按需读取
 _PDF_EXTS = {'.pdf'}
@@ -61,18 +54,6 @@ def _read_text_file(filepath, filename):
     return '=== ' + filename + '（文本文件，已读取） ===\n```\n' + content + '\n```'
 
 
-def _read_office_file(filepath, filename):
-    """通过 OfficeCLI 读取 Office 文档为 HTML。"""
-    from modules.mcp.tools_office import _run_officecli
-    rc, stdout, stderr = _run_officecli(['view', filepath, 'html'], timeout=60)
-    if rc != 0:
-        return '=== ' + filename + ' (OfficeCLI 读取失败: ' + (stderr or '未知错误') + ') ==='
-    content = stdout
-    if len(content) > 80000:
-        content = content[:80000] + '\n...(内容过长已截断)'
-    return '=== ' + filename + '（Office 文档，已读取） ===\n' + content
-
-
 def _pdf_hint(filepath, filename):
     """PDF 附件不预读，提示 LLM 通过 pdf-mcp 工具按需读取。
 
@@ -92,7 +73,6 @@ def _pdf_hint(filepath, filename):
 def _read_attachments(filepaths):
     """按文件格式读取附件内容，拼接为文本供 LLM 使用。
 
-    - Office 文档（.docx/.xlsx/.pptx 等）：调用 OfficeCLI view 预读
     - PDF 文档（.pdf）：不预读，提示 LLM 调用 pdf-mcp 工具按需读取
     - 文本文件（.txt/.md/.json/.py 等）：UTF-8 直接读取
     - 其他二进制文件：标注文件大小
@@ -112,9 +92,7 @@ def _read_attachments(filepaths):
         ext = os.path.splitext(filename)[1].lower()
 
         try:
-            if ext in _OFFICE_EXTS:
-                parts.append(_read_office_file(filepath, filename))
-            elif ext in _PDF_EXTS:
+            if ext in _PDF_EXTS:
                 parts.append(_pdf_hint(filepath, filename))
             elif ext in _TEXT_EXTS or not ext:
                 parts.append(_read_text_file(filepath, filename))
@@ -366,17 +344,8 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
                 status, result = 'error', 'Agent 异常终止'
                 break
 
-    # 提取导出文件
+    # 导出文件列表（知识问答收敛后不再产出 Office 导出文件）
     exported_files = []
-    _seen = set()
-    for tc in reversed(tool_calls_info):
-        if tc['tool_name'] == 'create_document':
-            args = tc['tool_arguments']
-            fpath = args.get('path', '') if isinstance(args, dict) else (args if isinstance(args, str) else '')
-            fname = os.path.basename(fpath) if fpath else ''
-            if fname and fname not in _seen:
-                _seen.add(fname)
-                exported_files.insert(0, {'filename': fname, 'path': fpath})
 
     yield f"data: {json.dumps({'thinking_done': True}, ensure_ascii=False)}{sep}"
 
@@ -682,13 +651,7 @@ def _preview_file_by_ext(filepath, filename, strip_images=False):
     """按扩展名预览文件内容（供 preview_attachment / preview_export 共用）。"""
     ext = os.path.splitext(filename)[1].lower()
     try:
-        if ext in _OFFICE_EXTS:
-            from modules.mcp.tools_office import _run_officecli
-            rc, stdout, stderr = _run_officecli(['view', filepath, 'html'], timeout=60)
-            if rc != 0:
-                return error_response('OfficeCLI 读取失败: ' + (stderr or '未知错误'))
-            return success_response({'title': filename, 'content': stdout, 'type': 'html'})
-        elif ext in _TEXT_EXTS or not ext:
+        if ext in _TEXT_EXTS or not ext:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
             if strip_images:

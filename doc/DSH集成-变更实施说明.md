@@ -376,7 +376,7 @@ def shell():
 
 ---
 
-## 10.9 有损裁剪计划（2026-08-21，规划中，非立即执行）
+## 10.9 有损裁剪计划（2026-08-21，P1 已执行 C1+C2）
 
 > 原则：**先隐藏后删除**；**替代者确认可用才动**；每项可回滚（git 历史保留）；开工前更新本节触发条件核对表。
 > 背景：DSH 集成验证后，PLW 中与 DSH 能力重叠/低价值的模块进入裁剪通道。当前均**未执行**，仅规划。
@@ -385,8 +385,8 @@ def shell():
 
 | # | 项 | 现状 | 目标 | 触发条件 | 验证方式 | 优先级 |
 |---|---|---|---|---|---|---|
-| C1 | **officecli 退役**（28 工具中 9 个 Office 工具 → 19） | PLW vendored v1.0.143 + `tools_office.py` + `bin/mcp/officecli` | 从 /mcp 暴露面移除；PLW 降级薄壳 → 退役 | ①确认**无非 DSH 用户**在用 ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 ③上游二进制先升 v1.0.144 过渡 | 同事入口无回归；DSH 独立完成文档读写（SKILL 方式） | P1 |
-| C2 | **chat 收敛 RAG 问答** | 全量 agent（LLM+MCP 编排） | 知识问答优先（search_kb/websearch）；通用编排引导去 DSH 模式 | §10.7 一键更新/headless 桥稳定运行后 | 对话页知识问答正常；日常编排走 DSH | P1 |
+| C1 | **officecli 退役**（28 工具中 9 个 Office 工具 → 19） | ✅ 已退役（9 工具 + `tools_office.py` + `bin/mcp/officecli` 已移除） | 从 /mcp 暴露面移除；PLW 降级薄壳 → 退役 | ①确认**无非 DSH 用户**在用 ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 ③上游二进制先升 v1.0.144 过渡 | 同事入口无回归；DSH 独立完成文档读写（SKILL 方式） | P1 |
+| C2 | **chat 收敛 RAG 问答** | ✅ 已收敛（知识问答优先 + 引导 DSH） | 知识问答优先（search_kb/websearch）；通用编排引导去 DSH 模式 | §10.7 一键更新/headless 桥稳定运行后 | 对话页知识问答正常；日常编排走 DSH | P1 |
 | C3 | **automation 执行引擎剥离** | react loop 兜底保留 | 仅 headless 桥执行；内部 loop 删除 | headless 执行稳定 N 轮（无回退触发） | 定时任务全走 headless | P2 |
 | C4 | **pdf-mcp / websearch 退役**（`bin/mcp/`） | builtin 拉起 | 移除（DSH 用**自研 pdf-mcp 直连 :17654** + 自带 websearch） | **自研 pdf-mcp 直连 DSH 实测通过**（2026-08-21 已接入配置，待重启验证）。⚠️ 生态替代实测不合格：`@modelcontextprotocol/server-pdf` 是 viewer 工具集（read_pdf_bytes，非文本提取）；`pdf-mcp-server` 依赖原生 canvas（node-gyp 编译失败） | DSH 独立处理 PDF/搜索 | P2 |
 | C5 | **笔记页移除** | `/note` 页面 | 隐藏 → 删除 | 使用率观察期 1~2 月 | 无使用、无死链 | P3 |
@@ -410,14 +410,14 @@ def shell():
 
 ### 触发条件核对表（2026-08-21）
 
-> 核对结论：C1~C7 触发条件**均未全部满足**，维持「规划中、未执行」。仅 C6 的「已无侧边栏入口」一项已满足（入口已删，等待观察期）。
+> 核对结论（2026-08-21 更新）：**C1、C2 已按用户决策执行（P1）**，其余 C3~C7 触发条件未满足、维持「规划中」。⚠️ C1 的 ②③ 触发条件（DSH OfficeCLI 官方 SKILL/MCP 实测通过 / 上游二进制先升 v1.0.144）**未满足即执行**，本次为「有损删除」先行，git 历史保留完整回滚路径（回滚：`git revert <commit>` 恢复 9 工具 + 二进制）。
 
 | # | 触发条件 | 核对结果 | 证据 / 说明 |
 |---|---|---|---|
-| C1 | ①无非 DSH 用户在用 | 🕐 待确认 | 无法从代码确认，需业务侧确认 |
-| C1 | ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 | ❌ 未通过 | 无实测证据 |
-| C1 | ③上游二进制先升 v1.0.144 | ❌ 未满足 | 当前 vendored **v1.0.143**（`src/modules/mcp/client_routes.py`、`src/bin/mcp/officecli/service.json`） |
-| C2 | §10.7 一键更新/headless 桥稳定运行后 | ❌ 未满足 | §10.7 刚提交（`c46eceb`），尚未观察稳定运行 |
+| C1 | ①无非 DSH 用户在用 | ✅ 已执行（用户决策） | 无法从代码确认，业务侧未确认，按用户决策先行 |
+| C1 | ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 | ⚠️ 未满足即执行 | 无实测证据；执行后 DSH 侧需尽快补实测 |
+| C1 | ③上游二进制先升 v1.0.144 | ⚠️ 未满足即执行 | 原 vendored v1.0.143 已随 `git rm` 删除；文档能力由 DSH 官方 SKILL/MCP 承接 |
+| C2 | §10.7 一键更新/headless 桥稳定运行后 | ✅ 已执行（用户决策） | §10.7 已提交（`c46eceb`），稳定性观察中，按用户决策先行收敛 |
 | C3 | headless 执行稳定 N 轮（无回退触发） | ❌ 未满足 | 需运行观察；`automation_runner.py` 仍为 headless 优先 + react loop 回退 |
 | C4 | 自研 pdf-mcp 直连 DSH 实测通过（:17654） | 🔶 待重启验证 | 2026-08-21 已接入 DSH 配置（`cordis.patch.yml` mcp-pdf → `http://127.0.0.1:17654/mcp`），dump-config 通过，待重启 DSH 后新会话实测。⚠️ 生态替代不合格：server-pdf 是 viewer（read_pdf_bytes）、pdf-mcp-server 依赖原生 canvas（node-gyp 编译失败） |
 | C5 | 使用率观察期 1~2 月 | ❌ 未满足 | 观察期未到；`/note` 仍在侧边栏（`base.html`） |
@@ -427,9 +427,16 @@ def shell():
 **代码现状快照（本次核对）**：
 
 - 侧边栏菜单（`src/templates/base.html`）：工作台 / 对话 / Wiki / 文章 / 图片 / 待办 / 自动化 / 笔记 / 设置——**无 `/folder`、无 `/tasks`、无 `/agent`**；
-- OfficeCLI：9 个工具仍在 `tools_registration.py` 注册，`_BUILTIN_GROUPS` 含 `officecli` 分组（`client_routes.py`）；
-- `pdf-mcp` / `websearch`：均为 `builtin` + `subprocess`（`src/bin/mcp/*/service.json`），在 `app.py` 内置服务注册，仍被 chat/agent 引用；
+- **C1 已退役**：`tools_office.py` 与 `bin/mcp/officecli/`（v1.0.143 + 6 平台二进制）已 `git rm`；`tools_registration.py` 移除 9 个 Office 工具注册，`_BUILTIN_GROUPS` 仅剩 `knowledge` / `task`（本地工具 28→19）；
+- **C2 已收敛**：`agent.py` 两个 system prompt 聚焦知识问答 + 引导 DSH；`chat/routes.py` 移除 OfficeCLI 附件预览/导出提取；`home/routes.py` 移除 `officecli_available` 探测；
+- `pdf-mcp` / `websearch`：均为 `builtin` + `subprocess`（`src/bin/mcp/*/service.json`），在 `app.py` 内置服务注册，仍被 chat/agent 引用（C4 待执行）；
 - `automation_runner.py`：已 headless 优先 + react loop 回退（C3 剥离的前提代码形态已就位，仅差「稳定 N 轮」观察）。
+
+### P1 执行记录（C1 + C2，2026-08-21）
+
+- **C1 officecli 退役**：`git rm -r src/bin/mcp/officecli src/modules/mcp/tools_office.py`；`tools_registration.py` 移除 9 个 Office handler 导入与注册；`client_routes.py` 移除 `officecli` 分组、`_get_officecli_status()` 与 binary 分支；`home/routes.py` 移除 `officecli_available` 探测。验证：`registry.list_tools()` → 19 个工具，groups 仅 `['knowledge', 'task']`。
+- **C2 chat 收敛 RAG 问答**：`agent.py` 重写 AGENT/EXPERT 提示词（聚焦 search_kb/websearch + 「定位与边界」引导 DSH），`agent_chat()` 移除 `export_dir` 注入；`chat/routes.py` 移除 `_OFFICE_EXTS`/`_read_office_file()`/Office 附件预读/导出提取/`_preview_file_by_ext()` OfficeCLI 分支；`orchestrator.py` 移除「生成 Office 文档」提示段；`builtin_mcp_manager.py` 注释去 OfficeCLI。
+- **测试**：`tests/desktop` 45 passed；`tests/chat/test_tool_map.py` 5 passed；`tests` 全量 210 passed / 9 failed / 5 errors——失败均为**预先存在**（`common.agent._get_active_llm` 缺失：`test_thinking_stages.py` 8 + `test_agent_expert.py` 5；`test_integration_workbuddy.py` 断言 `ZSSNote` vs `PersonLLMWiki` 陈旧服务名），与本批改动无关。
 
 ---
 
