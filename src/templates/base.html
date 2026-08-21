@@ -27,49 +27,71 @@
         <div class="index-aside">
             <div class="index-aside-root">
                 <div class="aside-item-container">
+                    <div class="aside-item item-user top-user">
+                        <div class="user-avatar" onclick="location.href='/settings'" style="cursor:pointer" role="button" tabindex="0" aria-label="用户头像，前往设置">
+                            <svg id="sidebar-avatar" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                    </div>
+
                     <div class="item-menu-container">
-                        <div class="aside-item item-user top-user">
-                            <div class="user-avatar" onclick="location.href='/settings'" style="cursor:pointer" role="button" tabindex="0" aria-label="用户头像，前往设置">
-                                <svg id="sidebar-avatar" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <div class="sidebar-group" data-group="knowledge">
+                            <button type="button" class="sidebar-group-title" aria-expanded="true" aria-controls="sg-knowledge">
+                                <span>知识组</span>
+                                <svg class="sidebar-chevron" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div class="sidebar-group-body" id="sg-knowledge">
+                                <a href="/wiki" data-nav class="item-menu {% if active_view == 'wiki' %}is-active{% endif %}" aria-label="Wiki">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                                    <span>Wiki</span>
+                                </a>
+                                <a href="/article" data-nav class="item-menu {% if active_view == 'article' %}is-active{% endif %}" aria-label="文章">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                                    <span>文章</span>
+                                </a>
+                                <a href="/picture" data-nav class="item-menu {% if active_view == 'picture' %}is-active{% endif %}" aria-label="图片">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                                    <span>图片</span>
+                                </a>
+                                <a href="/chat" data-nav class="item-menu {% if active_view == 'chat' %}is-active{% endif %}" aria-label="对话">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    <span>对话</span>
+                                </a>
                             </div>
                         </div>
+
+                        <div class="sidebar-group" data-group="efficiency">
+                            <button type="button" class="sidebar-group-title" aria-expanded="true" aria-controls="sg-efficiency">
+                                <span>效率组</span>
+                                <svg class="sidebar-chevron" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div class="sidebar-group-body" id="sg-efficiency">
+                                <a href="/todo" data-nav class="item-menu {% if active_view == 'todo' %}is-active{% endif %}" aria-label="待办">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                                    <span>待办</span>
+                                </a>
+                                <a href="/automation" data-nav class="item-menu {% if active_view == 'automation' %}is-active{% endif %}" aria-label="控制台">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                                    <span>控制台</span>
+                                </a>
+                                <a href="/note" data-nav class="item-menu {% if active_view == 'note' %}is-active{% endif %}" aria-label="笔记">
+                                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                    <span>笔记</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-bottom">
                         <a href="/" data-nav class="item-menu {% if active_view == 'home' %}is-active{% endif %}" aria-label="工作台">
                             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                             <span>工作台</span>
-                        </a>
-                        <a href="/chat" data-nav class="item-menu {% if active_view == 'chat' %}is-active{% endif %}" aria-label="对话">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            <span>对话</span>
-                        </a>
-                        <a href="/article" data-nav class="item-menu {% if active_view == 'article' %}is-active{% endif %}" aria-label="文章">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                            <span>文章</span>
-                        </a>
-                        <a href="/todo" data-nav class="item-menu {% if active_view == 'todo' %}is-active{% endif %}" aria-label="待办">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                            <span>待办</span>
-                        </a>
-                        <a href="/tasks" data-nav class="item-menu {% if active_view == 'tasks' %}is-active{% endif %}" aria-label="任务">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
-                            <span>任务</span>
-                        </a>
-                        <a href="/wiki" data-nav class="item-menu {% if active_view == 'wiki' %}is-active{% endif %}" aria-label="Wiki">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                            <span>Wiki</span>
-                        </a>
-                        <a href="/picture" data-nav class="item-menu {% if active_view == 'picture' %}is-active{% endif %}" aria-label="图片">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                            <span>图片</span>
-                        </a>
-                        <a href="/automation" data-nav class="item-menu {% if active_view == 'automation' %}is-active{% endif %}" aria-label="控制台">
-                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-                            <span>控制台</span>
                         </a>
                         <a href="/agent" data-nav class="item-menu {% if active_view == 'agent' %}is-active{% endif %}" aria-label="DSH 模式">
                             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
                             <span>DSH 模式</span>
                         </a>
                     </div>
+
                     <a href="/settings" data-nav class="aside-item item-setting {% if active_view == 'settings' %}is-active{% endif %}" aria-label="设置">
                         <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     </a>
@@ -369,6 +391,32 @@
             var el = document.getElementById('sidebar-avatar');
             if (el) { el.innerHTML = window.AVATAR_SVGS[saved] || window.AVATAR_SVGS['user']; }
         })();
+    </script>
+    <script>
+    (function() {
+        var STORAGE_PREFIX = 'sidebar_group_';
+        var groups = document.querySelectorAll('.sidebar-group');
+        groups.forEach(function(group) {
+            var name = group.getAttribute('data-group');
+            if (!name) return;
+            var key = STORAGE_PREFIX + name;
+            var title = group.querySelector('.sidebar-group-title');
+            var body = group.querySelector('.sidebar-group-body');
+            if (!title || !body) return;
+
+            // 恢复折叠状态（默认展开）
+            if (localStorage.getItem(key) === 'collapsed') {
+                group.classList.add('is-collapsed');
+                title.setAttribute('aria-expanded', 'false');
+            }
+
+            title.addEventListener('click', function() {
+                var collapsed = group.classList.toggle('is-collapsed');
+                title.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                localStorage.setItem(key, collapsed ? 'collapsed' : 'expanded');
+            });
+        });
+    })();
     </script>
 </body>
 </html>
