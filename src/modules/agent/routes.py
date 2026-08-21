@@ -4,7 +4,7 @@
 桌面壳（shell）以 Wiki/DSH 模式切换方式嵌入 DSH web；/agent 作为 Web 浏览器降级入口。
 DSH 缺失或版本过低时优雅降级。
 """
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect, url_for
 from common.response import success_response, error_response
 from common import dsh_bridge
 
@@ -19,7 +19,8 @@ def shell():
 
 @agent_bp.route('/agent')
 def agent():
-    return render_template('agent.html', active_view='agent')
+    """旧书签/直接访问兼容：统一进入 Wiki/DSH 模式壳。"""
+    return redirect(url_for('agent.shell'))
 
 
 @agent_bp.route('/api/agent/status')

@@ -24,14 +24,6 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h6v6H9z"/><path d="M3 9h2"/><path d="M3 15h2"/><path d="M19 9h2"/><path d="M19 15h2"/><path d="M9 3v2"/><path d="M15 3v2"/><path d="M9 19v2"/><path d="M15 19v2"/></svg>
             MCP
         </button>
-        <button class="am-tab" data-tab="skill" onclick="switchTab('skill')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
-            Skill
-        </button>
-        <button class="am-tab" data-tab="agent" onclick="switchTab('agent')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="12" x="3" y="6" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M12 18v3"/><path d="M8 21h8"/></svg>
-            智能体
-        </button>
     </nav>
 
     <!-- ═══ Tab Pane: Automation ═══ -->
@@ -229,63 +221,6 @@
         </div>
     </div>
 
-    <!-- ═══ Tab Pane: Skill ═══ -->
-    <div class="am-pane" id="pane-skill" style="display:none">
-
-        <!-- Skills 列表 -->
-        <section class="am-card">
-            <div class="am-card-head">
-                <h2 class="am-card-title">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287Z"/></svg>
-                    Skills
-                </h2>
-                <span class="am-card-badge" id="skill-count">0</span>
-            </div>
-            <div class="am-skill-list" id="skill-list">
-                <div class="am-loading">加载中…</div>
-            </div>
-        </section>
-
-    </div>
-
-    <!-- ═══ Tab Pane: Agent ═══ -->
-    <div class="am-pane" id="pane-agent" style="display:none">
-
-        <div class="am-agent-layout">
-            <!-- 场景列表 -->
-            <section class="am-card am-agent-scenarios">
-                <div class="am-card-head">
-                    <h2 class="am-card-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="12" x="3" y="6" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M12 18v3"/><path d="M8 21h8"/></svg>
-                        场景
-                    </h2>
-                    <button class="am-btn-primary am-btn-sm" onclick="showScenarioModal()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                        新建
-                    </button>
-                </div>
-                <div class="am-agent-scenario-list" id="agent-scenario-list">
-                    <div class="am-loading">加载中…</div>
-                </div>
-            </section>
-
-            <!-- 节点流水线 -->
-            <section class="am-card am-agent-nodes">
-                <div class="am-card-head">
-                    <h2 class="am-card-title" id="agent-node-title">节点流水线</h2>
-                    <button class="am-btn-primary am-btn-sm" id="agent-add-node-btn" onclick="showNodeModal()" disabled>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                        添加节点
-                    </button>
-                </div>
-                <div class="am-agent-node-list" id="agent-node-list">
-                    <div class="am-empty">请先选择左侧场景</div>
-                </div>
-            </section>
-        </div>
-
-    </div>
-
     <!-- ═══ Scenario Modal ═══ -->
     <div class="am-modal-overlay" id="agent-scenario-modal" style="display:none" onclick="if(event.target===this)hideScenarioModal()">
         <div class="am-modal">
@@ -403,7 +338,6 @@
 onPageReady(function() {
     loadSchedulerStatus();
     loadMcpServers();
-    loadSkills();
     loadTasks();
 });
 
@@ -416,7 +350,6 @@ function switchTab(tab) {
     pane.classList.add('am-pane-active');
     document.querySelector('[data-tab="' + tab + '"]').classList.add('am-tab-active');
     if (tab === 'mcp') { loadMcpServers(); }
-    if (tab === 'agent') { loadAgentScenarios(); }
 }
 
 /* ═══ Scheduler Status ═══ */
