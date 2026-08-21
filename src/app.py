@@ -357,10 +357,10 @@ with app.app_context():
 
     # 内置服务（pdf-mcp 等，子进程拉起，异步不阻塞启动）
     # debug 模式下只在 werkzeug 的实际 worker 进程启动，避免 reloader 双开
+    is_main_worker = (
+        not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    )
     try:
-        is_main_worker = (
-            not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
-        )
         if is_main_worker:
             from common.builtin_mcp_manager import init_all_async
             init_all_async()

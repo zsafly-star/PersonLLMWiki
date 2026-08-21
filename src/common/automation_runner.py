@@ -81,7 +81,7 @@ def run_task(task_id, trigger='scheduled'):
             _hr = dsh_bridge.run_headless(task.prompt)
             if _hr.get('success'):
                 _finish_run(run, status='ok', response=_hr.get('output', ''))
-                _update_task_last(task)
+                _update_task_last(task, status='ok')
                 return run.id
             logger.info(f'[Automation] DSH headless 执行失败，回退 react loop: {_hr.get("error")}')
     except Exception as _e:
@@ -91,7 +91,7 @@ def run_task(task_id, trigger='scheduled'):
     provider, _, _ = get_active_llm()
     if not provider:
         _finish_run(run, status='error', error='未配置活跃的 LLM')
-        _update_task_last(task)
+        _update_task_last(task, status='error')
         return run.id
 
     # 获取工具（按 MCP 服务器过滤）
@@ -111,12 +111,12 @@ def run_task(task_id, trigger='scheduled'):
     try:
         result = run_agent_loop(messages, tools=tools, max_rounds=MAX_TOOL_ROUNDS)
         _finish_run(run, status='ok', response=result['response'], tool_calls=result['tool_calls'])
-        _update_task_last(task)
+        _update_task_last(task, status='ok')
         return run.id
     except Exception as e:
         logger.error(f'[Automation] 任务 #{task_id} 执行异常: {e}')
         _finish_run(run, status='error', error=f'执行异常: {str(e)}')
-        _update_task_last(task)
+        _update_task_last(task, status='error')
         return run.id
 
 
@@ -134,11 +134,11 @@ def _finish_run(run, status='ok', response='', error='', tool_calls=None):
     db.session.commit()
 
 
-def _update_task_last(task):
+def _update_task_last(task, status='ok'):
     """更新任务本身的 last_run / last_result。"""
     task.last_run = datetime.utcnow()
     task.last_result = json.dumps({
-        'status': 'ok',
+        'status': status,
         'response': '完整记录见运行记录',
     }, ensure_ascii=False)
     db.session.commit()

@@ -161,6 +161,16 @@ class TestSetConfigValidation:
         with pytest.raises(ValueError):
             dsh_bridge.set_config(dsh_cmd=str(evil))
 
+    def test_non_string_dsh_cmd_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        with pytest.raises(ValueError):
+            dsh_bridge.set_config(dsh_cmd=12345)
+
+    def test_non_string_dsh_url_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(dsh_bridge, '_config_path', lambda: str(tmp_path / 'dsh_config.json'))
+        with pytest.raises(ValueError):
+            dsh_bridge.set_config(dsh_url=['http://127.0.0.1:3080'])
+
 
 class TestLoopbackUrl:
     def test_loopback_ok(self):
@@ -182,6 +192,19 @@ class TestCheckHealth:
     def test_invalid_url_returns_false(self):
         assert dsh_bridge.check_health('file:///etc/passwd') is False
         assert dsh_bridge.check_health('not-a-url') is False
+
+    def test_redirect_3xx_counts_as_alive(self, monkeypatch):
+        # 根路径 302 重定向（被禁跟随）仍说明服务存活，不应误判为未运行
+        import urllib.error
+
+        class _FakeOpener:
+            def open(self, req, timeout=None):
+                raise urllib.error.HTTPError(
+                    req.full_url, 302, 'Found', {}, None,
+                )
+
+        monkeypatch.setattr(dsh_bridge.urllib.request, 'build_opener', lambda *a, **k: _FakeOpener())
+        assert dsh_bridge.check_health('http://127.0.0.1:3080') is True
 
 
 class TestResolveDshCmd:

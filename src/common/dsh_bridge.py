@@ -18,10 +18,12 @@ PersonLLMWiki 与 DSH 的唯一交互入口，收敛 DSH 的进程管理与 CLI 
     running        已安装且 DSH web 健康
 """
 
+import http.client
 import json
 import os
 import shutil
 import subprocess
+import threading
 import urllib.request
 import urllib.error
 
@@ -46,6 +48,10 @@ _managed_proc = None
 # 版本探测结果缓存（避免每次状态查询都跑子进程）
 _VERSION_CACHE_TTL = 30.0
 _version_cache = {'ts': 0.0, 'value': None}
+
+# 并发保护：start/stop/status 可能被 auto_start 后台线程与前端请求并发调用
+_proc_lock = threading.Lock()
+_version_lock = threading.Lock()
 
 
 def _valid_http_url(url):
@@ -142,12 +148,16 @@ def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
     """更新 DSH 配置（仅更新传入的非 None 字段）。返回完整配置。"""
     cfg = _read_config()
     if dsh_cmd is not None:
+        if not isinstance(dsh_cmd, str):
+            raise ValueError('DSH 命令必须是字符串')
         cmd = dsh_cmd.strip()
         # 仅允许文件名以 dsh 命名的可执行文件；目录路径由 _resolve_dsh_cmd 收敛到候选文件名
         if cmd and os.path.isfile(cmd) and os.path.basename(cmd).lower() not in ('dsh', 'dsh.exe', 'dsh.cmd'):
             raise ValueError('DSH 命令文件必须是 dsh / dsh.exe / dsh.cmd')
         cfg['dsh_cmd'] = cmd
     if dsh_url is not None:
+        if not isinstance(dsh_url, str):
+            raise ValueError('DSH 地址必须是字符串')
         url = (dsh_url or '').strip() or DEFAULT_DSH_URL
         if not _valid_http_url(url) or not _is_loopback_url(url):
             raise ValueError('DSH URL 仅支持 http/https 且 host 必须为回环地址（127.0.0.1/localhost）')
@@ -156,8 +166,9 @@ def set_config(dsh_cmd=None, dsh_url=None, auto_start=None):
         cfg['auto_start'] = bool(auto_start)
     _write_config(cfg)
     # 命令变更后，版本缓存失效
-    _version_cache['ts'] = 0.0
-    _version_cache['value'] = None
+    with _version_lock:
+        _version_cache['ts'] = 0.0
+        _version_cache['value'] = None
     return get_config()
 
 
@@ -198,8 +209,9 @@ def get_version():
         str | None: 版本号字符串；None 表示无法获取。
     """
     import time
-    if time.time() - _version_cache['ts'] < _VERSION_CACHE_TTL:
-        return _version_cache['value']
+    with _version_lock:
+        if time.time() - _version_cache['ts'] < _VERSION_CACHE_TTL:
+            return _version_cache['value']
 
     cmd = _resolve_dsh_cmd()
     if not cmd:
@@ -207,7 +219,7 @@ def get_version():
     try:
         out = subprocess.run(
             [cmd, '--version'],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             cwd=os.path.dirname(cmd),
         )
         text = (out.stdout or '').strip() or (out.stderr or '').strip()
@@ -216,8 +228,9 @@ def get_version():
         version = None
 
     # 仅缓存成功的探测结果；失败(None)不落缓存，避免放大"版本过低"误判
-    _version_cache['ts'] = time.time() if version else 0.0
-    _version_cache['value'] = version
+    with _version_lock:
+        _version_cache['ts'] = time.time() if version else 0.0
+        _version_cache['value'] = version
     return version
 
 
@@ -287,6 +300,9 @@ def check_health(url=None, timeout=HEALTH_TIMEOUT):
         req = urllib.request.Request(target, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
         with opener.open(req, timeout=timeout) as resp:
             return resp.status == 200
+    except urllib.error.HTTPError as e:
+        # 3xx 重定向（已被禁跟随）仍说明服务存活，避免把根路径 302 误判为未运行
+        return 300 <= e.code < 400
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
@@ -349,20 +365,26 @@ def start(timeout=30.0):
 
     cmd = _resolve_dsh_cmd()
     global _managed_proc
-    # 默认以 `dsh web` 启动（监听 3080）；DSH CLI 语法变化收敛于此
-    try:
-        _managed_proc = subprocess.Popen(
-            [cmd, 'web'],
-            cwd=os.path.dirname(cmd),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-    except (OSError, subprocess.SubprocessError) as e:
-        _managed_proc = None
-        return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}
+    # 默认以 `dsh web` 启动（监听 3080）；DSH CLI 语法变化收敛于此。
+    # 锁内双重检查，防止 auto_start 后台线程与前端点击并发重复拉起。
+    with _proc_lock:
+        if check_health():
+            return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
+        if _managed_proc is not None and _managed_proc.poll() is None:
+            return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
+        try:
+            new_proc = subprocess.Popen(
+                [cmd, 'web'],
+                cwd=os.path.dirname(cmd),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}
+        _managed_proc = new_proc
 
-    # 等待健康检查
+    # 等待健康检查（锁外，避免长时间持锁阻塞 stop）
     import time
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -370,6 +392,10 @@ def start(timeout=30.0):
             return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
         time.sleep(0.5)
 
+    # 超时未就绪：若进程已退出则清理脏句柄，避免误认为"仍在管理"
+    with _proc_lock:
+        if _managed_proc is new_proc and new_proc.poll() is not None:
+            _managed_proc = None
     return {'started': False, 'status': STATUS_NOT_RUNNING,
             'error': 'DSH 已拉起但未在超时内就绪，请检查 3080 端口'}
 
@@ -380,7 +406,8 @@ def stop():
     若 DSH 由用户自启（非本进程拉起），不强制 kill，仅做健康检查反馈。
     """
     global _managed_proc
-    proc, _managed_proc = _managed_proc, None
+    with _proc_lock:
+        proc, _managed_proc = _managed_proc, None
     if proc is not None and proc.poll() is None:
         try:
             if os.name == 'nt':
@@ -395,6 +422,10 @@ def stop():
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
         except (OSError, subprocess.SubprocessError):
             pass
 
@@ -421,7 +452,7 @@ def run_headless(prompt, timeout=600):
     try:
         proc = subprocess.run(
             [cmd, '--profile', 'headless', prompt],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout,
             cwd=os.path.dirname(cmd),
         )
         return {
@@ -455,7 +486,7 @@ def check_update():
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
         latest = data.get('version') if isinstance(data, dict) else None
-    except (urllib.error.URLError, OSError, ValueError) as e:
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
         return {'installed': installed, 'latest': None, 'has_update': False,
                 'error': f'获取最新版本失败: {e}'}
 
