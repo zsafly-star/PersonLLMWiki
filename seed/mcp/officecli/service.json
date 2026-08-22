@@ -1,8 +1,0 @@
-{
-  "name": "officecli",
-  "source": "builtin",
-  "location": "local",
-  "type": "binary",
-  "description": "Word/Excel/PPT 文档读写（预编译二进制，6 平台，v1.0.143）",
-  "tool_count": 9
-}

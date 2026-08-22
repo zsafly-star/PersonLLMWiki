@@ -438,6 +438,13 @@ def shell():
 - **C2 chat 收敛 RAG 问答**：`agent.py` 重写 AGENT/EXPERT 提示词（聚焦 search_kb/websearch + 「定位与边界」引导 DSH），`agent_chat()` 移除 `export_dir` 注入；`chat/routes.py` 移除 `_OFFICE_EXTS`/`_read_office_file()`/Office 附件预读/导出提取/`_preview_file_by_ext()` OfficeCLI 分支；`orchestrator.py` 移除「生成 Office 文档」提示段；`builtin_mcp_manager.py` 注释去 OfficeCLI。
 - **测试**：`tests/desktop` 45 passed；`tests/chat/test_tool_map.py` 5 passed；`tests` 全量 210 passed / 9 failed / 5 errors——失败均为**预先存在**（`common.agent._get_active_llm` 缺失：`test_thinking_stages.py` 8 + `test_agent_expert.py` 5；`test_integration_workbuddy.py` 断言 `ZSSNote` vs `PersonLLMWiki` 陈旧服务名），与本批改动无关。
 
+**P1 核验遗留事项（2026-08-21 独立复核补充）**：
+
+1. ✅ `seed/mcp/officecli/` 补删（~200MB，7 文件）——本提交处理；
+2. ⚠️ **运行中的 PLW 服务仍报 28 工具**（旧进程未重启）——提交后需重启 PLW 使 19 工具生效；DSH 的 `mcp__personllmwiki__*` 将少 9 个 Office 工具（DSH 侧 officecli SKILL 兜底）；
+3. ⚠️ **C1② 待补实测**：DSH 新会话用 officecli SKILL 跑一次文档操作（装完 SKILL 未实测，触发条件 ② 仍算未满足）；
+4. 🔲 预存测试失败清理（`_get_active_llm` 缺失、ZSSNote 陈旧断言）——独立清理项，与 C1/C2 无关。
+
 ---
 
 ## 10.10 共享中心一期：浏览 / 详情 / 安装（2026-08-21）
