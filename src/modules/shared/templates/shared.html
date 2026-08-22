@@ -15,7 +15,10 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 共享条目
             </h2>
-            <button class="am-btn-ghost am-btn-xs" onclick="loadItems()">刷新</button>
+            <div class="sh-head-actions">
+                <button class="am-btn-ghost am-btn-xs" onclick="openPublish()">发布</button>
+                <button class="am-btn-ghost am-btn-xs" onclick="loadItems()">刷新</button>
+            </div>
         </div>
         <div class="sh-list" id="sh-list">
             <div class="am-loading">加载中…</div>
@@ -37,6 +40,63 @@
             <div class="am-modal-foot">
                 <button class="am-btn-ghost" onclick="hideDetail()">关闭</button>
                 <button class="am-btn-primary" id="sh-detail-install-btn" onclick="installFromDetail()">安装</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ 发布弹窗 ═══ -->
+    <div class="am-modal-overlay" id="sh-publish-modal" style="display:none" onclick="if(event.target===this)closePublish()">
+        <div class="am-modal" style="max-width:640px">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title">发布共享条目</h3>
+                <button class="am-modal-close" onclick="closePublish()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body sh-pub-body">
+                <div class="sh-form-grid">
+                    <label class="sh-field">
+                        <span>类型</span>
+                        <select id="sh-pub-type" onchange="updatePreview()">
+                            <option value="skill">Skill</option>
+                            <option value="agent">智能体</option>
+                        </select>
+                    </label>
+                    <label class="sh-field">
+                        <span>名称（kebab-case）</span>
+                        <input id="sh-pub-name" type="text" placeholder="my-skill" oninput="updatePreview()">
+                    </label>
+                    <label class="sh-field">
+                        <span>描述</span>
+                        <input id="sh-pub-desc" type="text" placeholder="一句话说明" oninput="updatePreview()">
+                    </label>
+                    <label class="sh-field">
+                        <span>版本</span>
+                        <input id="sh-pub-version" type="text" placeholder="1.0.0" oninput="updatePreview()">
+                    </label>
+                    <label class="sh-field">
+                        <span>作者</span>
+                        <input id="sh-pub-author" type="text" placeholder="zhang.san" oninput="updatePreview()">
+                    </label>
+                    <label class="sh-field">
+                        <span>来源等级</span>
+                        <select id="sh-pub-level" onchange="updatePreview()">
+                            <option value="同事">同事</option>
+                            <option value="官方库">官方库</option>
+                            <option value="外部">外部</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="sh-field">
+                    <span>内容</span>
+                    <textarea id="sh-pub-content" rows="7" placeholder="Skill 正文或智能体定义内容" oninput="updatePreview()"></textarea>
+                </label>
+                <div class="sh-kv-section">manifest 预览</div>
+                <pre class="sh-pre" id="sh-pub-preview">{}</pre>
+            </div>
+            <div class="am-modal-foot">
+                <button class="am-btn-ghost" onclick="closePublish()">取消</button>
+                <button class="am-btn-primary" onclick="submitPublish()">确认发布</button>
             </div>
         </div>
     </div>
@@ -65,6 +125,13 @@
 .sh-kv-val{color:var(--color-text,#1a1a1a);word-break:break-all}
 .sh-kv-section{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}
 .sh-pre{background:var(--color-bg-soft,#f9fafb);border-radius:8px;padding:10px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:220px;white-space:pre-wrap;word-break:break-all}
+.sh-head-actions{display:flex;gap:8px}
+.sh-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.sh-field{display:flex;flex-direction:column;gap:5px;font-size:13px}
+.sh-field span{color:var(--color-muted);font-size:12px}
+.sh-field input,.sh-field select,.sh-field textarea{width:100%;box-sizing:border-box;border:1px solid var(--color-border,#e5e7eb);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--color-surface,#fff);color:var(--color-text,#1a1a1a);font-family:inherit}
+.sh-field textarea{resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (max-width:520px){.sh-form-grid{grid-template-columns:1fr}}
 </style>
 <script>
 onPageReady(function() {
@@ -193,6 +260,72 @@ function _doInstall(path) {
 function hideDetail() {
     document.getElementById('sh-detail-modal').style.display = 'none';
     _detailPath = '';
+}
+
+// ─── 发布 ───
+function openPublish() {
+    document.getElementById('sh-pub-type').value = 'skill';
+    document.getElementById('sh-pub-name').value = '';
+    document.getElementById('sh-pub-desc').value = '';
+    document.getElementById('sh-pub-version').value = '';
+    document.getElementById('sh-pub-author').value = '';
+    document.getElementById('sh-pub-level').value = '同事';
+    document.getElementById('sh-pub-content').value = '';
+    updatePreview();
+    document.getElementById('sh-publish-modal').style.display = '';
+}
+
+function closePublish() {
+    document.getElementById('sh-publish-modal').style.display = 'none';
+}
+
+function buildPublishManifest() {
+    var type = document.getElementById('sh-pub-type').value;
+    var name = document.getElementById('sh-pub-name').value.trim();
+    var m = {
+        type: type,
+        name: name,
+        description: document.getElementById('sh-pub-desc').value.trim(),
+        version: document.getElementById('sh-pub-version').value.trim(),
+        author: document.getElementById('sh-pub-author').value.trim(),
+        source_level: document.getElementById('sh-pub-level').value,
+        content: document.getElementById('sh-pub-content').value
+    };
+    m.install = {kind: 'copy-to', target: (type === 'agent' ? 'agents/' : 'skills/')};
+    return m;
+}
+
+function updatePreview() {
+    var m = buildPublishManifest();
+    document.getElementById('sh-pub-preview').textContent = JSON.stringify(m, null, 2);
+}
+
+function submitPublish() {
+    var m = buildPublishManifest();
+    if (!m.name) { showToast('请填写名称'); return; }
+    if (!m.content.trim()) { showToast('请填写内容'); return; }
+    customConfirm('确认发布「' + m.name + '」到共享仓库？', '发布共享条目', { primary: true, okText: '发布' }).then(function(ok) {
+        if (!ok) return;
+        fetch('/api/shared/publish', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(m)
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.code === 200) {
+                    var d = res.data || {};
+                    var parts = [d.git || res.message];
+                    if (d.warning) parts.push(d.warning);
+                    showToast(parts.filter(Boolean).join(' | '));
+                    closePublish();
+                    loadItems();
+                } else {
+                    showToast(res.message || '发布失败');
+                }
+            })
+            .catch(function(e) { showToast('发布失败: ' + e); });
+    });
 }
 </script>
 {% endblock %}

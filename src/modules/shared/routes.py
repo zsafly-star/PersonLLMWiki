@@ -10,6 +10,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 
 from flask import Blueprint, render_template, request
 
@@ -27,6 +29,12 @@ _KINDS = (
 )
 
 _DEFAULT_SOURCE_LEVEL = '同事'
+
+# ─── 二期：发布 ────────────────────────────────────────────
+_NAME_RE = re.compile(r'^[a-z0-9-]{1,64}$')
+_SECRET_RE = re.compile(r'(?i)\b(token|key|secret|password)\b')
+_PUBLISH_TYPES = ('skill', 'agent')
+_CONTENT_MAX_BYTES = 100 * 1024
 
 
 # ─── 路径解析 ──────────────────────────────────────────────
@@ -374,6 +382,154 @@ def _install_mcp_connect(item_dir, info):
     }, '安装成功' if appended else '已存在')
 
 
+# ─── 二期：发布 ────────────────────────────────────────────
+
+def _run_git(args, cwd):
+    """执行 git 命令，返回 (returncode, stdout, stderr)。"""
+    try:
+        result = subprocess.run(
+            ['git'] + args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+            timeout=60,
+        )
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
+    except Exception as e:
+        return -1, '', str(e)
+
+
+def _find_git_root(path):
+    """向上查找包含 .git 的目录，返回仓库根；找不到返回 None。"""
+    cur = os.path.abspath(path)
+    while True:
+        if os.path.isdir(os.path.join(cur, '.git')):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return None
+        cur = parent
+
+
+def _scan_secrets(content):
+    """扫描 content 中的疑似密钥，返回警告文案；无则返回空串。"""
+    found = _SECRET_RE.findall(content or '')
+    if not found:
+        return ''
+    unique = []
+    for term in found:
+        low = term.lower()
+        if low not in unique:
+            unique.append(low)
+    return '内容疑似包含敏感信息（%s），请确认是否泄露凭证' % '、'.join(unique)
+
+
+def _safe_publish_dir(root, sub, name):
+    """用 sub + name 拼接目标目录并做 realpath 前缀校验（防穿越）。"""
+    item_dir = os.path.join(root, sub, name)
+    real_root = os.path.realpath(root)
+    real_item = os.path.realpath(item_dir)
+    if real_item != real_root and not real_item.startswith(real_root + os.sep):
+        return None
+    return item_dir
+
+
+def _dump_front_matter(meta):
+    """把 dict 序列化为 SKILL.md frontmatter 行（跳过空值）。"""
+    lines = []
+    for key, val in meta.items():
+        if not val:
+            continue
+        if isinstance(val, list):
+            val = ', '.join(str(v) for v in val)
+        lines.append('%s: %s' % (key, val))
+    return lines
+
+
+def _write_skill(root, name, description, version, author, source_level, content):
+    item_dir = os.path.join(root, 'skills', name)
+    os.makedirs(item_dir, exist_ok=True)
+
+    # content 可能已带 frontmatter：保留正文，覆盖/补齐必需字段
+    existing_meta, body = _parse_front_matter(content)
+    if not existing_meta:
+        body = content
+
+    meta = {
+        'name': name,
+        'description': description,
+        'version': version,
+        'author': author,
+        'source_level': source_level,
+    }
+    for key in ('requires_dsh', 'requires_mcp'):
+        if existing_meta.get(key):
+            meta[key] = existing_meta[key]
+
+    fm = _dump_front_matter(meta)
+    final = '---\n' + '\n'.join(fm) + '\n---\n\n' + (body or '').strip() + '\n'
+    with open(os.path.join(item_dir, 'SKILL.md'), 'w', encoding='utf-8') as f:
+        f.write(final)
+
+
+def _write_agent(root, name, description, version, author, source_level, content, install):
+    item_dir = os.path.join(root, 'agents', name)
+    os.makedirs(item_dir, exist_ok=True)
+
+    if isinstance(install, dict) and install.get('kind'):
+        install_obj = install
+    else:
+        install_obj = {'kind': 'copy-to', 'target': 'agents/'}
+
+    data = {
+        'name': name,
+        'version': version,
+        'type': 'agent',
+        'description': description,
+        'author': author,
+        'source_level': source_level,
+        'install': install_obj,
+        'content': content,
+    }
+    with open(os.path.join(item_dir, 'agent.json'), 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _append_index(root, name, item_type, description, author):
+    index_path = os.path.join(root, 'INDEX.md')
+    line = '- %s/%s — %s（%s）' % (name, item_type, description, author)
+    if not os.path.isfile(index_path):
+        line = '# 共享中心\n\n## 索引\n' + line
+    with open(index_path, 'a', encoding='utf-8') as f:
+        f.write(line + '\n')
+
+
+def _git_publish(root, item_type, name):
+    """personal 模式且配置 COMMON_GIT_REPO 时对共享根 git add/commit（push 失败不阻断）。"""
+    if Config.INSTANCE_MODE != 'personal':
+        return '非 personal 模式，未自动提交，请手动提交共享仓库'
+    if not Config.COMMON_GIT_REPO:
+        return '未配置 COMMON_GIT_REPO，请手动提交共享仓库'
+    repo = _find_git_root(root)
+    if not repo:
+        return '共享根不在 git 仓库内，请手动提交'
+    rel = os.path.relpath(root, repo)
+    rc, _out, err = _run_git(['add', '-A', rel], repo)
+    if rc != 0:
+        return 'git add 失败：%s' % err
+    rc, _out, _err = _run_git(['diff', '--cached', '--quiet'], repo)
+    if rc == 0:
+        return '无变更需提交'
+    rc, _out, err = _run_git(['commit', '-m', 'shared: 发布 %s %s' % (item_type, name)], repo)
+    if rc != 0:
+        return 'git commit 失败：%s' % err
+    rc, _out, err = _run_git(['push'], repo)
+    if rc != 0:
+        return '已提交，push 失败：%s' % (err or _out)
+    return '已提交并推送'
+
+
 # ─── 路由 ──────────────────────────────────────────────────
 
 @shared_bp.route('/shared')
@@ -422,3 +578,69 @@ def install_item():
         return error_response('manifest 解析失败', 400)
 
     return _do_install(item_dir, kind, info)
+
+
+@shared_bp.route('/api/shared/publish', methods=['POST'])
+def publish_item():
+    data = request.get_json(silent=True) or {}
+    item_type = (data.get('type') or '').strip()
+    name = (data.get('name') or '').strip()
+    description = (data.get('description') or '').strip()
+    version = (data.get('version') or '').strip()
+    author = (data.get('author') or '').strip()
+    source_level = (data.get('source_level') or '').strip() or _DEFAULT_SOURCE_LEVEL
+    content = data.get('content')
+    install = data.get('install')
+
+    if item_type not in _PUBLISH_TYPES:
+        return error_response('type 仅支持 skill / agent')
+    # 穿越尝试：name 含路径分隔符或 .. 一律拒绝（区别于普通非法名称）
+    if name and ('..' in name or '/' in name or '\\' in name):
+        return error_response('非法路径', 404)
+    if not _NAME_RE.match(name):
+        return error_response('name 必须为 kebab-case（小写字母/数字/连字符，1-64 位）')
+    if content is None or not str(content).strip():
+        return error_response('content 不能为空')
+    content = str(content)
+    if len(content.encode('utf-8')) > _CONTENT_MAX_BYTES:
+        return error_response('content 超过 100KB 限制')
+
+    root = _ensure_shared_root()
+    sub = 'skills' if item_type == 'skill' else 'agents'
+
+    # 防穿越：路径仅由校验后的 name 拼接，再兜底 realpath 前缀校验
+    if _safe_publish_dir(root, sub, name) is None:
+        return error_response('非法路径', 404)
+
+    warning = _scan_secrets(content)
+
+    if item_type == 'skill':
+        _write_skill(root, name, description, version, author, source_level, content)
+    else:
+        _write_agent(root, name, description, version, author, source_level, content, install)
+
+    _append_index(root, name, item_type, description, author)
+
+    git_msg = _git_publish(root, item_type, name)
+
+    result = {
+        'published': True,
+        'type': item_type,
+        'name': name,
+        'path': sub + '/' + name,
+        'git': git_msg,
+    }
+    if warning:
+        result['warning'] = warning
+
+    return success_response(result, '发布成功')
+
+
+@shared_bp.route('/api/shared/mine')
+def my_items():
+    root = _ensure_shared_root()
+    items = _scan_items(root)
+    author = (request.args.get('author') or '').strip() or Config.AUTHOR_NAME
+    if author:
+        items = [it for it in items if it.get('author') == author]
+    return success_response(items)
