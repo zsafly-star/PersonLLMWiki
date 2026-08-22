@@ -11,7 +11,7 @@ from modules.tasks.models import Scenario, ScenarioNode, TaskState
 from modules import (
     article_bp, chat_bp, folder_bp, picture_bp,
     home_bp, note_bp, todo_bp, plan_bp, settings_bp,
-    agent_bp
+    agent_bp, shared_bp
 )
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -53,6 +53,7 @@ app.register_blueprint(mcp_client_bp)
 app.register_blueprint(automation_bp)
 app.register_blueprint(tasks_bp)
 app.register_blueprint(agent_bp)
+app.register_blueprint(shared_bp)
 
 @app.route('/api')
 def api_index():

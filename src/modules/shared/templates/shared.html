@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="am-page" id="sh-page">
+    <header class="am-top">
+        <div class="am-top-left">
+            <h1 class="am-h1">共享中心</h1>
+            <span class="sh-subtitle">浏览同事与官方共享的 Skill / 工作流 / 智能体 / MCP 服务</span>
+        </div>
+    </header>
+
+    <section class="am-card">
+        <div class="am-card-head">
+            <h2 class="am-card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                共享条目
+            </h2>
+            <button class="am-btn-ghost am-btn-xs" onclick="loadItems()">刷新</button>
+        </div>
+        <div class="sh-list" id="sh-list">
+            <div class="am-loading">加载中…</div>
+        </div>
+    </section>
+
+    <!-- ═══ 详情抽屉 ═══ -->
+    <div class="am-modal-overlay" id="sh-detail-modal" style="display:none" onclick="if(event.target===this)hideDetail()">
+        <div class="am-modal" style="max-width:560px">
+            <div class="am-modal-head">
+                <h3 class="am-modal-title" id="sh-detail-title">详情</h3>
+                <button class="am-modal-close" onclick="hideDetail()" aria-label="关闭">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="am-modal-body" id="sh-detail-body">
+                <div class="am-loading">加载中…</div>
+            </div>
+            <div class="am-modal-foot">
+                <button class="am-btn-ghost" onclick="hideDetail()">关闭</button>
+                <button class="am-btn-primary" id="sh-detail-install-btn" onclick="installFromDetail()">安装</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.sh-subtitle{font-size:13px;color:var(--color-muted);margin-left:12px}
+.sh-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:16px}
+.sh-item{border:1px solid var(--color-border,#e5e7eb);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--color-surface,#fff);transition:box-shadow 150ms ease}
+.sh-item:hover{box-shadow:0 4px 16px rgba(0,0,0,0.08)}
+.sh-item-top{display:flex;align-items:center;gap:8px}
+.sh-item-name{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-badge{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.sh-badge-type{background:var(--color-bg-soft,#f3f4f6);color:var(--color-text-soft,#6b7280)}
+.sh-badge-official{background:#e0f2fe;color:#0369a1}
+.sh-badge-colleague{background:#ecfdf5;color:#047857}
+.sh-badge-external{background:#fef3c7;color:#b45309}
+.sh-item-desc{font-size:13px;color:var(--color-text-soft,#6b7280);line-height:1.5;min-height:38px}
+.sh-item-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--color-muted)}
+.sh-item-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
+.sh-kv{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.sh-kv-row{display:flex;gap:8px}
+.sh-kv-key{color:var(--color-muted);min-width:72px;flex-shrink:0}
+.sh-kv-val{color:var(--color-text,#1a1a1a);word-break:break-all}
+.sh-kv-section{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}
+.sh-pre{background:var(--color-bg-soft,#f9fafb);border-radius:8px;padding:10px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:220px;white-space:pre-wrap;word-break:break-all}
+</style>
+<script>
+onPageReady(function() {
+    loadItems();
+});
+
+var _detailPath = '';
+
+function esc(str) { var d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+function escAttr(str) { return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function sourceBadge(level) {
+    if (level === '官方库') return '<span class="sh-badge sh-badge-official">官方库</span>';
+    if (level === '外部') return '<span class="sh-badge sh-badge-external">外部</span>';
+    return '<span class="sh-badge sh-badge-colleague">' + esc(level || '同事') + '</span>';
+}
+
+function typeLabel(t) {
+    var map = {skill:'Skill', workflow:'工作流', agent:'智能体', 'mcp-server':'MCP 服务'};
+    return map[t] || t;
+}
+
+function loadItems() {
+    fetch('/api/shared/items')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) { renderEmpty(result.message || '加载失败'); return; }
+            renderItems(result.data || []);
+        })
+        .catch(function() { renderEmpty('加载失败'); });
+}
+
+function renderEmpty(msg) {
+    document.getElementById('sh-list').innerHTML = '<div class="am-empty">' + esc(msg || '暂无共享条目') + '</div>';
+}
+
+function renderItems(items) {
+    var container = document.getElementById('sh-list');
+    if (!items || items.length === 0) { renderEmpty('暂无共享条目'); return; }
+    container.innerHTML = items.map(function(it) {
+        var install = it.install || {};
+        return '<div class="sh-item">'
+            + '<div class="sh-item-top">'
+            + '<span class="sh-item-name" title="' + escAttr(it.name) + '">' + esc(it.name) + '</span>'
+            + '<span class="sh-badge sh-badge-type">' + esc(typeLabel(it.type)) + '</span>'
+            + sourceBadge(it.source_level)
+            + '</div>'
+            + '<div class="sh-item-desc">' + esc(it.description || '') + '</div>'
+            + '<div class="sh-item-meta">'
+            + (it.version ? '<span>v' + esc(it.version) + '</span>' : '')
+            + (it.author ? '<span>' + esc(it.author) + '</span>' : '')
+            + '<span>' + esc(install.kind || '') + ' → ' + esc(install.target || '') + '</span>'
+            + '</div>'
+            + '<div class="sh-item-foot">'
+            + '<button class="am-btn-ghost am-btn-xs" onclick="showDetail(\'' + escAttr(it.path) + '\')">详情</button>'
+            + '<button class="am-btn-primary am-btn-xs" onclick="installItem(\'' + escAttr(it.path) + '\', \'' + escAttr(it.name) + '\')">安装</button>'
+            + '</div>'
+            + '</div>';
+    }).join('');
+}
+
+function showDetail(path) {
+    _detailPath = path;
+    document.getElementById('sh-detail-modal').style.display = '';
+    document.getElementById('sh-detail-title').textContent = '详情';
+    document.getElementById('sh-detail-body').innerHTML = '<div class="am-loading">加载中…</div>';
+    fetch('/api/shared/items/' + encodeURIComponent(path))
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.code !== 200) { document.getElementById('sh-detail-body').innerHTML = '<div class="am-empty">' + esc(result.message || '加载失败') + '</div>'; return; }
+            renderDetail(result.data);
+        })
+        .catch(function() { document.getElementById('sh-detail-body').innerHTML = '<div class="am-empty">加载失败</div>'; });
+}
+
+function renderDetail(d) {
+    var install = d.install || {};
+    var requiresMcp = (d.requires_mcp || []).join(', ');
+    var html = '<div class="sh-kv">'
+        + '<div class="sh-item-top"><span class="sh-item-name">' + esc(d.name) + '</span><span class="sh-badge sh-badge-type">' + esc(typeLabel(d.type)) + '</span>' + sourceBadge(d.source_level) + '</div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">描述</span><span class="sh-kv-val">' + esc(d.description || '—') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">版本</span><span class="sh-kv-val">' + esc(d.version || '—') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">作者</span><span class="sh-kv-val">' + esc(d.author || '—') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">来源等级</span><span class="sh-kv-val">' + esc(d.source_level || '同事') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">DSH 依赖</span><span class="sh-kv-val">' + esc(d.requires_dsh || '—') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">MCP 依赖</span><span class="sh-kv-val">' + esc(requiresMcp || '—') + '</span></div>'
+        + '<div class="sh-kv-row"><span class="sh-kv-key">安装动作</span><span class="sh-kv-val">' + esc(install.kind || '') + ' → ' + esc(install.target || '') + '</span></div>'
+        + '</div>'
+        + '<div class="sh-kv-section">manifest</div>'
+        + '<pre class="sh-pre">' + esc(JSON.stringify(d.manifest || {}, null, 2)) + '</pre>';
+    document.getElementById('sh-detail-body').innerHTML = html;
+    document.getElementById('sh-detail-title').textContent = d.name || '详情';
+}
+
+function installFromDetail() {
+    if (_detailPath) installItem(_detailPath, '');
+}
+
+function installItem(path, name) {
+    var label = name || path;
+    customConfirm('确定安装「' + label + '」？安装前请确认来源等级可信。', '安装共享条目', { primary: true, okText: '安装' }).then(function(ok) {
+        if (!ok) return;
+        _doInstall(path);
+    });
+}
+
+function _doInstall(path) {
+    fetch('/api/shared/install', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: path})
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.code === 200) {
+                var d = res.data || {};
+                showToast(d.message || '安装成功');
+                hideDetail();
+            } else {
+                showToast(res.message || '安装失败');
+            }
+        })
+        .catch(function(e) { showToast('安装失败: ' + e); });
+}
+
+function hideDetail() {
+    document.getElementById('sh-detail-modal').style.display = 'none';
+    _detailPath = '';
+}
+</script>
+{% endblock %}
