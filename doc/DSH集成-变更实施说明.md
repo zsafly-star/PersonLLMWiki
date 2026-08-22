@@ -415,8 +415,8 @@ def shell():
 | # | 触发条件 | 核对结果 | 证据 / 说明 |
 |---|---|---|---|
 | C1 | ①无非 DSH 用户在用 | ✅ 已执行（用户决策） | 无法从代码确认，业务侧未确认，按用户决策先行 |
-| C1 | ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 | ⚠️ 未满足即执行 | 无实测证据；执行后 DSH 侧需尽快补实测 |
-| C1 | ③上游二进制先升 v1.0.144 | ⚠️ 未满足即执行 | 原 vendored v1.0.143 已随 `git rm` 删除；文档能力由 DSH 官方 SKILL/MCP 承接 |
+| C1 | ②DSH 侧 OfficeCLI 官方 SKILL/MCP 实测通过 | ✅ **2026-08-22 补测通过** | DSH agent 加载 `officecli` SKILL → 官方安装器装 v1.0.144 → 创建/写入/读回 xlsx 全链路成功（`create`/`set`/`view text`/`get --json`） |
+| C1 | ③上游二进制先升 v1.0.144 | ✅ **已随 ② 满足** | DSH 侧安装的即 **v1.0.144**（上游最新）；PLW 侧 v1.0.143 已随 `git rm` 删除，文档能力由 DSH 官方 SKILL/MCP 承接 |
 | C2 | §10.7 一键更新/headless 桥稳定运行后 | ✅ 已执行（用户决策） | §10.7 已提交（`c46eceb`），稳定性观察中，按用户决策先行收敛 |
 | C3 | headless 执行稳定 N 轮（无回退触发） | ❌ 未满足 | 需运行观察；`automation_runner.py` 仍为 headless 优先 + react loop 回退 |
 | C4 | 自研 pdf-mcp 直连 DSH 实测通过（:17654） | 🔶 待重启验证 | 2026-08-21 已接入 DSH 配置（`cordis.patch.yml` mcp-pdf → `http://127.0.0.1:17654/mcp`），dump-config 通过，待重启 DSH 后新会话实测。⚠️ 生态替代不合格：server-pdf 是 viewer（read_pdf_bytes）、pdf-mcp-server 依赖原生 canvas（node-gyp 编译失败） |
