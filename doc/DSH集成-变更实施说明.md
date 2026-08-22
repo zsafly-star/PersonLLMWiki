@@ -478,3 +478,39 @@ def shell():
 - [ ] 安装 `copy-to skills/` 后文件落位、`skill_loader` 可识别（PLW 侧）
 - [ ] 安装 `mcp-connect` 后 DSH `cordis.patch.yml` 追加条目格式正确（dump-config 可合成）
 - [ ] 安装动作有二次确认；`git diff` 仅涉及新模块 + base.html；测试通过
+
+> ✅ **§10.10 已完成并提交 `f1ce8d3`**（2026-08-22）：routes.py（424 行）/ shared.html（198）/ blueprint 注册（app.py + modules/__init__.py 各 3 行，**必要改动，验收接受**）/ base.html 菜单。核验通过：路径穿越拦截（`'..' in parts`）、安装映射（copy-to / mcp-connect 生成 DSH cordis.patch.yml）、来源等级（官方库/同事）、共享根智能回退（personal 公共库目录 → 本地 `~/.personllmwiki/shared/`）、tests/desktop 45 passed。
+
+---
+
+## 10.11 共享中心二期：发布（2026-08-22）
+
+> 一期（§10.10）已实现浏览/详情/安装。二期补**发布闭环**：本地 skill/agent → 校验 → 写入共享根 → 更新 INDEX.md → git 提交。审批流复用 `submit_to_public`（三期可选）。
+
+### API（`src/modules/shared/routes.py` 新增）
+
+- `POST /api/shared/publish`：body `{type: skill|agent, name, description, version, author, source_level, content, install?}`
+  - 校验：`name` kebab-case 白名单（`^[a-z0-9-]{1,64}$`）、`type` ∈ {skill, agent}、content 非空且大小限制（如 ≤100KB）、路径只用 name 拼接（防穿越）；
+  - 写入共享根：`<root>/skills/<name>/SKILL.md`（skill，自动补/校验 frontmatter）或 `<root>/agents/<name>/agent.json`（agent，自动生成 `install` 字段）；
+  - 更新 `INDEX.md`（追加条目：`- <name>/<type> — 描述（作者）`）；
+  - **git 提交**：personal 模式且配置 `COMMON_GIT_REPO` 时，对共享根 `git add/commit`（push 失败不阻断，仅提示）；未配置时提示手动提交；
+  - 发布前密钥扫描提示：content 含 `token|key|secret|password` 时返回警告字段（不阻断）。
+- `GET /api/shared/mine`：列出本机发布的条目（`author` 过滤，可选）。
+
+### 前端（`shared.html` 扩展）
+
+- 「发布」按钮 → 弹窗表单（类型/名称/描述/版本/作者/来源等级 + 内容 textarea）→ manifest 预览（JSON）→ 确认发布；
+- 发布成功 → 刷新列表 + toast（含 git 提交结果/警告）。
+
+### 禁止改动
+
+`dsh_bridge.py`、`automation_runner.py`、`desktop.pyw`、`shell.html`、既有 MCP 工具注册、wiki 编译/检索代码、**一期既有路由行为**（仅新增 publish/mine，不改 items/install）。
+
+### 验证清单
+
+- [ ] 发布 skill → `<root>/skills/<name>/SKILL.md` 生成 + INDEX.md 更新 + 列表可见
+- [ ] 发布 agent → `<root>/agents/<name>/agent.json` 生成（含 install 字段）
+- [ ] name 非法（大写/空格/超长）→ 400；content 为空 → 400；穿越尝试 → 404
+- [ ] 配置 `COMMON_GIT_REPO` 时 git 提交成功；未配置时提示手动提交（不报错）
+- [ ] 密钥扫描警告正常（含 token 时提示、仍可发布）
+- [ ] `tests/desktop` 通过
