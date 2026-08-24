@@ -4,7 +4,7 @@
       "name": "personllmwiki",
       "url": "http://127.0.0.1:5000/mcp",
       "token": "<MCP_ADMIN_TOKEN>",
-      "description": "PersonLLMWiki 知识库 MCP Server（search_kb / read_wiki_page / write_note / compile_wiki 等 28 个工具）"
+      "description": "PersonLLMWiki 知识库 MCP Server（search_kb / read_wiki_page / write_note / compile_wiki 等 19 个工具）"
     }
   ]
 }

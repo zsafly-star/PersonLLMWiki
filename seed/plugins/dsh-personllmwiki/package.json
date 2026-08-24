@@ -1,5 +1,5 @@
 {
-  "name": "@company/dsh-personllmwiki",
+  "name": "@zsafly-star/dsh-personllmwiki",
   "version": "0.1.0",
   "description": "PersonLLMWiki 知识库接入插件（L1）：MCP 连接声明 + 知识库检索 SKILL",
   "type": "module",
@@ -14,6 +14,6 @@
     "entry": "agent.json"
   },
   "keywords": ["dsh", "plugin", "personllmwiki", "knowledge-base", "mcp"],
-  "author": "company",
-  "license": "UNLICENSED"
+  "author": "zsafly-star",
+  "license": "MIT"
 }
