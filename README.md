@@ -154,6 +154,8 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 - [PersonLLMWiki 设计规范](doc/PersonLLMWiki设计规范.md) — 各子系统设计索引
 - [DSH 集成架构设计方案](doc/DSH集成架构设计方案.md) — 集成架构、知识供给、共享中心、里程碑
 - [打包验证任务书](doc/打包验证任务书.md) — 发版打包验证 SOP（可被任意 AI 工具执行）
+- [安装版自动升级设计方案](doc/安装版自动升级设计方案.md) — 安装版 GitHub Releases 检测与升级
+- [待办：架构收敛](doc/待办-架构收敛.md) — 外部 MCP 统一走 DSH 的三层架构收敛项（1.1）
 - [分发部署方案](doc/分发部署方案.md) — 打包与分发
 - [开发者打包发布指南](doc/开发者打包发布指南.md) — 发布流程
 
