@@ -21,7 +21,7 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
-- **PLW 管"内容与公司能力"**：知识生产、编译、检索、审批、SAP、定时调度；
+- **PLW 管"内容与企业能力"**：知识生产、编译、检索、审批、SAP 等企业系统、定时调度；
 - **DSH 管"干活"**：目标执行、多步编排、技能、记忆——通过 MCP 消费 PLW 的能力。
 
 ---
@@ -30,9 +30,9 @@
 
 | 维度 | PLW | DSH | 边界规则 |
 |---|---|---|---|
-| **职责** | 知识生产/供给/管理 + 公司特有工具 + 调度 | 执行/编排（goal/workflow/subagent/skills） | 知识供给 vs 执行消费 |
+| **职责** | 知识生产/供给/管理 + 企业特有工具 + 调度 | 执行/编排（goal/workflow/subagent/skills） | 知识供给 vs 执行消费 |
 | **数据** | `~/.personllmwiki`（文章/wiki/图片/SQLite） | `$DSH_HOME`（sessions/profiles/credentials） | **永不相交**，各自备份升级 |
-| **能力** | 公司特有：知识、SAP、审批流、todo、workspace | 通用：office、pdf、web 搜索（生态/直连） | 公司特有走 PLW 网关，通用归 DSH 侧 |
+| **能力** | 企业特有：知识、SAP 等系统、审批流、todo、workspace | 通用：office、pdf、web 搜索（生态/直连） | 企业特有走 PLW 网关，通用归 DSH 侧 |
 | **交互** | 被 MCP 调用 + 发起 headless | MCP 客户端 + headless CLI + iframe（模式切换壳） | 三条通道各司其职 |
 | **配置** | 设置页（LLM/Embedding/资源/DSH 关联） | 自己的 profile/插件管理（`$DSH_HOME/profiles/*`） | 各管各的，互不写入 |
 
@@ -65,7 +65,7 @@
 | 路径 | 适用 | 步骤 |
 |---|---|---|
 | **npm 路径**（增量更新，主） | 有网络 | 设置页「检查更新」→「一键更新」→ 便携 node 自动 `npm install @deepseek-ai/dsh@latest` + **profile 同步** → 重启 DSH |
-| **zip 路径**（首次安装/重装/离线） | 无网络/全新安装 | 设置页「重新安装」→ 下载运行时包（GitLab Release 资产 / Nexus raw）→ SHA256 校验 → 替换 `app\` 保留 `home\` → 重启 |
+| **zip 路径**（首次安装/重装/离线） | 无网络/全新安装 | 设置页「重新安装」→ 下载运行时包（发布渠道，如 GitHub Releases / 私有制品库）→ SHA256 校验 → 替换 `app\` 保留 `home\` → 重启 |
 
 - **升级包自动制作**：npm 路径无需制作（官方直拉）；zip 路径由 `packaging/build_dsh_runtime.py` + CI 定时自动构建（检测到 npm 新版即发布），**无需人工盯**；
 - **升级后必须重启 DSH**，新配置（MCP 客户端、技能）才生效；
@@ -108,5 +108,5 @@
 
 1. **DSH 和 PLW 谁的版本新？** 无关——独立升级；DSH 看 npm latest，PLW 看 VERSION。
 2. **升级 DSH 会丢我的对话吗？** 不会——会话在 `$DSH_HOME/sessions`，升级只动 `app\`（zip 路径）或包（npm 路径），`home\` 保留。
-3. **为什么 SAP 只能在 PLW 里调？** 公司数据走 PLW 网关（默认禁止、白名单授权），不进第三方插件。
+3. **为什么 SAP 只能在 PLW 里调？** 企业数据走 PLW 网关（默认禁止、白名单授权），不进第三方插件。
 4. **office/pdf 用谁的？** 通用能力归 DSH 侧：office 用 OfficeCLI 官方 SKILL/MCP，PDF 用 `@modelcontextprotocol/server-pdf`（或自研直连）；PLW 侧保留为"能力供给兼容层"（见变更说明 §10.9 裁剪计划）。

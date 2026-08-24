@@ -93,3 +93,5 @@ coverage.xml
 # PyInstaller output
 packaging/build/
 release/
+# User data (articles, wiki, attachments, databases)
+resource/

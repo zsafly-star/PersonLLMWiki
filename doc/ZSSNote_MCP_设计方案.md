@@ -207,7 +207,7 @@ Flask 启动需 `app.run(threaded=True)` 以支持并发工具调用。
 ```json
 {
   "servers": [
-    {"name": "sap-mcp", "url": "http://192.168.195.191:8001/mcp", "token": "", "description": "SAP 物料查询"}
+    {"name": "sap-mcp", "url": "http://<sap-mcp-host>:8001/mcp", "token": "", "description": "SAP 物料查询"}
   ]
 }
 ```

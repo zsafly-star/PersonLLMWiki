@@ -18,8 +18,8 @@ import urllib.request
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(THIS_DIR)
 
-GITLAB_HOST = "gitlab.xiangyuniot.com"
-GITLAB_PROJECT = "AiTeam/personllmwiki"
+GITLAB_HOST = os.getenv("GITLAB_HOST", "gitlab.example.com")
+GITLAB_PROJECT = os.getenv("GITLAB_PROJECT", "owner/personllmwiki")
 
 # 大文件上传超时设置
 socket.setdefaulttimeout(600)

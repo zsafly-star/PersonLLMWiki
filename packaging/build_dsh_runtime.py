@@ -12,8 +12,8 @@
   python build_dsh_runtime.py [--version X.Y.Z] [--mode A|B] [--dry-run]
 
 环境变量（凭证一律从环境变量读取，不硬编码）：
-  GITLAB_URL        默认 http://gitlab.xiangyuniot.com
-  GITLAB_PROJECT    AiTeam/personllmwiki
+  GITLAB_URL        默认 http://gitlab.example.com（可覆盖）
+  GITLAB_PROJECT    owner/personllmwiki（可覆盖）
   GITLAB_TOKEN      必填（PAT，api scope）
   NPM_REGISTRY      可选（默认 https://registry.npmjs.org）
   NODE_VERSION      可选（默认 24.19.0，与开发机一致）
@@ -40,8 +40,8 @@ TAG_PREFIX = 'dsh-runtime-v'
 DEFAULT_NODE_VERSION = '24.19.0'
 NODE_ZIP_URL = ('https://nodejs.org/dist/v{v}/node-v{v}-win-x64.zip')
 
-GITLAB_URL = os.environ.get('GITLAB_URL', 'http://gitlab.xiangyuniot.com')
-GITLAB_PROJECT = os.environ.get('GITLAB_PROJECT', 'AiTeam/personllmwiki')
+GITLAB_URL = os.environ.get('GITLAB_URL', 'http://gitlab.example.com')
+GITLAB_PROJECT = os.environ.get('GITLAB_PROJECT', 'owner/personllmwiki')
 NPM_REGISTRY = os.environ.get('NPM_REGISTRY', 'https://registry.npmjs.org')
 
 
