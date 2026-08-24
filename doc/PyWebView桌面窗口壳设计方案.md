@@ -334,3 +334,54 @@ Windows 10+ 默认含 WebView2 Runtime。Win7/8 需引导安装 Evergreen Bootst
 - frameless 无边缘拖拽缩放（若 9.2-A3 未实施）；
 - 最大化/还原无系统过渡动画（WinForms `FormBorderStyle.None` 特性，可接受）；
 - 窗口控制按钮在 Web 浏览器模式不可见（顶栏整体隐藏），属预期。
+
+---
+
+## 10. R2 修订：持久顶栏 + 原生 NCHITTEST（2026-08-24 GUI 实测后）
+
+§9 方案实装后开发壳 GUI 实测，发现 5 个问题，本修订全部重做相关部分。
+
+### 10.1 实测问题与根因
+
+| # | 现象 | 根因 |
+|---|---|---|
+| R2-1 | 顶栏**不能拖动** | JS→`WM_NCLBUTTONDOWN(HTCAPTION)` 技巧在 pywebview+WebView2 组合下不可靠（桥线程与消息泵时序）。**放弃合成消息方案** |
+| R2-2 | **边缘缩放无效** | WebView2 子窗口铺满整个客户区，`WM_NCHITTEST` 由子窗口自行应答（返回 HTCLIENT），**父 Form 永远收不到该消息**——父窗口子类里的边缘 HT* 逻辑永不触发 |
+| R2-3 | 切到 DSH 模式**顶栏消失** | 顶栏放在 app iframe（base.html）内，DSH 模式隐藏该 iframe → frameless 窗口在 DSH 模式**没有任何标题栏/窗口按钮** |
+| R2-4 | 少 logo、Wiki\|DSH 开关不在左边 | 顶栏应像系统标题栏：左侧 logo+开关，右侧窗口按钮 |
+| R2-5 | — □ ✕ 按钮 UI 不对 | 文本字形 + 无 Windows 观感 → 改 SVG 图标 + Win11 风格悬停 |
+
+### 10.2 R2 方案
+
+1. **持久顶栏搬回 shell 层（shell.html）**：`.shell-bar` 置于 `.shell-stage` 上方，Wiki/DSH **两种模式都常驻**（内容始终在栏下方，即"自绘系统标题栏"）。
+   - `base.html`、`layout.css` **回退到 f1a5a25^ 状态**（`git checkout f1a5a25^ -- src/templates/base.html src/static/css/layout.css`）——app 内不再有顶栏；
+   - shell.html 删除 `.shell-float`（栏上开关即返回入口）；`<span class="brand">PersonLLMWiki</span>` 与 `appicon.svg`（20px）作左端品牌。
+2. **原生命中测试（一次解决拖动+缩放）**：子类化 **WebView2 子窗口**（`EnumChildWindows` 找 `Chrome_WidgetWin_*`，兜底取面积≈客户区的最大子窗口），在其 `WM_NCHITTEST` 中：
+   - 边缘 6px 带 → 返回 8 个 `HT*` 方向码（`IsZoomed` 时跳过）；
+   - 光标 y < 栏高（设备像素，JS 上报）**且**不在交互排除矩形内 → 返回 **`HTCAPTION`**（原生拖动 + 原生双击最大化 + 最大化时拖拽自动还原，全免费）；
+   - 其余 → `HTCLIENT`。
+   - 交互排除矩形：shell JS 在加载/`ResizeObserver` 时经 js_api 上报 `set_drag_exclusions([[x,y,w,h],...])`（设备像素，相对窗口客户区 = 栏的 `getBoundingClientRect()` × `devicePixelRatio`）。
+   - 父窗口 `_wndproc` 移除 WM_NCHITTEST/边缘逻辑（无效冗余），保留 WM_CLOSE→托盘。
+3. **窗口按钮（栏右侧）**：内联 SVG 图标（minimize=横线、maximize=方框、restore=双框、close=✕），46px 宽 × 栏高，hover 背景、close hover `#e81123` 白字；**图标状态**由 Python `window.events.maximized / restored` 回调 → `window.evaluate_js(...)` 推送刷新（覆盖原生双击最大化等非 JS 入口）。
+4. **栏布局**：`[appicon.svg + PersonLLMWiki] [Wiki|DSH 开关] [DSH 状态点] ──── [— □ ✕]`，高 40px，白底 + 底边线，仿系统标题栏；开关/状态点样式沿用 base.html 中被回退的 `.dsh-seg / .dsh-status-badge`（迁入 shell.html 的 `<style>`）。
+5. **保留全部既有行为**：localStorage 模式记忆、双 iframe 懒加载与 display 切换、状态轮询（2s×3 → 10s）、starting 文案、未装/版本低遮罩与「启动 DSH」、键盘快捷键、托盘 `__shellToggleMode`、message 监听（base.html 移除顶栏后不再发 `dsh-switch`，可保留监听以兼容）。
+
+### 10.3 desktop.pyw 改动清单（Trae）
+
+- `WindowApi`：移除 `start_drag()`；保留 `minimize / toggle_maximize / is_maximized / close`；**新增 `set_drag_exclusions(rects)`**（Python 侧存列表，供 NCHITTEST 用）。
+- `_install_hook` 扩展：`EnumChildWindows` 找 WebView2 子窗口 → 用现有 `SetWindowLongPtrW` 机制子类化（同一 `_wndproc` 内按 hwnd 分流，或第二个 WNDPROC）。
+- 子窗口 `WM_NCHITTEST`：`GetCursorPos` + `ScreenToClient` → 边缘 HT* / 栏区 HTCAPTION（排除矩形内 HTCLIENT）/ 其余 HTCLIENT。
+- `window.events.maximized/restored` → `evaluate_js` 通知 shell 刷新图标（`window.__setWinState(max)`）。
+- 常量/API 补充：`EnumChildWindows`（回调签名）、`GetCursorPos`、`ScreenToClient`、`HTCLIENT=1` 等，argtypes/restype 沿用 64 位声明风格。
+- 父窗口 `_wndproc`：删 WM_NCHITTEST/`_edge_hit_test`，只留 WM_CLOSE。
+
+### 10.4 Fallback（若子窗口子类化不生效）
+
+1. 拖动：JS mousedown → `SendMessage(WM_SYSCOMMAND, SC_MOVE|HTCAPTION(0xF012), 0)`（WinForms 无边框经典方案）；
+2. 缩放：JS 边缘 6px 透明条 mousedown → Python 循环 `SetWindowPos` 跟随 `GetCursorPos` 直至鼠标松开。
+3. 若两者均失败：回退为**保留系统标题栏**（去掉 frameless），接受双栏（与 F4 目标冲突，仅作底线）。
+
+### 10.5 验证路径
+
+1. 开发壳（`flask\python.exe src/desktop.pyw`）：单栏常驻（Wiki/DSH 模式都在）、logo+开关在左、SVG 三按钮、**拖动/双击最大化/边缘缩放**全部原生生效、✕ 到托盘、DSH 切换正常、启动 DSH 无 cmd 框；
+2. .004 构建后按任务书 2.5 复验。
