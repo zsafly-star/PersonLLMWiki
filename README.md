@@ -217,12 +217,13 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 | 类别             | 技术                                                                           |
 | ---------------- | ------------------------------------------------------------------------------ |
 | **后端**   | Flask, SQLAlchemy, APScheduler, SQLite                                         |
-| **桌面**   | PyWebView (WebView2), pystray, PyInstaller                                     |
+| **桌面**   | PyWebView (WebView2), pystray, PyInstaller, Inno Setup（无边框单栏自绘标题栏）  |
 | **前端**   | 原生 JavaScript, Jinja2 模板, D3.js v7                                         |
 | **AI**     | OpenAI API, Anthropic API, Gemini API, Ollama                                  |
-| **检索**   | Embedding API + BM25（jieba）                                                  |
+| **检索**   | Embedding API + fastembed（本地 ONNX）+ BM25（jieba）                          |
+| **文档解析** | PyMuPDF（PDF MCP）                                                             |
 | **MCP**    | JSON-RPC 2.0 over HTTP（streamable-HTTP）                                      |
-| **智能体** | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（可选集成） |
+| **智能体** | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（**深度集成，内置 AI 执行引擎**） |
 
 ---
 
