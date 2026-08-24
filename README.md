@@ -34,6 +34,22 @@
 
 ---
 
+## 📸 界面预览
+
+| 工作台 | Wiki 知识库 |
+|---|---|
+| <img src="src/static/img/首页.png" width="400"> | <img src="src/static/img/Wiki.png" width="400"> |
+
+| 对话（Agent + MCP 工具） | 文章管理 |
+|---|---|
+| <img src="src/static/img/AIChat.png" width="400"> | <img src="src/static/img/文章.png" width="400"> |
+
+| 知识星链 | DSH 模式（内置 AI 执行引擎） |
+|---|---|
+| <img src="src/static/img/知识星链.png" width="400"> | <img src="src/static/img/DSH.png" width="400"> |
+
+---
+
 ## 📦 功能模块
 
 ### 工作台
