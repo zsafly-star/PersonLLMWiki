@@ -93,7 +93,7 @@ src/
 
 ### 1. 克隆项目
 ```bash
-git clone https://github.com/<your-github-username>/PersonLLMWiki.git
+git clone https://github.com/zsafly-star/PersonLLMWiki.git
 cd PersonLLMWiki
 ```
 
