@@ -14,9 +14,9 @@
 
 ![PersonLLMWiki × DeepSeek Harness 架构图](doc/architecture.svg)
 
-- **DSH（DeepSeek Harness）** — AI 执行引擎，作为 **MCP Client** 经协议调用 PLW 能力（检索知识库 / 读写文章 / 触发编译），桌面端以 iframe 嵌入（DSH 模式）
+- **DSH（DeepSeek Harness）** — AI 执行引擎，作为 **MCP Client** 经协议调用 PLW 能力（检索知识库 / 读写文章 / 触发编译），桌面端以 iframe 嵌入（DSH 模式）；**亦可直接配置使用外部 MCP Server / Skill（主通道）**
 - **PLW（PersonLLMWiki）** — Flask 知识管理系统：知识库核心（文章 → Wiki 编译 → 混合检索）+ **MCP Server**（`/mcp`，19 个工具）+ **Bridge** 桥接层
-- **MCP** — 统一协议层（JSON-RPC 2.0 / streamable-HTTP）：DSH ↔ PLW、PLW ↔ 外部 MCP Server 均经此互联
+- **MCP** — 统一协议层（JSON-RPC 2.0 / streamable-HTTP）。**架构方向（三层）**：外部 MCP / Skill 统一由 DSH 消费；DSH ↔ PLW 走 `/mcp`；PLW ↔ 外部 MCP Server（SAP 等）为**过渡态**（MCP Client 总线，规划收敛，见待办）
 - **Bridge（dsh_bridge）** — 桌面端管理 DSH 生命周期（启动 / 状态 / 版本门禁）、headless 调用、静默拉起与单栏模式切换
 - **桌面壳（PyWebView）** — 无边框单栏自绘标题栏（logo + Wiki|DSH 开关 + 窗口按钮），拖动 / 双击最大化 / 边缘缩放 / 关闭到托盘，统一承载双模式
 
