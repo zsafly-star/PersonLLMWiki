@@ -3,7 +3,7 @@ chcp 65001 >nul
 title PersonLLMWiki 升级
 cd /d "%~dp0"
 
-set VERSIONS_URL=https://raw.githubusercontent.com/your-org/PersonLLMWiki/main/versions.json
+set VERSIONS_URL=https://raw.githubusercontent.com/zsafly-star/PersonLLMWiki/main/versions.json
 
 echo ════════════════════════════════════════
 echo   PersonLLMWiki 在线升级

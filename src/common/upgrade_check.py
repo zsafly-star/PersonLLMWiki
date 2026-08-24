@@ -18,7 +18,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-DEFAULT_VERSIONS_URL = "https://raw.githubusercontent.com/your-org/PersonLLMWiki/main/versions.json"
+DEFAULT_VERSIONS_URL = "https://raw.githubusercontent.com/zsafly-star/PersonLLMWiki/main/versions.json"
 TIMEOUT = 15
 
 

@@ -145,7 +145,7 @@ def test_embedding_config():
 
 _VERSIONS_URL = os.getenv(
     'VERSIONS_URL',
-    'https://raw.githubusercontent.com/your-org/PersonLLMWiki/main/versions.json'
+    'https://raw.githubusercontent.com/zsafly-star/PersonLLMWiki/main/versions.json'
 )
 
 _GITHUB_RELEASES_URL = 'https://api.github.com/repos/zsafly-star/PersonLLMWiki/releases/latest'
