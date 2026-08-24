@@ -51,6 +51,14 @@ class TrayManager:
                 pass  # 通知失败不影响主流程
 
     def _run(self):
+        try:
+            self._run_impl()
+        except Exception as e:
+            import traceback
+            print(f"[Tray] 托盘启动失败: {e}", flush=True)
+            traceback.print_exc()
+
+    def _run_impl(self):
         import pystray
         from PIL import Image
 

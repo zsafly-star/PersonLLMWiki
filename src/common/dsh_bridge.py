@@ -425,6 +425,7 @@ def start(timeout=30.0):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
             )
         except (OSError, subprocess.SubprocessError) as e:
             return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}

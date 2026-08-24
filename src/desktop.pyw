@@ -198,6 +198,11 @@ def main():
     SW_RESTORE = 9
     ICON_SMALL = 0
     ICON_BIG = 1
+    VK_LBUTTON = 0x01
+    SWP_NOZORDER = 0x0004
+    SWP_NOACTIVATE = 0x0010
+
+    import ctypes.wintypes
 
     user32 = ctypes.windll.user32
 
@@ -215,6 +220,12 @@ def main():
     user32.SetForegroundWindow.restype = ctypes.c_bool
     user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_ulonglong, ctypes.c_longlong]
     user32.PostMessageW.restype = ctypes.c_bool
+    user32.IsZoomed.argtypes = [ctypes.c_void_p]
+    user32.IsZoomed.restype = ctypes.c_bool
+    user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.wintypes.RECT)]
+    user32.GetWindowRect.restype = ctypes.c_bool
+    user32.GetCursorPos.argtypes = [ctypes.POINTER(ctypes.wintypes.POINT)]
+    user32.GetCursorPos.restype = ctypes.c_bool
 
     WNDPROC = ctypes.WINFUNCTYPE(
         ctypes.c_longlong,          # LRESULT
@@ -230,9 +241,13 @@ def main():
     user32.GetWindowLongPtrW.restype = ctypes.c_void_p
     user32.CallWindowProcW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_ulonglong, ctypes.c_longlong]
     user32.CallWindowProcW.restype = ctypes.c_longlong
+    user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+    user32.GetAsyncKeyState.restype = ctypes.c_short
+    user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    user32.SetWindowPos.restype = ctypes.c_bool
 
     def _wndproc(hwnd, msg, wparam, lparam):
-        """子类化窗口过程：WM_CLOSE → 隐藏到托盘，除非 _allow_close 为 True。"""
+        """父窗口子类化：仅 WM_CLOSE → 隐藏到托盘（除非 _allow_close）。"""
         if msg == WM_CLOSE and not _allow_close[0]:
             user32.ShowWindow(hwnd, SW_HIDE)
             return 0
@@ -241,7 +256,7 @@ def main():
         )
 
     def _install_hook():
-        """窗口显示后：找句柄 → 设图标 → 子类化。"""
+        """窗口显示后：找句柄 → 设图标 → 子类化父窗口（WM_CLOSE → 托盘）。"""
         icon_path = _get_icon_path()
         print("[Desktop] _install_hook: 开始查找窗口...", flush=True)
         for i in range(15):
@@ -263,12 +278,12 @@ def main():
                 user32.SendMessageW(_hwnd[0], WM_SETICON, ICON_SMALL, hicon)
                 user32.SendMessageW(_hwnd[0], WM_SETICON, ICON_BIG, hicon)
 
-        # 子类化窗口
+        # 子类化父窗口（WM_CLOSE → 托盘）
         _wndproc_callback[0] = WNDPROC(_wndproc)
         _original_wndproc[0] = user32.SetWindowLongPtrW(
             _hwnd[0], GWL_WNDPROC, _wndproc_callback[0]
         )
-        print("[Desktop] 窗口子类化完成", flush=True)
+        print("[Desktop] 父窗口子类化完成", flush=True)
 
     def _restore_window():
         """托盘回调：恢复并聚焦窗口。"""
@@ -303,13 +318,140 @@ def main():
     url = f"http://127.0.0.1:{port}/shell"
     print(f"[Desktop] 创建窗口: {url}")
 
+    class WindowApi:
+        """注入到 JS 的窗口控制桥（window.pywebview.api.*，shell 顶层窗口注入）。"""
+
+        def __init__(self):
+            self._window = None  # create_window 返回后赋值
+
+        def minimize(self):
+            if self._window:
+                self._window.minimize()
+
+        def toggle_maximize(self):
+            if not self._window:
+                return
+            if _hwnd[0] and user32.IsZoomed(_hwnd[0]):
+                self._window.restore()
+            else:
+                self._window.maximize()
+
+        def is_maximized(self):
+            return bool(_hwnd[0] and user32.IsZoomed(_hwnd[0]))
+
+        def close(self):
+            # 走既有 _wndproc：非退出态隐藏到托盘，与系统 ✕ 语义一致
+            if _hwnd[0]:
+                user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)
+
+        def start_drag(self):
+            """拖动窗口：后台线程跟随鼠标移动窗口，直到左键松开（直接 SetWindowPos，不依赖消息处理）。"""
+            if not _hwnd[0]:
+                return
+
+            def _worker():
+                # 最大化时先还原（模拟 Windows 拖顶栏还原行为）
+                if user32.IsZoomed(_hwnd[0]):
+                    user32.ShowWindow(_hwnd[0], SW_RESTORE)
+                    time.sleep(0.08)
+                r0 = ctypes.wintypes.RECT()
+                if not user32.GetWindowRect(_hwnd[0], ctypes.byref(r0)):
+                    return
+                pt0 = ctypes.wintypes.POINT()
+                user32.GetCursorPos(ctypes.byref(pt0))
+                offset_x = r0.left - pt0.x
+                offset_y = r0.top - pt0.y
+                w = r0.right - r0.left
+                h = r0.bottom - r0.top
+                while True:
+                    pt = ctypes.wintypes.POINT()
+                    user32.GetCursorPos(ctypes.byref(pt))
+                    user32.SetWindowPos(
+                        _hwnd[0], None, pt.x + offset_x, pt.y + offset_y, w, h,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                    if not (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000):
+                        break
+                    time.sleep(0.01)
+
+            threading.Thread(target=_worker, name="win-drag", daemon=True).start()
+
+        def start_resize(self, direction):
+            """边缘缩放：后台线程按方向拖动窗口边/角，直到鼠标左键松开。"""
+            if not _hwnd[0]:
+                return
+            if user32.IsZoomed(_hwnd[0]):
+                return  # 最大化时禁边缘缩放
+            direction = str(direction or '').lower()
+            if direction not in ('n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'):
+                return
+
+            def _worker():
+                r0 = ctypes.wintypes.RECT()
+                if not user32.GetWindowRect(_hwnd[0], ctypes.byref(r0)):
+                    return
+                left0, top0, right0, bottom0 = r0.left, r0.top, r0.right, r0.bottom
+                MIN_W, MIN_H = 1024, 600
+                while True:
+                    pt = ctypes.wintypes.POINT()
+                    user32.GetCursorPos(ctypes.byref(pt))
+                    cx, cy = pt.x, pt.y
+                    left, top, right, bottom = left0, top0, right0, bottom0
+                    if 'n' in direction:
+                        top = cy
+                    if 's' in direction:
+                        bottom = cy
+                    if 'e' in direction:
+                        right = cx
+                    if 'w' in direction:
+                        left = cx
+                    # 强制最小尺寸 1024×600
+                    if right - left < MIN_W:
+                        if 'e' in direction:
+                            right = left + MIN_W
+                        else:
+                            left = right - MIN_W
+                    if bottom - top < MIN_H:
+                        if 's' in direction:
+                            bottom = top + MIN_H
+                        else:
+                            top = bottom - MIN_H
+                    user32.SetWindowPos(
+                        _hwnd[0], None, left, top, right - left, bottom - top,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                    if not (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000):
+                        break
+                    time.sleep(0.01)
+
+            threading.Thread(target=_worker, name="win-resize", daemon=True).start()
+
+    window_api = WindowApi()
     window = webview.create_window(
         url=url,
         title='PersonLLMWiki',
         width=1280,
         height=800,
         min_size=(1024, 600),
+        frameless=True,
+        easy_drag=False,
+        js_api=window_api,
     )
+    window_api._window = window
+
+    def _notify_win_state(maximized):
+        """窗口最大化/还原时，通知 shell 刷新 □/❐ 图标（覆盖原生双击最大化等非 JS 入口）。"""
+        try:
+            window.evaluate_js(
+                "window.__setWinState && window.__setWinState(%s)"
+                % ('true' if maximized else 'false')
+            )
+        except Exception as e:
+            print(f"[Desktop] 通知窗口状态失败: {e}")
+
+    window.events.maximized += lambda: _notify_win_state(True)
+    window.events.restored += lambda: _notify_win_state(False)
+
     # 窗口图标 + 子类化：线程延迟执行，确保窗口已创建
     def _init_window_hook():
         time.sleep(2)
