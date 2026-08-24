@@ -420,3 +420,41 @@ R2 实装后 GUI 实测：拖动 ✅、单栏外观 ✅、DSH 切换 ✅、F1 �
 1. 开发壳：单栏常驻（两模式）、logo+开关在左、SVG 按钮、**拖动/双击最大化/四边四角边缘缩放**、✕→**托盘图标出现**→恢复/退出、DSH 切换、启动 DSH 无 cmd 框；
 2. Web 模式（浏览器直连 127.0.0.1:5000 或 5001）：页面正常、窗口按钮隐藏、无报错；
 3. tests/desktop 45 passed → .004 构建后按任务书 2.5 复验。
+
+---
+
+## 12. R4 修订：放弃原生 NCHITTEST，全面 JS 驱动窗口操作（2026-08-24 R3 GUI 实测后）
+
+R3 实装后 GUI 实测：双击 ✅、托盘 ✅、DSH 切换 ✅、Web 模式 ✅；**拖动 ❌（回归）、边缘缩放 ❌**。
+
+### 12.1 关键结论（R3 实测证明）
+
+| 结论 | 依据 |
+|---|---|
+| **原生 WM_NCHITTEST 对 WebView2 子窗口始终无效** | R2「拖动正常」实为 pywebview `easy_drag` 的 JS 增量移动在起作用；R3 `easy_drag=False` 后原生 HTCAPTION **没有接管拖动** → 拖动失效。子窗口子类化方案（§10/§11）整体废弃 |
+| 边缘缩放 document 级 mousemove 覆盖不全 | shell 舞台被两个全屏 iframe（wiki/DSH）铺满，鼠标在左/右/下边缘时事件落在 iframe 内，**到不了 shell 父文档**；仅顶边（40px 栏内）可触发。Trae 已预判，实测证实 |
+| JS 双击最大化 ✅ | 与 OS 消息传导无关，直接调 `toggle_maximize()`，确定性生效 |
+
+### 12.2 R4 方案：窗口操作 = JS 事件 + Python Win32 直控
+
+**A. `src/desktop.pyw`**
+1. **删除整套无效原生 NCHITTEST**：`_child_hit_test`、`_child_wndproc`、`_find_webview2_child`、`EnumChildWindows`、`_install_hook` 中的子窗口子类化、`set_drag_exclusions`、`_drag_exclusions`、`_bar_height`、`_in_drag_exclusion`、`WM_NCHITTEST/HT*` 常量及相关 ctypes 声明。父窗口 `_wndproc` 只留 `WM_CLOSE→托盘`。
+2. `WindowApi` 新增 `start_drag()`：`ReleaseCapture()` + `SendMessageW(_hwnd[0], WM_SYSCOMMAND, SC_MOVE|HTCAPTION, 0)`（`WM_SYSCOMMAND=0x0112`、`SC_MOVE=0xF010`）——WinForms 无边框经典拖动；最大化时拖动自动还原（原生行为）。**若实测 SC_MOVE 无效，fallback：发 `WM_NCLBUTTONDOWN(0x00A1)` wParam=HTCAPTION**（R1 失败系 easy_drag 干扰，现已关停，可再试）。
+3. `start_resize(dir)` 开头：`IsZoomed` 时直接返回（最大化禁边缘缩放）。
+4. 保留：`easy_drag=False`、`minimize/toggle_maximize/is_maximized/close`、`start_resize` 循环、`events.maximized/restored → __setWinState`。
+
+**B. `src/modules/agent/templates/shell.html`**
+1. **拖动**：`shellBar` mousedown（button 0 且 target 非交互区：`!e.target.closest('button, .seg, .badge, .win-btn')`）→ `api.start_drag()`；交互区 stopPropagation 保持。
+2. **边缘缩放改固定覆盖条**（替代 document mousemove，解决 iframe 遮挡）：
+   - 4 边条 + 4 角块：`position:fixed`、z-index 高于 iframe、透明背景：
+     - top/bottom 高 8px 全宽；left/right 宽 8px 全高；角块 14×14；
+   - 每条 `data-dir`；hover 显示对应 resize 光标；mousedown → `api.start_resize(dir)` + `preventDefault()`；
+   - 顶边条压栏最上 8px（该带 resize-n 而非拖动，与 Windows 行为一致）；
+   - **最大化时隐藏全部条带**（`__setWinState` 同步 `body.is-maximized`，CSS 隐藏）。
+3. 保留：dblclick 最大化、Web 模式按钮隐藏、其余逻辑不变。
+
+### 12.3 验证路径
+
+1. 开发壳：栏空白区**拖动**（含最大化态拖顶栏 → 还原+拖动）、**双击最大化/还原**、**四边四角 8px 缩放**（最小 1024×600；最大化时禁用）、三按钮、✕→托盘→恢复/退出、DSH 切换、无 cmd 框；
+2. Web 模式：直连 127.0.0.1:5000 正常、按钮隐藏、无报错；
+3. tests/desktop 45 passed → .004 构建复验。
