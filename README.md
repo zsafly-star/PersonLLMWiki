@@ -114,6 +114,7 @@ LLM 配置、Embedding 配置、用户资料、资源路径、系统更新、外
 
 - [ ] 安装版**全自动静默升级**（下载 → 自退出 → 静默安装 → 自动重启）
 - [ ] Windows **代码签名**（消除 SmartScreen「未知发布者」提示）
+- [ ] **DSH 集成收敛**：`shared/routes.py` 的 `_append_cordis_patch` 与 DSH 实际 cordis 语法（数组 `insert:`）/数据目录（`~/.dsh`）不一致，统一重构为 `get_dsh_data_home()` + 标准 insert 语法
 
 ---
 
