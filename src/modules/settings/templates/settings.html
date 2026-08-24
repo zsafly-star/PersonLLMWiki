@@ -1366,7 +1366,7 @@
                 });
         }
 
-        var _DSH_STATUS_LABEL = { running: '运行中', not_running: '未运行', version_low: '版本过低', not_installed: '未安装' };
+        var _DSH_STATUS_LABEL = { running: '运行中', starting: '启动中', not_running: '未运行', version_low: '版本过低', not_installed: '未安装' };
 
         function _escDsh(s) {
             return String(s == null ? '' : s)
@@ -1398,6 +1398,7 @@
                     lines.push('<div>提示：无法获取 DSH 版本，请检查 DSH 命令是否完整。</div>');
                 }
             }
+            if (s.status === 'starting') lines.push('<div>提示：DSH 正在启动（首次初始化可能需要几分钟），请稍候…</div>');
             meta.innerHTML = lines.join('');
         }
 

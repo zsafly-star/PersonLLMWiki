@@ -66,6 +66,7 @@
     .shell-status.missing .dot { background: #9ca3af; }
     .shell-status.version_low .dot { background: #f59e0b; }
     .shell-status.stopped .dot { background: #ef4444; }
+    .shell-status.starting .dot { background: #3b82f6; }
 
     /* ── 舞台：双 iframe 常驻 ── */
     .shell-stage { flex: 1; position: relative; background: #fff; }
@@ -134,7 +135,7 @@
 <script>
 (function () {
     var MODE_KEY = 'dsh_shell_mode';
-    var STATUS_LABEL = { running: 'DSH 在线', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
+    var STATUS_LABEL = { running: 'DSH 在线', starting: 'DSH 启动中', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
 
     var currentMode = localStorage.getItem(MODE_KEY) === 'dsh' ? 'dsh' : 'wiki';
     var dshStatus = null;
@@ -215,6 +216,11 @@
                 els.maskDesc.textContent = '已检测到 DSH 命令，但无法获取其版本号。请到「设置 → DeepSeek Harness」确认命令路径。';
             }
             els.maskActions.innerHTML = '<a class="shell-btn" href="/settings">去设置检查 DSH</a>';
+        } else if (dshStatus.status === 'starting') {
+            els.maskIcon.className = 'icon ok';
+            els.maskTitle.textContent = 'DSH 正在启动';
+            els.maskDesc.textContent = '首次启动需要初始化 DSH（下载依赖），可能需要几分钟，请稍候…';
+            els.maskActions.innerHTML = '';
         } else if (dshStatus.status === 'not_running') {
             els.maskIcon.className = 'icon ok';
             els.maskTitle.textContent = 'DSH 已安装但未运行';

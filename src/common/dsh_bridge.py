@@ -14,6 +14,7 @@ PersonLLMWiki 与 DSH 的唯一交互入口，收敛 DSH 的进程管理与 CLI 
 状态机：
     not_installed  未配置 DSH_CMD 或命令不存在
     version_low    已安装但版本低于门禁（>=0.1.0-rc.6）
+    starting       已拉起、进程存活但 web 未就绪（首次初始化可能耗时较长）
     not_running    已安装但 DSH web 未在运行（3080 无响应）
     running        已安装且 DSH web 健康
 """
@@ -36,10 +37,14 @@ DEFAULT_DSH_URL = 'http://127.0.0.1:3080'
 # 健康检查超时（秒）
 HEALTH_TIMEOUT = 2.0
 
+# 拉起后等待就绪的最大时长（秒）——DSH 首次启动需初始化 web profile（下载依赖），可能较慢
+START_TIMEOUT = 300.0
+
 # 状态枚举
 STATUS_NOT_INSTALLED = 'not_installed'
 STATUS_VERSION_LOW = 'version_low'
 STATUS_NOT_RUNNING = 'not_running'
+STATUS_STARTING = 'starting'
 STATUS_RUNNING = 'running'
 
 # 由本进程拉起的 DSH 句柄（用于 stop 时回收）
@@ -335,9 +340,10 @@ def get_status():
 
     Returns:
         dict:
-            status:  not_installed / version_low / not_running / running
+            status:  not_installed / version_low / starting / not_running / running
             installed / version / version_ok / running / url / cmd / min_version
     """
+    global _managed_proc
     cfg = get_config()
     cmd = _resolve_dsh_cmd()
     installed = cmd is not None
@@ -352,7 +358,20 @@ def get_status():
         status = STATUS_VERSION_LOW
     else:
         running = check_health(cfg.get('dsh_url'))
-        status = STATUS_RUNNING if running else STATUS_NOT_RUNNING
+        if running:
+            status = STATUS_RUNNING
+        elif _managed_proc is not None:
+            if _managed_proc.poll() is None:
+                # 本进程拉起的 DSH 仍在启动（首次初始化 web profile 可能较慢）
+                status = STATUS_STARTING
+            else:
+                # 进程已退出：清理句柄，避免误判为"仍在启动"
+                with _proc_lock:
+                    if _managed_proc is not None and _managed_proc.poll() is not None:
+                        _managed_proc = None
+                status = STATUS_NOT_RUNNING
+        else:
+            status = STATUS_NOT_RUNNING
 
     return {
         'status': status,
@@ -372,6 +391,10 @@ def get_status():
 def start(timeout=30.0):
     """拉起 DSH web（若未在跑）。只管理进程，不碰 DSH 文件。
 
+    非阻塞：拉起后立即返回 status=starting；后台线程等待健康检查
+    （最长时间 START_TIMEOUT，DSH 首次启动需初始化 web profile 可能较慢），
+    前端通过轮询 get_status() 观察 starting → running / not_running。
+
     Returns:
         dict: {started, status, error}
     """
@@ -383,6 +406,8 @@ def start(timeout=30.0):
                 'error': f'DSH 版本过低（{status["version"]} < {MIN_DSH_VERSION}）'}
     if status['status'] == STATUS_RUNNING:
         return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
+    if status['status'] == STATUS_STARTING:
+        return {'started': True, 'status': STATUS_STARTING, 'error': ''}
 
     cmd = _resolve_dsh_cmd()
     global _managed_proc
@@ -392,7 +417,7 @@ def start(timeout=30.0):
         if check_health():
             return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
         if _managed_proc is not None and _managed_proc.poll() is None:
-            return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
+            return {'started': True, 'status': STATUS_STARTING, 'error': ''}
         try:
             new_proc = subprocess.Popen(
                 [cmd, 'web'],
@@ -405,20 +430,24 @@ def start(timeout=30.0):
             return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}
         _managed_proc = new_proc
 
-    # 等待健康检查（锁外，避免长时间持锁阻塞 stop）
-    import time
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if check_health():
-            return {'started': True, 'status': STATUS_RUNNING, 'error': ''}
-        time.sleep(0.5)
+    # 后台等待健康检查（不阻塞调用方；首次初始化可能耗时较长）。
+    # 超时或进程退出：清理句柄，状态经 get_status 回落到 not_running。
+    def _wait_ready(proc):
+        import time
+        deadline = time.time() + START_TIMEOUT
+        while time.time() < deadline:
+            if check_health():
+                return
+            if proc.poll() is not None:
+                break
+            time.sleep(1)
+        with _proc_lock:
+            if _managed_proc is proc:
+                _managed_proc = None
 
-    # 超时未就绪：若进程已退出则清理脏句柄，避免误认为"仍在管理"
-    with _proc_lock:
-        if _managed_proc is new_proc and new_proc.poll() is not None:
-            _managed_proc = None
-    return {'started': False, 'status': STATUS_NOT_RUNNING,
-            'error': 'DSH 已拉起但未在超时内就绪，请检查 3080 端口'}
+    threading.Thread(target=_wait_ready, args=(new_proc,), daemon=True).start()
+
+    return {'started': True, 'status': STATUS_STARTING, 'error': ''}
 
 
 def stop():
