@@ -10,67 +10,34 @@
 
     .shell { display: flex; flex-direction: column; height: 100vh; }
 
-    /* ── 36px 模式条 ── */
-    .shell-bar {
-        height: 36px;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 0 12px;
-        background: #1e1f22;
-        color: #e5e7eb;
-        border-bottom: 1px solid #2a2b2e;
-    }
-    .shell-bar .brand {
-        font-size: 12px;
-        font-weight: 600;
-        color: #9ca3af;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
-    }
-    .shell-seg {
-        display: inline-flex;
-        align-items: center;
-        background: #2a2b2e;
-        border-radius: 6px;
-        padding: 2px;
-    }
-    .shell-seg button {
-        appearance: none;
-        border: none;
-        background: transparent;
-        color: #9ca3af;
-        font-size: 12px;
-        font-weight: 500;
-        padding: 3px 14px;
-        border-radius: 5px;
-        cursor: pointer;
-        line-height: 1.4;
-        transition: background 0.15s, color 0.15s;
-    }
-    .shell-seg button:hover { color: #e5e7eb; }
-    .shell-seg button.is-active { background: #3b82f6; color: #fff; }
-    .shell-seg button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .shell-status {
-        margin-left: auto;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        color: #9ca3af;
-        white-space: nowrap;
-    }
-    .shell-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
-    .shell-status.online .dot { background: #10b981; }
-    .shell-status.missing .dot { background: #9ca3af; }
-    .shell-status.version_low .dot { background: #f59e0b; }
-    .shell-status.stopped .dot { background: #ef4444; }
-    .shell-status.starting .dot { background: #3b82f6; }
-
     /* ── 舞台：双 iframe 常驻 ── */
     .shell-stage { flex: 1; position: relative; background: #fff; }
     .shell-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #fff; }
+
+    /* DSH 模式右上角返回入口（极简悬浮，不占整条） */
+    .shell-float {
+        position: fixed; top: 12px; right: 12px; z-index: 50;
+        display: flex; align-items: center; gap: 10px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e5e7eb;
+        border-radius: 999px;
+        padding: 6px 14px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        backdrop-filter: blur(6px);
+    }
+    .shell-float[hidden] { display: none; }
+    .shell-float-back {
+        display: inline-flex; align-items: center; gap: 6px;
+        border: none; background: transparent; cursor: pointer;
+        font-size: 13px; font-weight: 600; color: #111827; padding: 0;
+    }
+    .shell-float-back:hover { color: #0d9488; }
+    .shell-float-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+    .shell-float-dot.online { background: #10b981; }
+    .shell-float-dot.version_low { background: #f59e0b; }
+    .shell-float-dot.stopped { background: #ef4444; }
+    .shell-float-dot.starting { background: #3b82f6; }
+    .shell-float-dot.missing { background: #9ca3af; }
 
     /* DSH 不可用/未加载时的占位遮罩 */
     .shell-mask {
@@ -104,17 +71,6 @@
 </head>
 <body>
 <div class="shell">
-    <div class="shell-bar">
-        <span class="brand">PersonLLMWiki</span>
-        <div class="shell-seg" role="tablist" aria-label="模式切换">
-            <button id="seg-wiki" class="is-active" type="button" data-mode="wiki" role="tab" aria-selected="true">Wiki</button>
-            <button id="seg-dsh" type="button" data-mode="dsh" role="tab" aria-selected="false" disabled>DSH</button>
-        </div>
-        <span class="shell-status" id="dsh-status" title="">
-            <span class="dot"></span>
-            <span id="dsh-status-txt">检测中…</span>
-        </span>
-    </div>
     <div class="shell-stage">
         <iframe id="iframe-wiki" src="{{ url_for('home.home') }}" title="PersonLLMWiki" allow="clipboard-read; clipboard-write"></iframe>
         <iframe id="iframe-dsh" style="display:none;" title="DeepSeek Harness" allow="clipboard-read; clipboard-write"></iframe>
@@ -130,12 +86,20 @@
         </div>
     </div>
 </div>
+
+<div class="shell-float" id="shell-float" hidden>
+    <button class="shell-float-back" id="shell-float-back" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+        <span>返回 Wiki</span>
+    </button>
+    <span class="shell-float-dot" id="shell-float-dot" title=""></span>
+</div>
 <div id="shell-toast"></div>
 
 <script>
 (function () {
     var MODE_KEY = 'dsh_shell_mode';
-    var STATUS_LABEL = { running: 'DSH 在线', starting: 'DSH 启动中', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
+    var STATUS_LABEL = { running: 'DSH 在线', starting: 'DSH 启动中，首次初始化可能需几分钟', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
 
     var currentMode = localStorage.getItem(MODE_KEY) === 'dsh' ? 'dsh' : 'wiki';
     var dshStatus = null;
@@ -144,8 +108,6 @@
     var pollCount = 0;
 
     var els = {
-        segWiki: document.getElementById('seg-wiki'),
-        segDsh: document.getElementById('seg-dsh'),
         iframeWiki: document.getElementById('iframe-wiki'),
         iframeDsh: document.getElementById('iframe-dsh'),
         mask: document.getElementById('dsh-mask'),
@@ -153,8 +115,9 @@
         maskTitle: document.getElementById('dsh-mask-title'),
         maskDesc: document.getElementById('dsh-mask-desc'),
         maskActions: document.getElementById('dsh-mask-actions'),
-        status: document.getElementById('dsh-status'),
-        statusTxt: document.getElementById('dsh-status-txt'),
+        float: document.getElementById('shell-float'),
+        floatBack: document.getElementById('shell-float-back'),
+        floatDot: document.getElementById('shell-float-dot'),
     };
 
     function safeHttpUrl(u) {
@@ -179,23 +142,15 @@
         return dshStatus && dshStatus.status === 'running';
     }
 
-    function updateSeg() {
-        var wikiOn = currentMode === 'wiki';
-        els.segWiki.classList.toggle('is-active', wikiOn);
-        els.segDsh.classList.toggle('is-active', !wikiOn);
-        els.segWiki.setAttribute('aria-selected', wikiOn ? 'true' : 'false');
-        els.segDsh.setAttribute('aria-selected', wikiOn ? 'false' : 'true');
-
-        var blocked = dshStatus && (dshStatus.status === 'not_installed' || dshStatus.status === 'version_low');
-        els.segDsh.disabled = !!blocked;
-    }
-
     function renderStatus() {
         var st = dshStatus ? dshStatus.status : null;
-        els.status.className = 'shell-status' + (st === 'running' ? ' online' : st === 'version_low' ? ' version_low' : st === 'not_running' ? ' stopped' : ' missing');
-        els.statusTxt.textContent = STATUS_LABEL[st] || '检测中…';
-        els.status.title = els.statusTxt.textContent;
-        updateSeg();
+        var cls = st === 'running' ? 'online'
+            : st === 'version_low' ? 'version_low'
+            : st === 'not_running' ? 'stopped'
+            : st === 'starting' ? 'starting'
+            : 'missing';
+        els.floatDot.className = 'shell-float-dot ' + cls;
+        els.floatDot.title = STATUS_LABEL[st] || '检测中…';
     }
 
     function renderMask() {
@@ -236,12 +191,12 @@
         els.iframeWiki.style.display = dshOn ? 'none' : '';
         els.iframeDsh.style.display = dshOn ? '' : 'none';
         els.mask.classList.toggle('show', statusLoaded && dshOn && !canUseDsh());
+        els.float.hidden = !dshOn;
 
         if (dshOn && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
             els.iframeDsh.src = dshStatus.url;
             dshLoaded = true;
         }
-        updateSeg();
         localStorage.setItem(MODE_KEY, currentMode);
     }
 
@@ -270,7 +225,7 @@
             .then(function (res) {
                 var d = res.data || {};
                 if (d.started) {
-                    showToast('DSH 已启动');
+                    showToast(d.status === 'starting' ? 'DSH 启动中，请稍候' : 'DSH 已启动');
                     currentMode = 'dsh';
                     refreshStatus();
                 } else {
@@ -314,9 +269,17 @@
         switchMode(currentMode === 'wiki' ? 'dsh' : 'wiki');
     };
 
-    // 分段开关点击
-    els.segWiki.addEventListener('click', function () { switchMode('wiki'); });
-    els.segDsh.addEventListener('click', function () { switchMode('dsh'); });
+    // 接收 SPA 顶部条发来的模式切换请求
+    window.addEventListener('message', function (e) {
+        if (e.origin !== location.origin) return;
+        var d = e.data;
+        if (d && d.type === 'dsh-switch' && (d.mode === 'wiki' || d.mode === 'dsh')) {
+            switchMode(d.mode);
+        }
+    });
+
+    // DSH 模式右上角「返回 Wiki」
+    els.floatBack.addEventListener('click', function () { switchMode('wiki'); });
 
     // 键盘快捷键：Ctrl+Shift+M 切换；Alt+1/2 直达（iframe 聚焦时无效，托盘为兜底）
     window.addEventListener('keydown', function (e) {
