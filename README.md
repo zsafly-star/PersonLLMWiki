@@ -228,9 +228,13 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 
 ## 🙏 感谢
 
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（深度集成，内置 AI 执行引擎）
 - [Flask](https://github.com/pallets/flask)
-- [PyWebView](https://pywebview.flowrl.com/)
+- [PyWebView](https://pywebview.flowrl.com/)、[PyInstaller](https://pyinstaller.org/)、[Inno Setup](https://jrsoftware.org/isinfo.php)、[pystray](https://github.com/moses-palmer/pystray)（桌面壳与打包分发）
+- [jieba](https://github.com/fxsjy/jieba)、[fastembed](https://github.com/qdrant/fastembed)（ONNX）、[PyMuPDF](https://pymupdf.readthedocs.io/)（中文分词检索、本地向量化、PDF 解析）
+- [D3.js](https://d3js.org/)（知识星链可视化）
 - llm-wiki-compiler（LLM Wiki 模式启发）
+- [Trae](https://www.trae.ai/)（AI 编码助手，主要代码实现伙伴）
 
 ---
 
