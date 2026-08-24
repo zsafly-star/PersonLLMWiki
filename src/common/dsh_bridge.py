@@ -420,7 +420,7 @@ def start(timeout=30.0):
             return {'started': True, 'status': STATUS_STARTING, 'error': ''}
         try:
             new_proc = subprocess.Popen(
-                [cmd, 'web'],
+                [cmd, 'web', '--no-open'],
                 cwd=os.path.dirname(cmd),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
