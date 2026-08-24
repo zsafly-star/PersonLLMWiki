@@ -95,3 +95,6 @@ packaging/build/
 release/
 # User data (articles, wiki, attachments, databases)
 resource/
+
+# 构建产物：安装版完整版本号（build_desktop.py 生成）
+app_version.txt

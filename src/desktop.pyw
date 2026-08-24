@@ -297,6 +297,10 @@ def main():
         if _hwnd[0]:
             user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)
 
+    # F8: 暴露退出入口，供安装版自动升级 launch-installer 调用
+    from common.desktop_signals import register_quit
+    register_quit(_quit_app)
+
     # ========== 托盘 + 窗口 ==========
 
     from common.tray_manager import TrayManager

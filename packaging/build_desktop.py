@@ -58,6 +58,19 @@ def auto_version():
     return f'{base}.{build}'
 
 
+def write_app_version(version):
+    """生成 app_version.txt（含完整构建号，供安装版运行时读取当前版本）。
+
+    desktop.spec 的 datas 会把它打进 _internal/app_version.txt，
+    settings.routes._get_current_version() 在 sys.frozen 时优先读它。
+    """
+    path = os.path.join(PROJECT_DIR, 'app_version.txt')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(version.strip() + '\n')
+    print(f"[build] 已生成 app_version.txt: {version}")
+    return path
+
+
 def run_pyinstaller():
     """调用 PyInstaller 打包"""
     print("[build] === PyInstaller 打包 ===")
@@ -160,6 +173,7 @@ if __name__ == "__main__":
     print(f"版本: {version}")
     print()
 
+    write_app_version(version)
     run_pyinstaller()
     copy_seed_to_output()
     installer_path = run_inno_setup(version)

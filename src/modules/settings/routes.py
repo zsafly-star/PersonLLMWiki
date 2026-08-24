@@ -148,6 +148,61 @@ _VERSIONS_URL = os.getenv(
     'https://raw.githubusercontent.com/your-org/PersonLLMWiki/main/versions.json'
 )
 
+_GITHUB_RELEASES_URL = 'https://api.github.com/repos/zsafly-star/PersonLLMWiki/releases/latest'
+
+
+def _check_github_release():
+    """检查 GitHub Releases 最新版本（安装版升级通道）。
+
+    返回 {latest, current, has_update, notes, date, size_mb, url, kind:'installer'}；
+    网络/解析失败返回 None。
+    """
+    import urllib.request
+
+    req = urllib.request.Request(
+        _GITHUB_RELEASES_URL,
+        headers={
+            'User-Agent': 'PersonLLMWiki-Updater',
+            'Accept': 'application/vnd.github+json',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+    except Exception:
+        return None
+
+    tag = (data.get('tag_name') or '').strip()
+    latest = tag.lstrip('vV').strip()
+    if not latest:
+        return None
+
+    current = _get_current_version()
+    has_update = _compare_versions(latest, current) > 0
+
+    url = ''
+    size = 0
+    for asset in data.get('assets') or []:
+        name = asset.get('name') or ''
+        if 'PersonLLMWiki-Setup-' in name and name.endswith('.exe'):
+            url = asset.get('browser_download_url') or ''
+            size = asset.get('size') or 0
+            break
+
+    body = data.get('body') or ''
+    notes = '\n'.join([ln for ln in body.splitlines() if ln.strip()][:8])
+
+    return {
+        'latest': latest,
+        'current': current,
+        'has_update': has_update,
+        'notes': notes,
+        'date': (data.get('published_at') or '')[:10],
+        'size_mb': round(size / 1024 / 1024, 1) if size else 0,
+        'url': url,
+        'kind': 'installer',
+    }
+
 
 def _get_app_dir():
     """获取 app 代码目录（src/）"""
@@ -165,7 +220,22 @@ def _get_version_file():
 
 
 def _get_current_version():
-    """读取当前版本号"""
+    """读取当前版本号。
+
+    sys.frozen（安装版）时优先读打包进去的 app_version.txt（含完整构建号），
+    否则回退根目录 VERSION 文件（源码/zip 部署）。
+    """
+    if getattr(sys, 'frozen', False):
+        bases = [getattr(sys, '_MEIPASS', ''), os.path.dirname(sys.executable)]
+        for base in bases:
+            if not base:
+                continue
+            vf = os.path.join(base, 'app_version.txt')
+            if os.path.isfile(vf):
+                with open(vf, 'r', encoding='utf-8') as f:
+                    v = f.read().strip()
+                if v:
+                    return v
     vf = _get_version_file()
     if os.path.isfile(vf):
         with open(vf, 'r') as f:
@@ -347,10 +417,18 @@ def save_path():
 
 @settings_bp.route('/api/settings/upgrade/check', methods=['POST'])
 def check_upgrade():
-    """检查远程是否有新版本"""
+    """检查远程是否有新版本（安装版走 GitHub Releases，其余走 versions.json）。"""
     if _is_dev_mode():
         return error_response('开发模式下请使用 git pull 更新代码')
 
+    # 安装版（sys.frozen）→ GitHub Releases
+    if getattr(sys, 'frozen', False):
+        info = _check_github_release()
+        if info is None:
+            return error_response('获取版本信息失败（GitHub Releases 不可达）')
+        return success_response(info)
+
+    # 源码/zip 部署 → 维持 versions.json 流程
     import urllib.request
     try:
         req = urllib.request.Request(
@@ -377,6 +455,7 @@ def check_upgrade():
         'date': info.get('date', ''),
         'size_mb': info.get('size_mb', 0),
         'url': info.get('url', ''),
+        'kind': 'zip',
     })
 
 
@@ -490,10 +569,85 @@ def apply_upgrade():
         return error_response(f'更新失败（已回滚）: {e}')
 
 
+@settings_bp.route('/api/settings/upgrade/download-setup', methods=['POST'])
+def download_setup():
+    """下载新版 Setup.exe 到临时目录（安装版升级），返回本地路径与大小。"""
+    data = request.get_json(silent=True) or {}
+    url = (data.get('url') or '').strip()
+    if not url.startswith('https://'):
+        return error_response('无效的下载地址')
+
+    import urllib.request
+    import tempfile
+
+    local_path = os.path.join(tempfile.gettempdir(), 'PersonLLMWiki-Setup-latest.exe')
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'PersonLLMWiki-Updater'})
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            with open(local_path, 'wb') as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+    except Exception as e:
+        return error_response(f'下载安装包失败: {e}')
+
+    size = os.path.getsize(local_path)
+    return success_response({
+        'path': local_path,
+        'size': size,
+        'size_mb': round(size / 1024 / 1024, 1),
+    })
+
+
+@settings_bp.route('/api/settings/upgrade/launch-installer', methods=['POST'])
+def launch_installer():
+    """退出应用并启动安装器（安装版升级）。"""
+    data = request.get_json(silent=True) or {}
+    setup_path = (data.get('path') or '').strip()
+    if not setup_path or not os.path.isfile(setup_path):
+        return error_response('安装包不存在')
+
+    import subprocess
+    import threading
+    import time
+
+    def _do_launch():
+        time.sleep(0.5)  # 等响应发出
+        subprocess.Popen(
+            [setup_path],
+            cwd=os.path.dirname(setup_path),
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+        )
+        # 启动安装器后请求应用退出（桌面壳走托盘退出；无回调则直接结束进程兜底）
+        try:
+            from common.desktop_signals import request_quit
+            if not request_quit():
+                os._exit(0)
+        except Exception:
+            os._exit(0)
+
+    threading.Thread(target=_do_launch, daemon=True).start()
+    return success_response({'status': 'launching'}, '正在启动安装向导...')
+
+
 def _compare_versions(a, b):
-    """比较版本号。返回 1(a>b) / 0(a==b) / -1(a<b)"""
-    pa = [int(x) for x in a.split('.')]
-    pb = [int(x) for x in b.split('.')]
+    """比较版本号。返回 1(a>b) / 0(a==b) / -1(a<b)。
+
+    支持 4 段（如 1.0.1.007），缺段补 0；每段取前导数字，容错 v 前缀。
+    """
+    import re
+
+    def _parts(s):
+        out = []
+        for seg in str(s or '').strip().lstrip('vV').split('.'):
+            m = re.match(r'\d+', seg)
+            out.append(int(m.group(0)) if m else 0)
+        return out
+
+    pa = _parts(a)
+    pb = _parts(b)
     for i in range(max(len(pa), len(pb))):
         va = pa[i] if i < len(pa) else 0
         vb = pb[i] if i < len(pb) else 0

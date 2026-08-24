@@ -15,6 +15,18 @@ block_cipher = None
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(SPEC)))
 src_dir = os.path.join(project_dir, 'src')
 
+# F8: 安装版版本标识 app_version.txt（build_desktop.py 打包前写入完整构建号）
+_app_version_txt = os.path.join(project_dir, 'app_version.txt')
+if not os.path.isfile(_app_version_txt):
+    # 直接跑 pyinstaller 时兜底：用 VERSION 内容
+    _v = '1.0.0'
+    _vf = os.path.join(project_dir, 'VERSION')
+    if os.path.isfile(_vf):
+        with open(_vf, 'r', encoding='utf-8') as _f:
+            _v = _f.read().strip()
+    with open(_app_version_txt, 'w', encoding='utf-8') as _f:
+        _f.write(_v + '\n')
+
 a = Analysis(
     [os.path.join(src_dir, 'desktop.pyw')],
     pathex=[src_dir],
@@ -27,6 +39,8 @@ a = Analysis(
         (os.path.join(src_dir, 'modules'), 'modules'),
         # 图标文件（desktop.pyw 托盘/窗口图标）
         (os.path.join(src_dir, 'static', 'img', 'app.ico'), 'static/img'),
+        # 安装版版本标识（完整构建号，打进 _internal/app_version.txt）
+        (_app_version_txt, '.'),
     ],
     hiddenimports=[
         'flask',
