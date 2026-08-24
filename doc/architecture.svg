@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" font-family="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="20" y="32" font-size="20" font-weight="700" fill="#111827">PersonLLMWiki × DeepSeek Harness 架构</text>
+  <text x="20" y="54" font-size="13" fill="#6b7280">PLW 继承 DSH 为内置 AI 执行引擎，二者经 MCP 协议互联；桌面壳统一承载双模式</text>
+
+  <!-- 桌面壳（虚线边界：包裹 DSH + PLW） -->
+  <rect x="70" y="70" width="690" height="480" rx="16" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="415" y="524" text-anchor="middle" font-size="13" fill="#6b7280">桌面壳（PyWebView）— 无边框单栏顶栏 · 窗口控制 · 托盘 · Wiki | DSH 模式切换</text>
+
+  <!-- DSH -->
+  <rect x="230" y="100" width="370" height="130" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="415" y="128" text-anchor="middle" font-size="15" font-weight="700" fill="#1d4ed8">DeepSeek Harness（DSH）</text>
+  <text x="415" y="148" text-anchor="middle" font-size="12.5" fill="#2563eb">AI 执行引擎 · MCP Client</text>
+  <text x="250" y="170" font-size="12" fill="#374151">· DSH Agent：对话 / 任务执行</text>
+  <text x="250" y="190" font-size="12" fill="#374151">· 经 MCP 调用 PLW 的 19 个工具</text>
+  <text x="250" y="210" font-size="12" fill="#374151">· 桌面端以 iframe 嵌入（DSH 模式）</text>
+
+  <!-- MCP 协议（双向箭头） -->
+  <line x1="415" y1="230" x2="415" y2="285" stroke="#3b82f6" stroke-width="2" marker-start="url(#arrow-blue)" marker-end="url(#arrow-blue)"/>
+  <text x="432" y="262" font-size="12.5" font-weight="600" fill="#2563eb">MCP 协议</text>
+  <text x="432" y="278" font-size="11" fill="#6b7280">JSON-RPC 2.0 · streamable-HTTP</text>
+
+  <!-- PLW -->
+  <rect x="110" y="295" width="610" height="215" rx="12" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="130" y="322" font-size="15" font-weight="700" fill="#047857">PersonLLMWiki（PLW）— Flask 全栈知识管理系统</text>
+
+  <!-- PLW 内部三卡 -->
+  <rect x="130" y="340" width="180" height="150" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="140" y="362" font-size="13" font-weight="700" fill="#047857">知识库核心</text>
+  <text x="140" y="384" font-size="11.5" fill="#374151">文章 / 笔记 / 图片统一管理</text>
+  <text x="140" y="404" font-size="11.5" fill="#374151">LLM 自动编译互链 Wiki</text>
+  <text x="140" y="424" font-size="11.5" fill="#374151">混合检索：BM25(jieba)</text>
+  <text x="140" y="444" font-size="11.5" fill="#374151">+ 向量嵌入(fastembed)</text>
+  <text x="140" y="464" font-size="11.5" fill="#374151">共享中心 / 待办 / 星链</text>
+
+  <rect x="330" y="340" width="180" height="150" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="340" y="362" font-size="13" font-weight="700" fill="#047857">MCP Server（/mcp）</text>
+  <text x="340" y="384" font-size="11.5" fill="#374151">19 个工具：检索知识库</text>
+  <text x="340" y="404" font-size="11.5" fill="#374151">读写文章 / 触发编译</text>
+  <text x="340" y="424" font-size="11.5" fill="#374151">待办 / 工作空间等</text>
+  <text x="340" y="444" font-size="11.5" fill="#374151">供 DSH 及外部 AI 客户端</text>
+  <text x="340" y="464" font-size="11.5" fill="#374151">统一调用</text>
+
+  <rect x="530" y="340" width="170" height="150" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="540" y="362" font-size="13" font-weight="700" fill="#047857">Bridge（dsh_bridge）</text>
+  <text x="540" y="384" font-size="11.5" fill="#374151">DSH 生命周期管理</text>
+  <text x="540" y="404" font-size="11.5" fill="#374151">启动 / 状态 / 版本门禁</text>
+  <text x="540" y="424" font-size="11.5" fill="#374151">headless 调用</text>
+  <text x="540" y="444" font-size="11.5" fill="#374151">单栏模式切换桥接</text>
+  <text x="540" y="464" font-size="11.5" fill="#374151">静默拉起（无弹窗）</text>
+
+  <!-- 外部 MCP Server -->
+  <rect x="810" y="300" width="165" height="140" rx="12" fill="#fff7ed" stroke="#f59e0b" stroke-width="2"/>
+  <text x="892" y="326" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">外部 MCP Server</text>
+  <text x="892" y="346" text-anchor="middle" font-size="11.5" fill="#92400e">SAP 等业务系统</text>
+  <text x="892" y="366" text-anchor="middle" font-size="11.5" fill="#92400e">工具 / 数据接入</text>
+  <text x="892" y="386" text-anchor="middle" font-size="11.5" fill="#92400e">（经 PLW 的</text>
+  <text x="892" y="402" text-anchor="middle" font-size="11.5" fill="#92400e">MCP Client 总线）</text>
+
+  <!-- PLW → 外部 MCP 箭头 -->
+  <line x1="720" y1="400" x2="806" y2="400" stroke="#6b7280" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="762" y="390" text-anchor="middle" font-size="11.5" fill="#6b7280">MCP Client</text>
+  <text x="762" y="404" text-anchor="middle" font-size="11.5" fill="#6b7280">总线</text>
+
+  <!-- 图例 -->
+  <text x="810" y="500" font-size="12" font-weight="600" fill="#374151">图例</text>
+  <line x1="810" y1="520" x2="850" y2="520" stroke="#3b82f6" stroke-width="2"/>
+  <text x="858" y="524" font-size="11.5" fill="#374151">DSH / MCP 互联</text>
+  <line x1="810" y1="542" x2="850" y2="542" stroke="#6b7280" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="858" y="546" font-size="11.5" fill="#374151">PLW → 外部 MCP</text>
+  <line x1="810" y1="558" x2="850" y2="558" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="858" y="562" font-size="11.5" fill="#374151">桌面壳边界（包裹 PLW+DSH）</text>
+</svg>

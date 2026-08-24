@@ -6,7 +6,19 @@
 [![Flask](https://img.shields.io/badge/Flask-2.0%2B-black?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-基于 Flask 的全栈个人知识管理系统。将散落的笔记、文章、图片统一管理，通过 **LLM 自动编译为互链 Wiki 知识库**，支持 MCP 协议接入外部工具和 AI 助手（如 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)）。支持 **Web 浏览器** 和 **桌面应用**（PyWebView 原生窗口）两种使用方式。
+基于 Flask 的全栈个人知识管理系统，**深度继承 DeepSeek Harness（DSH）作为内置 AI 执行引擎**——桌面端单栏顶栏一键切换「Wiki | DSH」双模式，DSH agent 经 MCP 直接检索知识库、读写文章、触发编译。将散落的笔记、文章、图片统一管理，通过 **LLM 自动编译为互链 Wiki 知识库**；支持 **MCP 双角色**（对外 19 个工具的 Server，接入外部服务的 Client）。支持 **Web 浏览器** 与 **桌面应用**（PyWebView 无边框单栏）两种形态。
+
+---
+
+## 🏗️ 架构
+
+![PersonLLMWiki × DeepSeek Harness 架构图](doc/architecture.svg)
+
+- **DSH（DeepSeek Harness）** — AI 执行引擎，作为 **MCP Client** 经协议调用 PLW 能力（检索知识库 / 读写文章 / 触发编译），桌面端以 iframe 嵌入（DSH 模式）
+- **PLW（PersonLLMWiki）** — Flask 知识管理系统：知识库核心（文章 → Wiki 编译 → 混合检索）+ **MCP Server**（`/mcp`，19 个工具）+ **Bridge** 桥接层
+- **MCP** — 统一协议层（JSON-RPC 2.0 / streamable-HTTP）：DSH ↔ PLW、PLW ↔ 外部 MCP Server 均经此互联
+- **Bridge（dsh_bridge）** — 桌面端管理 DSH 生命周期（启动 / 状态 / 版本门禁）、headless 调用、静默拉起与单栏模式切换
+- **桌面壳（PyWebView）** — 无边框单栏自绘标题栏（logo + Wiki|DSH 开关 + 窗口按钮），拖动 / 双击最大化 / 边缘缩放 / 关闭到托盘，统一承载双模式
 
 ---
 
