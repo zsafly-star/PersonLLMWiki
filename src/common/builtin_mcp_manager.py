@@ -1,13 +1,13 @@
 """内置服务统一管理器。
 
-扫描 bin/mcp/*/service.json，自动发现并管理所有内置服务。
+扫描 ~/.personllmwiki/mcp/*/service.json，自动发现并管理所有内置服务。
 每个服务自包含在自己的文件夹下，与 Skills 的 SKILL.md 自描述模式一致。
 
 服务类型：
 - subprocess：pip 安装的 MCP 服务器，子进程拉起 → 健康检查 → 注册到 MCPClientBus
 - binary：预编译二进制，由 tools_*.py 直接调用，此处仅做状态探测
 
-新增一个内置服务只需在 bin/mcp/ 下创建文件夹 + service.json，无需写新的 runner。
+新增一个内置服务只需在 ~/.personllmwiki/mcp/ 下创建文件夹 + service.json，无需写新的 runner。
 
 目录约定：
   ~/.personllmwiki/mcp/<name>/           每个服务一个文件夹（自包含）
@@ -30,13 +30,8 @@ import subprocess
 # MCP_DIR（~/.personllmwiki/mcp/，首次启动时从 seed/ 播种）
 def _get_bin_mcp_dir():
     """获取 MCP 服务目录，统一从 Config.MCP_DIR 读取。"""
-    try:
-        from config import Config
-        return Config.MCP_DIR
-    except Exception:
-        pass
-    _SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(_SRC_ROOT, 'bin', 'mcp')
+    from config import Config
+    return Config.MCP_DIR
 
 # 运行时状态
 _procs = {}          # name -> subprocess.Popen
@@ -52,7 +47,7 @@ def _is_windows():
 # ─── service.json 发现 ─────────────────────────────────────────
 
 def _discover_services():
-    """扫描 bin/mcp/*/service.json，返回所有服务声明的列表。
+    """扫描 ~/.personllmwiki/mcp/*/service.json，返回所有服务声明的列表。
 
     每个文件夹自包含：有 service.json 就是一个服务，没有就跳过。
     删除文件夹 = 移除服务，零配置。
@@ -246,7 +241,7 @@ def _check_binary_service(svc):
     tool_count = svc.get('tool_count', 0)
 
     if not os.path.isdir(bin_dir):
-        return {'available': False, 'running': False, 'error': f'目录不存在: bin/mcp/{name}/', 'tool_count': tool_count}
+        return {'available': False, 'running': False, 'error': f'目录不存在: ~/.personllmwiki/mcp/{name}/', 'tool_count': tool_count}
 
     # 检查目录下是否有任何二进制文件
     try:
@@ -355,7 +350,7 @@ def is_running(name):
 def init_all_async():
     """异步启动所有内置服务（非阻塞，后台线程执行）。
 
-    扫描 bin/mcp/*/service.json 自动发现服务，逐个启动。
+    扫描 ~/.personllmwiki/mcp/*/service.json 自动发现服务，逐个启动。
     主应用启动时不等待服务就绪，避免拖慢启动。
     """
     def _worker():

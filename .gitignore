@@ -100,6 +100,5 @@ resource/
 app_version.txt
 
 # pdf-mcp 模型/缓存（模型首次使用自动下载；seed/ 保留一份供安装包离线分发）
-src/bin/mcp/pdf-mcp/models/
 **/pdf-mcp/cache/
 **/models/.locks/

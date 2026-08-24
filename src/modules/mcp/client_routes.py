@@ -91,7 +91,7 @@ def list_all_services():
     """统一列出所有 MCP 服务（内置 + 自定义），带来源/位置标签。
 
     合并两个数据源：
-    - bin/mcp/*/service.json → builtin 服务（source=builtin, location 从声明读取）
+    - ~/.personllmwiki/mcp/*/service.json → builtin 服务（source=builtin, location 从声明读取）
     - mcp_servers.json 配置  → custom 服务（source=custom, location=remote）
     运行时状态（connected/tool_count）从 MCPClientBus._remote_clients 获取。
     """
@@ -108,7 +108,7 @@ def list_all_services():
     services = []
     seen_names = set()
 
-    # 1. 内置服务（bin/mcp/*/service.json）
+    # 1. 内置服务（~/.personllmwiki/mcp/*/service.json）
     from .registry import list_tools as _local_tool_count
     from flask import request as _req
     host_url = _req.host_url.rstrip('/') if _req else 'http://localhost:5000'
@@ -318,7 +318,7 @@ def list_all_tools():
 
 @mcp_client_bp.route('/api/mcp/builtin-services', methods=['GET'])
 def list_builtin_services():
-    """列出 bin/mcp/manifest.json 中注册的所有内置服务及运行状态"""
+    """列出 ~/.personllmwiki/mcp/ 中注册的所有内置服务及运行状态"""
     try:
         from common.builtin_mcp_manager import get_status
         statuses = get_status()
