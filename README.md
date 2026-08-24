@@ -28,7 +28,7 @@
 - **混合检索** — Embedding API + BM25（jieba）双路召回
 - **MCP 双角色** — 既是 MCP Server（对外暴露 19 个工具）供 AI 客户端调用，也是 MCP Client 连接外部服务
 - **DSH 集成** — 桌面端顶栏「Wiki \| DSH」模式切换；DSH agent 可直接检索知识库、读写文章、触发编译
-- **共享中心** — 技能 / 智能体 / MCP 服务的发布、浏览与一键安装（git 同步）
+- **共享中心** — 技能 / 智能体 / MCP 服务的发布、浏览与一键安装（git 同步）*（1.0.1 暂隐藏，1.1 回归）*
 - **知识星链** — D3.js 力导向图，节点大小反映关联数量
 - **Markdown 原生** — 文章以 `.md` 文件存储，零锁定
 
@@ -59,7 +59,7 @@ Swiss-Style Minimalism 卡片网格布局，概念按 kind 分组。标签页：
 
 编译管道：`article/*.md → LLM 概念提取 → 概念合并 → 页面生成 → wiki/concepts/*.md → Embedding 向量索引`
 
-### 共享中心
+### 共享中心（1.0.1 暂隐藏，1.1 回归）
 
 技能（SKILL.md）/ 智能体定义 / MCP 服务定义的**发布、浏览与一键安装**：
 
@@ -167,6 +167,14 @@ python desktop.pyw
 Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行清理整套进程树：应用/MCP/DSH，避免端口残留；`stop -KeepDsh` 保留 DSH）
 
 > 💡 集成 DeepSeek Harness（可选）：在设置页关联已安装的 DSH，即可在桌面端通过「Wiki | DSH」模式切换，让 DSH agent 直接使用知识库。
+
+---
+
+## 🔄 升级
+
+- **安装版（推荐）**：设置页「版本与更新」→「检查更新」，自动查询 [GitHub Releases](https://github.com/zsafly-star/PersonLLMWiki/releases) 最新版本；发现新版本后点「下载并升级」，应用自动退出并启动新版安装向导（UAC 确认后覆盖安装；用户数据保留在 `~/.personllmwiki`，不受影响）。
+- **源码 / zip 部署**：开发模式用 `git pull`（启动时自动检测 `requirements.txt` 变化并 `pip install`）；zip 部署用 `packaging/scripts/升级.bat`（versions.json 增量通道）。
+- **发版约定**：GitHub tag 使用**完整构建号**（如 `v1.0.1.007`），Release 附件命名 `PersonLLMWiki-Setup-<版本>.exe`，否则安装版检测不到新版本。
 
 ---
 
