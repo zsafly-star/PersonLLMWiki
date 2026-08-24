@@ -25,17 +25,22 @@
 ## 📦 功能模块
 
 ### 工作台
+
 扁平分区仪表盘，展示收藏文章、天气、数据统计。顶部搜索框输入问题后自动跳转对话页，Agent 模式调用 MCP 工具查询。
 
 ### 对话
+
 AI 对话页面，统一走 Agent 模式（LLM + MCP tool-calling）。支持：
+
 - 多模型（OpenAI / Claude / Gemini / Ollama），流式输出
 - Wiki 知识库上下文注入
 - MCP 工具自动调用
 - 对话转存为文章或 Wiki 页面
 
 ### 知识库
+
 Swiss-Style Minimalism 卡片网格布局，概念按 kind 分组。标签页：
+
 - **概念** — 已编译的概念卡片，点击查看详情（摘要、正文、来源溯源、相关概念）
 - **源文件** — Markdown 源文件列表，标注编译状态，可触发增量/全量编译
 - **待审批** — 编译产出的候选页面，逐条审核通过/拒绝
@@ -43,17 +48,21 @@ Swiss-Style Minimalism 卡片网格布局，概念按 kind 分组。标签页：
 编译管道：`article/*.md → LLM 概念提取 → 概念合并 → 页面生成 → wiki/concepts/*.md → Embedding 向量索引`
 
 ### 共享中心
+
 技能（SKILL.md）/ 智能体定义 / MCP 服务定义的**发布、浏览与一键安装**：
+
 - 发布：本地技能/智能体 → 校验（manifest）→ 写入共享仓库 → 更新索引 → git 提交
 - 安装：`copy-to`（技能落位本地）/ `mcp-connect`（生成 MCP 客户端配置）
 - 共享物标注来源等级：官方库 / 同事 / 外部
 
 ### 任务 / 自动化 / 文章 / 图片
+
 - **任务**：五泳道看板（收集箱 / 待办 / 进行中 / 已完成 / 已取消）
 - **自动化**：定时 AI Agent 任务（APScheduler），支持周期 / 间隔 / 单次，可经 headless 桥接外部执行引擎
 - **文章 / 图片**：Markdown 文件管理、文件夹树、附件上传、图片网格视图
 
 ### 设置
+
 LLM 配置、Embedding 配置、用户资料、资源路径、系统更新、外部执行引擎（DSH）关联与升级。
 
 ---
@@ -87,29 +96,35 @@ src/
 ## 🚀 快速开始
 
 ### 环境要求
-| 依赖 | 版本 |
-|------|------|
+
+| 依赖   | 版本   |
+| ------ | ------ |
 | Python | >= 3.8 |
 
 ### 1. 克隆项目
+
 ```bash
 git clone https://github.com/zsafly-star/PersonLLMWiki.git
 cd PersonLLMWiki
 ```
 
 ### 2. 安装依赖
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 3. 启动
+
 **Web 模式**（浏览器访问 http://localhost:5000）：
+
 ```bash
 cd src
 python app.py
 ```
 
 **桌面模式**（原生窗口，**无系统标题栏**——单栏自绘标题栏：左侧 logo +「Wiki | DSH」开关 + DSH 状态点，右侧最小化/最大化/关闭按钮；支持顶栏拖动、双击最大化、四边四角边缘缩放、关闭到系统托盘）：
+
 ```bash
 cd src
 python desktop.pyw
@@ -134,16 +149,16 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 
 ## 🔌 MCP API 概览
 
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/mcp` | POST | JSON-RPC 2.0（streamable-HTTP），`tools/list` / `tools/call` |
-| `/api/wiki/compile` | POST | 触发知识编译（增量/全量） |
-| `/api/wiki/pages` | GET | 概念页面列表 |
-| `/api/wiki/candidates` | GET | 待审批页面 |
-| `/api/chat/sessions` | GET/POST | 对话会话 |
-| `/api/automation/tasks` | GET/POST | 定时任务 |
-| `/api/shared/items` | GET | 共享中心条目 |
-| `/api/shared/publish` | POST | 发布共享物 |
+| 接口                      | 方法     | 说明                                                             |
+| ------------------------- | -------- | ---------------------------------------------------------------- |
+| `/mcp`                  | POST     | JSON-RPC 2.0（streamable-HTTP），`tools/list` / `tools/call` |
+| `/api/wiki/compile`     | POST     | 触发知识编译（增量/全量）                                        |
+| `/api/wiki/pages`       | GET      | 概念页面列表                                                     |
+| `/api/wiki/candidates`  | GET      | 待审批页面                                                       |
+| `/api/chat/sessions`    | GET/POST | 对话会话                                                         |
+| `/api/automation/tasks` | GET/POST | 定时任务                                                         |
+| `/api/shared/items`     | GET      | 共享中心条目                                                     |
+| `/api/shared/publish`   | POST     | 发布共享物                                                       |
 
 ---
 
@@ -151,26 +166,26 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 
 所有用户数据以文件系统为主，SQLite 为辅，**零云依赖**：
 
-| 数据 | 存储方式 | 位置 |
-|------|----------|------|
-| 知识库文章 | Markdown 文件 | `{RESOURCE_BASE_PATH}/article/` |
-| Wiki 概念页面 | Markdown + JSON Frontmatter | `{RESOURCE_BASE_PATH}/wiki/concepts/` |
-| 向量索引 | JSON | `{RESOURCE_BASE_PATH}/wiki/embeddings.json` |
-| 图片 / 附件 | 文件系统 | `{RESOURCE_BASE_PATH}/img/` `attachments/` |
-| 聊天记录 / 元数据 | SQLite | `{RESOURCE_BASE_PATH}/instance/sseditor.db` |
+| 数据              | 存储方式                    | 位置                                           |
+| ----------------- | --------------------------- | ---------------------------------------------- |
+| 知识库文章        | Markdown 文件               | `{RESOURCE_BASE_PATH}/article/`              |
+| Wiki 概念页面     | Markdown + JSON Frontmatter | `{RESOURCE_BASE_PATH}/wiki/concepts/`        |
+| 向量索引          | JSON                        | `{RESOURCE_BASE_PATH}/wiki/embeddings.json`  |
+| 图片 / 附件       | 文件系统                    | `{RESOURCE_BASE_PATH}/img/` `attachments/` |
+| 聊天记录 / 元数据 | SQLite                      | `{RESOURCE_BASE_PATH}/instance/sseditor.db`  |
 
 ---
 
 ## 🧰 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| **后端** | Flask, SQLAlchemy, APScheduler, SQLite |
-| **桌面** | PyWebView (WebView2), pystray, PyInstaller |
-| **前端** | 原生 JavaScript, Jinja2 模板, D3.js v7 |
-| **AI** | OpenAI API, Anthropic API, Gemini API, Ollama |
-| **检索** | Embedding API + BM25（jieba） |
-| **MCP** | JSON-RPC 2.0 over HTTP（streamable-HTTP） |
+| 类别             | 技术                                                                           |
+| ---------------- | ------------------------------------------------------------------------------ |
+| **后端**   | Flask, SQLAlchemy, APScheduler, SQLite                                         |
+| **桌面**   | PyWebView (WebView2), pystray, PyInstaller                                     |
+| **前端**   | 原生 JavaScript, Jinja2 模板, D3.js v7                                         |
+| **AI**     | OpenAI API, Anthropic API, Gemini API, Ollama                                  |
+| **检索**   | Embedding API + BM25（jieba）                                                  |
+| **MCP**    | JSON-RPC 2.0 over HTTP（streamable-HTTP）                                      |
 | **智能体** | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（可选集成） |
 
 ---
@@ -179,8 +194,6 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 
 - [Flask](https://github.com/pallets/flask)
 - [PyWebView](https://pywebview.flowrl.com/)
-- [Blossom](https://github.com/blossom-editor/blossom)
-- [Fluent Emoji](https://github.com/microsoft/fluentui-emoji)
 - llm-wiki-compiler（LLM Wiki 模式启发）
 
 ---
