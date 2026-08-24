@@ -283,4 +283,54 @@ Windows 10+ 默认含 WebView2 Runtime。Win7/8 需引导安装 Evergreen Bootst
 - 不做自动更新安装包本身（用户手动下载新版安装包；增量代码更新走现有升级接口）。
 - 不做 macOS/Linux 桌面版（当前只面向 Windows 用户）。
 - 不做多窗口/标签页。
-- 不做自定义标题栏（用系统默认标题栏）。
+- ~~不做自定义标题栏（用系统默认标题栏）~~ → **已被 F4（单栏无边框）推翻，见 §9**。
+
+---
+
+## 9. 演进：单栏无边框窗口（F4，2026-08-24 决定本次实施）
+
+**目标**：去掉系统标题栏，SPA 顶栏升级为窗口标题栏——**顶部只有一条栏**：
+`[Wiki | DSH 开关] [状态点] ────────── [—][□][✕]`（窗口控制按钮右对齐）。
+
+### 9.1 依据（pywebview 6.2.1 源码实测）
+
+| 事实 | 结论 |
+|---|---|
+| `frameless=True` → WinForms `FormBorderStyle.None` | 无标题栏；**无边缘拖拽缩放**（已知限制） |
+| `easy_drag` 未在 WinForms 后端实现（仅 cocoa/gtk/qt/mshtml） | **拖拽必须自实现**（不能靠 easy_drag） |
+| JS 侧 `window.pywebview` 仅暴露 `api` 桥（无 minimize/maximize/destroy 直调） | **窗口控制全部走 `js_api`** |
+| Python 侧 `Window.minimize() / maximize() / restore()` 可用 | 按钮直接映射这些方法 |
+| `desktop.pyw` 已有 Win32 子类化 `_wndproc`（WM_CLOSE→隐藏托盘）、`_hwnd`、ctypes user32 | 拖拽/关闭按钮复用现有基建，无需另起炉灶 |
+
+### 9.2 实现清单（Trae）
+
+**A. `src/desktop.pyw`**
+
+1. `webview.create_window(..., frameless=True)`——保留 `title='PersonLLMWiki'`（托盘/单实例 FindWindowW 依赖）、`width/height/min_size`、`shadow` 默认（圆角）。
+2. 新增 `WindowApi` 类，经 `js_api=WindowApi()` 注入；`create_window` 返回后把 `Window` 引用赋给 Api。方法：
+   - `minimize()` → `window.minimize()`
+   - `toggle_maximize()` → `user32.IsZoomed(_hwnd[0])` 为真则 `window.restore()`，否则 `window.maximize()`
+   - `is_maximized()` → `bool(user32.IsZoomed(_hwnd[0]))`（按钮图标初始化）
+   - `close()` → `user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)`——**走既有 `_wndproc`**：非退出态隐藏到托盘，语义与系统 ✕ 一致
+   - `start_drag()` → `user32.ReleaseCapture()` + `user32.SendMessageW(_hwnd[0], WM_NCLBUTTONDOWN, HTCAPTION, 0)`——经典无边框拖拽；最大化状态下拖拽自动还原为普通拖拽（Windows 原生行为，无需特判）
+   - 新增常量：`WM_NCLBUTTONDOWN = 0x00A1`、`HTCAPTION = 2`；补 `user32.ReleaseCapture` / `user32.IsZoomed` 的 argtypes/restype 声明（与现有 64 位兼容风格一致）。
+3. **（建议一并，低成本）边缘缩放**：`_wndproc` 中处理 `WM_NCHITTEST = 0x0084`——光标落在窗口边缘 6px 带内时返回 `HTLEFT/HTRIGHT/HTTOP/HTBOTTOM/HTTOPLEFT/HTTOPRIGHT/HTBOTTOMLEFT/HTBOTTOMRIGHT`，其余交原过程。弥补 frameless 无边缘缩放；与 JS 拖拽区（仅顶栏内）互不冲突。若实现有风险可先跳过，窗口仍可用最大化/还原。
+
+**B. `src/templates/base.html`（SPA 顶栏，唯一可见栏）**
+
+1. 顶栏右侧新增窗口控制区：`—`（最小化）、`□/❐`（最大化/还原，按 `is_maximized()` 切换图标）、`✕`（关闭，hover 红 `#e81123`）。按钮 `user-select:none`。
+2. 拖拽：顶栏空白区（非按钮/开关/状态区）`mousedown` → `start_drag()`；`dblclick` → `toggle_maximize()`；按钮与开关区 `stopPropagation()` 防误触。
+3. JS 桥：**`window.parent.pywebview.api.*`**（pywebview 注入在 shell 顶层窗口；同源 iframe 可访问），兜底 `(window.pywebview || window.parent.pywebview)?.api`；Web 模式（无 shell 父窗口）顶栏本就不显示，天然安全。
+4. 最大化图标状态：点击后乐观切换；启动时调 `is_maximized()` 初始化。
+5. 高度不变，按钮区 ≈46px 宽，hover 背景色与现有顶栏风格一致。
+
+### 9.3 验证路径
+
+1. 开发验证：`flask\python.exe src/desktop.pyw`（pywebview 6.2.1 已装 flask 环境）→ 单栏观感 / 顶栏拖拽 / 双击最大化 / 三按钮 / 关闭→托盘 / 托盘恢复·退出 / DSH 模式切换（Wiki↔DSH、←返回）全部正常。
+2. 打包复验：构建 .004 后按任务书 2.5 复验，2.5.2 更新为「单栏含窗口控制按钮、无系统标题栏」。
+
+### 9.4 已知限制
+
+- frameless 无边缘拖拽缩放（若 9.2-A3 未实施）；
+- 最大化/还原无系统过渡动画（WinForms `FormBorderStyle.None` 特性，可接受）；
+- 窗口控制按钮在 Web 浏览器模式不可见（顶栏整体隐藏），属预期。
