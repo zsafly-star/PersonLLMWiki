@@ -247,6 +247,7 @@ def get_version():
             [cmd, '--version'],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             cwd=os.path.dirname(cmd),
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         text = (out.stdout or '').strip() or (out.stderr or '').strip()
         version = _parse_version(text)
@@ -466,6 +467,7 @@ def stop():
                     ['taskkill', '/PID', str(proc.pid), '/T', '/F'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     timeout=10,
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
                 )
             else:
                 proc.terminate()
@@ -505,6 +507,7 @@ def run_headless(prompt, timeout=600):
             [cmd, '--profile', 'headless', prompt],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout,
             cwd=os.path.dirname(cmd),
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         return {
             'success': proc.returncode == 0,
@@ -835,7 +838,8 @@ def _npm_update(app_dir):
     stop()
     try:
         proc = subprocess.run(cmd, cwd=app_dir, capture_output=True, text=True,
-                              encoding='utf-8', errors='replace', timeout=600)
+                              encoding='utf-8', errors='replace', timeout=600,
+                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     except subprocess.TimeoutExpired:
         return {'success': False, 'method': 'npm', 'error': 'npm 安装超时（>600s）'}
     except (OSError, subprocess.SubprocessError) as e:
@@ -861,7 +865,8 @@ def _sync_profile(app_dir):
     try:
         subprocess.run([cmd, 'plugin', '--profile', 'web'],
                        capture_output=True, text=True, encoding='utf-8',
-                       errors='replace', timeout=60, cwd=os.path.dirname(cmd))
+                       errors='replace', timeout=60, cwd=os.path.dirname(cmd),
+                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
         pass
 
