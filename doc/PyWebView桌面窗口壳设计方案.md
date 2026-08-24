@@ -385,3 +385,38 @@ Windows 10+ 默认含 WebView2 Runtime。Win7/8 需引导安装 Evergreen Bootst
 
 1. 开发壳（`flask\python.exe src/desktop.pyw`）：单栏常驻（Wiki/DSH 模式都在）、logo+开关在左、SVG 三按钮、**拖动/双击最大化/边缘缩放**全部原生生效、✕ 到托盘、DSH 切换正常、启动 DSH 无 cmd 框；
 2. .004 构建后按任务书 2.5 复验。
+
+---
+
+## 11. R3 修订：实测根因与确定性实现（2026-08-24 R2 GUI 实测后）
+
+R2 实装后 GUI 实测：拖动 ✅、单栏外观 ✅、DSH 切换 ✅、F1 无 cmd 框 ✅；**边缘缩放 ❌、双击最大化 ❌、✕ 后无托盘图标 ❌、http://localhost:5000 无法访问 ❌**。
+
+### 11.1 根因
+
+| 现象 | 根因 |
+|---|---|
+| 边缘缩放/双击无效（拖动却正常） | ① **pywebview frameless 默认启用 `easy_drag`**（`customize.js` 给整个窗口挂 mousedown → `pywebviewMoveWindow` 增量移动），与自绘机制并存干扰；② 边缘 HT* 与标题栏双击依赖 Chromium/WebView2 对非客户区消息的传导，实测不可靠。**放弃依赖，改确定性 JS 实现** |
+| ✕ 后进程在跑但**无托盘图标** | 开发环境 flask env **缺 pystray**：`TrayManager._run()` 内 `import pystray` 失败，daemon 线程静默死亡；EXE 打包了 pystray 所以安装版正常（属开发环境问题，已装修复） |
+| `localhost:5000` 无法访问 | 5000 被占时顺延到 5001 并**持久化**（`~/.personllmwiki/instance/desktop_prefs.json` 的 `flask_port`），之后每次启动读 5001——5000 已空也不回弹（属使用问题，已重置回 5000） |
+
+### 11.2 R3 改动清单（Trae）
+
+**A. `src/desktop.pyw`**
+1. `webview.create_window(...)` 增加 **`easy_drag=False`**——关闭 pywebview 自带 JS 拖拽劫持。
+2. 子窗口 `WM_NCHITTEST`：**只保留栏区 `HTCAPTION`**（拖动已实测原生生效）；**移除边缘 HT\* 分支**（与 JS 边缘缩放冲突且不可靠）。
+3. `WindowApi` 新增 **`start_resize(dir)`**：`dir ∈ n/s/e/w/ne/nw/se/sw`。后台线程循环：`GetCursorPos` → 按方向锚定对边/对角计算新 rect（**强制 min 1024×600**）→ `SetWindowPos(hwnd, ..., SWP_NOZORDER|SWP_NOACTIVATE)` → 直到 `GetAsyncKeyState(VK_LBUTTON)` 松开。
+4. （可选）`TrayManager._run` 包 try/except + 打印失败原因，便于将来排查。
+
+**B. `src/modules/agent/templates/shell.html`**
+1. **双击最大化**：栏上 `dblclick`（target 不在交互区）→ `api.toggle_maximize()`；交互区 `stopPropagation`。
+2. **边缘缩放**：`document` 级 `mousemove` 检测距视口边缘 ≤8 CSS px → 设置对应 resize 光标并记录方向；边缘带内 `mousedown` → `api.start_resize(dir)` + `preventDefault()`。
+3. **Web 模式降级**：无 `window.pywebview.api` 时**隐藏窗口按钮区**（浏览器直连更干净、不报错）。
+
+**C. 环境（已处理）**：flask env 已装 pystray 0.19.5；`desktop_prefs.json` 的 `flask_port` 已重置回 5000。
+
+### 11.3 验证路径
+
+1. 开发壳：单栏常驻（两模式）、logo+开关在左、SVG 按钮、**拖动/双击最大化/四边四角边缘缩放**、✕→**托盘图标出现**→恢复/退出、DSH 切换、启动 DSH 无 cmd 框；
+2. Web 模式（浏览器直连 127.0.0.1:5000 或 5001）：页面正常、窗口按钮隐藏、无报错；
+3. tests/desktop 45 passed → .004 构建后按任务书 2.5 复验。

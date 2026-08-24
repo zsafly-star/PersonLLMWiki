@@ -19,35 +19,11 @@
     .emoji-icon-xl{width:28px;height:28px}
     .emoji-spin{animation:emoji-spin 1s linear infinite}
     @keyframes emoji-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    /* 统一全局顶部条：DSH 模式开关 + 状态点（对齐 SPA 风格，非深色条） */
-    .index-topbar-right{display:flex;align-items:center;gap:10px}
-    .dsh-switch{display:inline-flex;align-items:center;background:var(--color-border-light,#F1F5F9);border-radius:8px;padding:2px}
-    .dsh-switch .dsh-seg{appearance:none;border:none;background:transparent;color:var(--color-muted);font-size:12px;font-weight:600;padding:4px 14px;border-radius:6px;cursor:pointer;line-height:1.4;transition:background .15s,color .15s}
-    .dsh-switch .dsh-seg:hover{color:var(--color-foreground)}
-    .dsh-switch .dsh-seg.is-active{background:var(--color-primary);color:var(--color-on-primary)}
-    .dsh-switch .dsh-seg:disabled{opacity:.45;cursor:not-allowed}
-    .dsh-status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
-    .dsh-status-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
-    .dsh-status-badge.running{background:#ECFDF5;color:#065F46}
-    .dsh-status-badge.not_running{background:#FFF7ED;color:#9A3412}
-    .dsh-status-badge.version_low{background:#FEF2F2;color:#991B1B}
-    .dsh-status-badge.not_installed{background:#F3F4F6;color:#4B5563}
-    .dsh-status-badge.starting{background:#EFF6FF;color:#1D4ED8}
     </style>
     <script src="{{ url_for('static', filename='lib/chart.js') }}"></script>
 </head>
 <body>
     <div class="index-root">
-        <div class="index-topbar" id="index-topbar" hidden>
-            <div class="index-topbar-right">
-                <div class="dsh-switch" id="dsh-switch" role="tablist" aria-label="模式切换">
-                    <button class="dsh-seg is-active" id="dsh-seg-wiki" type="button" data-mode="wiki" role="tab" aria-selected="true">Wiki</button>
-                    <button class="dsh-seg" id="dsh-seg-dsh" type="button" data-mode="dsh" role="tab" aria-selected="false" disabled>DSH</button>
-                </div>
-                <span class="dsh-status-badge" id="dsh-status-badge" title="检测中…">DSH 检测中…</span>
-            </div>
-        </div>
-        <div class="index-body">
         <div class="index-aside">
             <div class="index-aside-root">
                 <div class="aside-item-container">
@@ -103,7 +79,6 @@
 
         <div class="index-main-container">
             {% block content %}{% endblock %}
-        </div>
         </div>
     </div>
     
@@ -273,79 +248,6 @@
         clearTimeout(t._timer);
         t._timer = setTimeout(function() { t.classList.remove('show'); }, 1500);
     }
-    </script>
-
-    <script>
-    /* 统一顶部条：DSH 模式开关 + 状态点（仅桌面端 shell 内生效） */
-    (function () {
-        var MODE_KEY = 'dsh_shell_mode';
-        var SH_LABEL = { running: 'DSH 在线', starting: 'DSH 启动中', not_running: 'DSH 未运行', version_low: 'DSH 版本过低', not_installed: 'DSH 未装' };
-        var SH_TIP = { starting: 'DSH 启动中，首次初始化可能需几分钟' };
-
-        var topbar = document.getElementById('index-topbar');
-        var badge = document.getElementById('dsh-status-badge');
-        var segWiki = document.getElementById('dsh-seg-wiki');
-        var segDsh = document.getElementById('dsh-seg-dsh');
-
-        var inShell = false;
-        try { inShell = window.parent !== window; } catch (e) { inShell = false; }
-
-        // Web 浏览器模式（非 iframe）：保持顶栏隐藏，不报错
-        if (!inShell || !topbar || !badge || !segWiki || !segDsh) return;
-
-        var pollCount = 0;
-
-        function updateSeg() {
-            var wikiOn = localStorage.getItem(MODE_KEY) !== 'dsh';
-            segWiki.classList.toggle('is-active', wikiOn);
-            segDsh.classList.toggle('is-active', !wikiOn);
-            segWiki.setAttribute('aria-selected', wikiOn ? 'true' : 'false');
-            segDsh.setAttribute('aria-selected', wikiOn ? 'false' : 'true');
-        }
-
-        function refreshStatus() {
-            fetch('/api/agent/status')
-                .then(function (r) { return r.json(); })
-                .then(function (res) {
-                    var s = res.data || {};
-                    var st = s.status || 'not_installed';
-                    badge.className = 'dsh-status-badge ' + st;
-                    badge.textContent = SH_LABEL[st] || 'DSH 检测中…';
-                    badge.title = SH_TIP[st] || SH_LABEL[st] || '检测中…';
-                    var blocked = st === 'not_installed' || st === 'version_low';
-                    segDsh.disabled = !!blocked;
-                    segDsh.title = blocked ? '请先到「设置 → DeepSeek Harness」关联或安装 DSH' : '';
-                    schedulePoll();
-                })
-                .catch(function () { schedulePoll(); });
-        }
-
-        function schedulePoll() {
-            pollCount++;
-            var delay = pollCount < 3 ? 2000 : 10000;
-            setTimeout(refreshStatus, delay);
-        }
-
-        function switchFromSpa(mode) {
-            try { window.parent.postMessage({ type: 'dsh-switch', mode: mode }, '*'); } catch (e) {}
-            updateSeg();
-        }
-
-        segWiki.addEventListener('click', function () { switchFromSpa('wiki'); });
-        segDsh.addEventListener('click', function () {
-            if (segDsh.disabled) { showToast('请先到「设置 → DeepSeek Harness」关联或安装 DSH'); return; }
-            switchFromSpa('dsh');
-        });
-
-        // 父窗口切换模式会写回 localStorage；同源跨文档 storage 事件同步选中态
-        window.addEventListener('storage', function (e) {
-            if (e.key === MODE_KEY) updateSeg();
-        });
-
-        topbar.hidden = false;
-        updateSeg();
-        refreshStatus();
-    })();
     </script>
 
     {% block scripts %}{% endblock %}
