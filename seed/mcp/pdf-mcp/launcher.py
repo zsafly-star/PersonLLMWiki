@@ -1,7 +1,7 @@
 """pdf-mcp HTTP 启动器。
 
 pdf-mcp 源码自包含在 pdf_mcp/ 子目录下，无需 pip install。
-由 builtin_mcp_manager 通过 bin/mcp/pdf-mcp/service.json 配置调用。
+由 builtin_mcp_manager 通过 ~/.personllmwiki/mcp/pdf-mcp/service.json 配置调用。
 """
 import os
 import sys

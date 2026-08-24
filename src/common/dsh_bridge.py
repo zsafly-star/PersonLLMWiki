@@ -566,6 +566,14 @@ def get_dsh_home():
     return DSH_HOME_BASE
 
 
+def get_dsh_data_home():
+    """DSH 数据目录（profiles/skills/sessions 等）：优先 $DSH_HOME 环境变量，默认 ~/.dsh。"""
+    env = os.environ.get('DSH_HOME', '').strip()
+    if env:
+        return env
+    return os.path.join(os.path.expanduser('~'), '.dsh')
+
+
 def _get_mirror_url():
     """下载源：环境变量 DSH_MIRROR_URL 优先，其次配置 dsh_mirror_url。空串表示未配置。"""
     env = (os.environ.get('DSH_MIRROR_URL') or '').strip()

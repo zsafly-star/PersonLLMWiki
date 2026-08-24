@@ -6,6 +6,7 @@ from common.embedding_config import EmbeddingConfigService
 import os
 import sys
 import json
+import shutil
 
 settings_bp = Blueprint('settings', __name__, template_folder='templates')
 
@@ -743,3 +744,121 @@ def update_dsh_runtime():
     if result.get('success'):
         return success_response(result, result.get('message') or '更新完成')
     return error_response(result.get('error') or '更新失败')
+
+
+def _build_insert_entry(token):
+    """构造 personllmwiki 的 DSH insert 条目（与 ~/.dsh 现有 cordis.patch.yml 语法一致）。"""
+    lines = [
+        '- insert:',
+        '    - id: mcp-personllmwiki',
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        '      config:',
+        '        serverName: personllmwiki',
+        '        transport: streamable-http',
+        '        url: http://127.0.0.1:5000/mcp',
+        '        failOnStartupError: false',
+    ]
+    if token:
+        lines.append('        token: ' + token)
+    return '\n'.join(lines)
+
+
+def _find_entry_end(content, start):
+    """从 start（serverName: personllmwiki 位置）定位条目块结束：下一个条目边界或文件尾。"""
+    candidates = [len(content)]
+    for marker in ('\n- insert:', '\n    - id:', '\n- id:'):
+        p = content.find(marker, start)
+        if p != -1:
+            candidates.append(p)
+    return min(candidates)
+
+
+def _add_token_to_entry(content, token):
+    """在 personllmwiki 条目 config 块末尾补 token 行。返回 (new_content, changed)。"""
+    marker = 'serverName: personllmwiki'
+    idx = content.find(marker)
+    if idx == -1:
+        return content, False
+    block_end = _find_entry_end(content, idx)
+    if 'token:' in content[idx:block_end]:
+        return content, False
+    rstrip_end = block_end
+    while rstrip_end > idx and content[rstrip_end - 1] in ' \t\r\n':
+        rstrip_end -= 1
+    new_content = content[:rstrip_end] + '\n        token: ' + token + content[rstrip_end:]
+    return new_content, True
+
+
+def _ensure_personllmwiki_entry(patch_path, token):
+    """确保 cordis.patch.yml 含 personllmwiki MCP 连接条目，幂等。
+    返回 (mcp_entry, token_replaced)。"""
+    if os.path.isfile(patch_path):
+        with open(patch_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    else:
+        content = ''
+
+    has_entry = ('mcp-personllmwiki' in content) or ('serverName: personllmwiki' in content)
+
+    if has_entry:
+        mcp_entry = 'exists'
+        token_replaced = False
+        if token:
+            content, token_replaced = _add_token_to_entry(content, token)
+    else:
+        mcp_entry = 'added'
+        content = content.rstrip('\n') + '\n' + _build_insert_entry(token) + '\n'
+        token_replaced = bool(token)
+
+    if mcp_entry == 'added' or token_replaced:
+        os.makedirs(os.path.dirname(patch_path), exist_ok=True)
+        with open(patch_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    return mcp_entry, token_replaced
+
+
+@settings_bp.route('/api/settings/dsh/install-plugin', methods=['POST'])
+def install_dsh_plugin():
+    """安装 PLW 知识库插件：技能落到 DSH 数据目录 skills/，MCP 连接写入 cordis.patch.yml"""
+    from common import dsh_bridge
+    from config import Config
+    if not dsh_bridge.is_local_origin(request.headers.get('Origin')):
+        return error_response('跨源请求被拒绝', 403)
+
+    # 1. 前置校验：DSH 已关联且版本满足
+    status = dsh_bridge.get_status()
+    if status['status'] in ('not_installed', 'version_low'):
+        return error_response('请先关联/安装 DSH（当前状态：%s）' % status['status'])
+
+    # 2. 插件源
+    plugin_src = os.path.join(Config.SEED_DIR, 'dsh', 'dsh-personllmwiki')
+    if not os.path.isdir(plugin_src):
+        return error_response('插件包缺失：%s' % plugin_src)
+
+    # 3. DSH 数据目录
+    data_home = dsh_bridge.get_dsh_data_home()
+    if not data_home or not data_home.strip():
+        return error_response('无法定位 DSH 数据目录')
+
+    # 4. 技能落地：skills/knowledge-base/SKILL.md → <data_home>/skills/knowledge-base/SKILL.md
+    skill_src = os.path.join(plugin_src, 'skills', 'knowledge-base', 'SKILL.md')
+    skill_dst = os.path.join(data_home, 'skills', 'knowledge-base', 'SKILL.md')
+    skill_installed = False
+    if os.path.isfile(skill_src):
+        os.makedirs(os.path.dirname(skill_dst), exist_ok=True)
+        shutil.copy2(skill_src, skill_dst)
+        skill_installed = True
+
+    # 5. MCP 连接：写入 <data_home>/profiles/web/cordis.patch.yml（幂等）
+    token = Config.MCP_ADMIN_TOKEN or ''
+    patch_path = os.path.join(data_home, 'profiles', 'web', 'cordis.patch.yml')
+    mcp_entry, token_replaced = _ensure_personllmwiki_entry(patch_path, token)
+
+    return success_response({
+        'data_home': data_home,
+        'skill_installed': skill_installed,
+        'mcp_entry': mcp_entry,
+        'token_replaced': token_replaced,
+        'note': '请重启 DSH 后生效',
+    }, '插件已安装，请重启 DSH 生效')

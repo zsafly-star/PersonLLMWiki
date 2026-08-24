@@ -59,17 +59,6 @@ static/uploads/
 .DS_Store
 Thumbs.db
 
-# bin temp files (keep bin/mcp/officecli/ for bundled tools)
-bin/*.part
-bin/*.tmp
-
-# MCP runtime data (models + cache, downloaded at first use)
-bin/mcp/pdf-mcp/
-
-# Skills runtime data (generated outputs)
-bin/skills/*/*.xlsx
-bin/skills/*/*.json
-
 # Backup files
 *.bak
 *.bac

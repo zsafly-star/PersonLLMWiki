@@ -321,6 +321,7 @@
                             <button class="btn btn-secondary" id="btn-dsh-check">检查更新</button>
                             <button class="btn btn-secondary" id="btn-dsh-update">一键更新</button>
                             <button class="btn btn-secondary" id="btn-dsh-reinstall">重新安装</button>
+                            <button class="btn btn-secondary" id="btn-dsh-install-plugin">安装 PLW 知识库插件</button>
                         </div>
                         <div id="dsh-update-status" class="status-line"></div>
 
@@ -591,6 +592,7 @@
             _bindOnce(document.getElementById('btn-dsh-check'), 'click', checkDshUpdate);
             _bindOnce(document.getElementById('btn-dsh-update'), 'click', updateDshRuntime);
             _bindOnce(document.getElementById('btn-dsh-reinstall'), 'click', reinstallDsh);
+            _bindOnce(document.getElementById('btn-dsh-install-plugin'), 'click', installDshPlugin);
 
             document.querySelectorAll('[data-action]').forEach(function(el) {
                 el.removeEventListener('click', _settingsActionHandler);
@@ -1448,6 +1450,10 @@
             }
             if (s.status === 'starting') lines.push('<div>提示：DSH 正在启动（首次初始化可能需要几分钟），请稍候…</div>');
             meta.innerHTML = lines.join('');
+
+            // DSH 未安装/版本过低时禁用插件安装按钮
+            var installBtn = document.getElementById('btn-dsh-install-plugin');
+            if (installBtn) installBtn.disabled = (s.status === 'not_installed' || s.status === 'version_low');
         }
 
         function loadDshSettings() {
@@ -1587,6 +1593,30 @@
                 .catch(function() {
                     showToast('重新安装请求失败');
                     if (el) el.textContent = '重新安装请求失败';
+                })
+                .then(function() { if (btn) btn.disabled = false; });
+        }
+
+        function installDshPlugin() {
+            var el = document.getElementById('dsh-update-status');
+            var btn = document.getElementById('btn-dsh-install-plugin');
+            if (el) el.textContent = '正在安装 PLW 知识库插件...';
+            if (btn) btn.disabled = true;
+            fetch('/api/settings/dsh/install-plugin', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.code === 200) {
+                        var where = (res.data && res.data.data_home) || '';
+                        showToast('插件已安装，请重启 DSH 生效');
+                        if (el) el.textContent = '插件已安装' + (where ? '（' + where + '）' : '') + '，请重启 DSH 生效';
+                    } else {
+                        showToast(res.message || '插件安装失败');
+                        if (el) el.textContent = res.message || '插件安装失败';
+                    }
+                })
+                .catch(function() {
+                    showToast('插件安装请求失败');
+                    if (el) el.textContent = '插件安装请求失败';
                 })
                 .then(function() { if (btn) btn.disabled = false; });
         }
