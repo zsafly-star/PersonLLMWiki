@@ -109,13 +109,13 @@ cd src
 python app.py
 ```
 
-**桌面模式**（原生窗口）：
+**桌面模式**（原生窗口，**无系统标题栏**——单栏自绘标题栏：左侧 logo +「Wiki | DSH」开关 + DSH 状态点，右侧最小化/最大化/关闭按钮；支持顶栏拖动、双击最大化、四边四角边缘缩放、关闭到系统托盘）：
 ```bash
 cd src
 python desktop.pyw
 ```
 
-Windows 开发脚本：`.\dev.ps1 start | stop | restart`
+Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行清理整套进程树：应用/MCP/DSH，避免端口残留；`stop -KeepDsh` 保留 DSH）
 
 > 💡 集成 DeepSeek Harness（可选）：在设置页关联已安装的 DSH，即可在桌面端通过「Wiki | DSH」模式切换，让 DSH agent 直接使用知识库。
 

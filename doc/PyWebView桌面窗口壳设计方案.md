@@ -331,9 +331,9 @@ Windows 10+ 默认含 WebView2 Runtime。Win7/8 需引导安装 Evergreen Bootst
 
 ### 9.4 已知限制
 
-- frameless 无边缘拖拽缩放（若 9.2-A3 未实施）；
+- ~~frameless 无边缘拖拽缩放~~ → 已由 §12 覆盖条 + `SetWindowPos` 方案解决（2026-08-24 R4 实测通过）；
 - 最大化/还原无系统过渡动画（WinForms `FormBorderStyle.None` 特性，可接受）；
-- 窗口控制按钮在 Web 浏览器模式不可见（顶栏整体隐藏），属预期。
+- 窗口控制按钮在 Web 浏览器模式不可见/隐藏（无 pywebview 桥时静默降级），属预期。
 
 ---
 
@@ -423,7 +423,7 @@ R2 实装后 GUI 实测：拖动 ✅、单栏外观 ✅、DSH 切换 ✅、F1 �
 
 ---
 
-## 12. R4 修订：放弃原生 NCHITTEST，全面 JS 驱动窗口操作（2026-08-24 R3 GUI 实测后）
+## 12. R4 修订：放弃原生 NCHITTEST，全面 JS 驱动窗口操作（R4 定稿：2026-08-24 开发壳 GUI 实测全部通过，commit `637284c`）
 
 R3 实装后 GUI 实测：双击 ✅、托盘 ✅、DSH 切换 ✅、Web 模式 ✅；**拖动 ❌（回归）、边缘缩放 ❌**。
 
