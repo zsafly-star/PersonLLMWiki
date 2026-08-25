@@ -6,7 +6,7 @@
 [![Flask](https://img.shields.io/badge/Flask-2.0%2B-black?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-基于 Flask 的全栈个人知识管理系统，**深度继承 DeepSeek Harness（DSH）作为内置 AI 执行引擎**——桌面端单栏顶栏一键切换「Wiki | DSH」双模式，DSH agent 经 MCP 直接检索知识库、读写文章、触发编译。将散落的笔记、文章、图片统一管理，通过 **LLM 自动编译为互链 Wiki 知识库**；支持 **MCP 双角色**（对外 19 个工具的 Server，接入外部服务的 Client）。支持 **Web 浏览器** 与 **桌面应用**（PyWebView 无边框单栏）两种形态。
+基于 Flask 的全栈个人知识管理系统，**深度继承 DeepSeek Harness（DSH）作为内置 AI 执行引擎**——桌面端单栏顶栏一键切换「Wiki | DSH」双模式，DSH agent 经 MCP 直接检索知识库、读写文章、触发编译。将散落的笔记、文章、图片统一管理，通过 **LLM 自动编译为互链 Wiki 知识库**；规划中的**记忆模块**（1.2）将补齐会话记忆自动提取与开场召回注入，形成**知识 + 记忆双轨上下文底座**（详见[设计方案](doc/记忆与上下文交付设计方案.md)）；支持 **MCP 双角色**（对外 19 个工具的 Server，接入外部服务的 Client）。支持 **Web 浏览器** 与 **桌面应用**（PyWebView 无边框单栏）两种形态。
 
 ---
 
@@ -14,9 +14,9 @@
 
 ![PersonLLMWiki × DeepSeek Harness 架构图](doc/architecture.svg)
 
-- **DSH（DeepSeek Harness）** — AI 执行引擎，作为 **MCP Client** 经协议调用 PLW 能力（检索知识库 / 读写文章 / 触发编译），桌面端以 iframe 嵌入（DSH 模式）；**亦可直接配置使用外部 MCP Server / Skill（主通道）**
-- **PLW（PersonLLMWiki）** — Flask 知识管理系统：知识库核心（文章 → Wiki 编译 → 混合检索）+ **MCP Server**（`/mcp`，19 个工具）+ **Bridge** 桥接层
-- **MCP** — 统一协议层（JSON-RPC 2.0 / streamable-HTTP）。**架构方向（三层）**：外部 MCP / Skill 统一由 DSH 消费；DSH ↔ PLW 走 `/mcp`；PLW ↔ 外部 MCP Server（SAP 等）为**过渡态**（MCP Client 总线，规划收敛，见待办）
+- **DSH（DeepSeek Harness）** — AI 执行引擎，作为 **MCP Client** 经协议调用 PLW 能力（检索知识库 / 读写文章 / 触发编译 / 记忆读写），桌面端以 iframe 嵌入（DSH 模式）；**亦可直接配置使用外部 MCP Server / Skill（主通道）**
+- **PLW（PersonLLMWiki）** — Flask 知识管理系统：知识库核心（文章 → Wiki 编译 → 混合检索）+ **记忆模块**（会话记忆自动提取 / 开场召回注入，知识·记忆双轨制）+ **MCP Server**（`/mcp`，19 个工具）+ **Bridge** 桥接层
+- **MCP** — 统一协议层（JSON-RPC 2.0 / streamable-HTTP）。**架构方向（三层）**：外部 MCP / Skill 统一由 DSH 消费；DSH ↔ PLW 走 `/mcp`（知识检索 / 记忆读写 / 编译触发）；PLW ↔ 外部 MCP Server（SAP 等）为**过渡态**（MCP Client 总线，规划收敛，见待办）
 - **Bridge（dsh_bridge）** — 桌面端管理 DSH 生命周期（启动 / 状态 / 版本门禁）、headless 调用、静默拉起与单栏模式切换
 - **桌面壳（PyWebView）** — 无边框单栏自绘标题栏（logo + Wiki|DSH 开关 + 窗口按钮），拖动 / 双击最大化 / 边缘缩放 / 关闭到托盘，统一承载双模式
 
@@ -26,6 +26,7 @@
 
 - **LLM 知识编译** — 文章 → LLM 概念提取 → 概念合并 → 页面生成 → 审批 → 向量索引，增量编译（SHA-256 哈希检测）
 - **混合检索** — Embedding API + BM25（jieba）双路召回
+- **知识 + 记忆双轨（1.2 规划）** — 会话记忆自动提取 / 开场召回注入，与人工审批知识隔离互不污染（详见[设计方案](doc/记忆与上下文交付设计方案.md)）
 - **MCP 双角色** — 既是 MCP Server（对外暴露 19 个工具）供 AI 客户端调用，也是 MCP Client 连接外部服务
 - **DSH 集成** — 桌面端顶栏「Wiki \| DSH」模式切换；DSH agent 可直接检索知识库、读写文章、触发编译
 - **共享中心** — 技能 / 智能体 / MCP 服务的发布、浏览与一键安装（git 同步）*（1.0.1 暂隐藏，1.1 回归）*
