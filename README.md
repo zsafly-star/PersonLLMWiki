@@ -117,6 +117,15 @@ LLM 配置、Embedding 配置、用户资料、资源路径、系统更新、外
 - [ ] Windows **代码签名**（消除 SmartScreen「未知发布者」提示）
 - [ ] **DSH 集成收敛**：`shared/routes.py` 的 `_append_cordis_patch` 与 DSH 实际 cordis 语法（数组 `insert:`）/数据目录（`~/.dsh`）不一致，统一重构为 `get_dsh_data_home()` + 标准 insert 语法
 
+### 记忆与上下文（OpenViking 替代，1.2 方向）
+
+PLW 补全「会话记忆自动提取 + 分层上下文交付 + 技能沉淀」，单进程替代本机 OpenViking 的 Agent 上下文底座角色（详见 [记忆与上下文交付设计方案](doc/记忆与上下文交付设计方案.md)）：
+
+- [ ] **记忆模块**：对话结束后台异步提取（用户偏好/事实/决策）→ `resource/memories/*.md` → embedding 索引 → 对话开场自动召回注入；新增 MCP 工具 `remember` / `search_memory` / `list_memories` / `forget_memory`
+- [ ] **分层上下文交付**：`context_assembler` 按 token 预算分「摘要 → 命中片段 → 原文」三层组装检索结果，替代"整库 Top-K 全量注入"
+- [ ] **技能沉淀**：会话中识别可复用流程 → 生成 SKILL.md 草案 → 复用候选审批流入库
+- [ ] **记忆/知识双轨制**：自动记忆（低门槛入库 + 一键撤回 + 带来源对话）与人工审批知识（可信溯源）隔离，互不污染
+
 ---
 
 ## 🏗️ 技术架构
@@ -201,6 +210,7 @@ Windows 开发脚本：`.\dev.ps1 start | stop | restart`（`stop` 按命令行�
 - [架构边界与升级指南](doc/README-架构边界与升级指南.md) — 系统总览、PLW 与 DSH 分工、升级方法（**入口文档**）
 - [PersonLLMWiki 设计规范](doc/PersonLLMWiki设计规范.md) — 各子系统设计索引
 - [DSH 集成架构设计方案](doc/DSH集成架构设计方案.md) — 集成架构、知识供给、共享中心、里程碑
+- [记忆与上下文交付设计方案](doc/记忆与上下文交付设计方案.md) — 会话记忆 / 分层交付 / 技能沉淀（OpenViking 替代，1.2）
 - [打包验证任务书](doc/打包验证任务书.md) — 发版打包验证 SOP（可被任意 AI 工具执行）
 - [安装版自动升级设计方案](doc/安装版自动升级设计方案.md) — 安装版 GitHub Releases 检测与升级
 - [待办：架构收敛](doc/待办-架构收敛.md) — 外部 MCP 统一走 DSH 的三层架构收敛项（1.1）
