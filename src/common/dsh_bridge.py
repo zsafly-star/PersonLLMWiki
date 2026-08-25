@@ -247,6 +247,7 @@ def get_version():
             [cmd, '--version'],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             cwd=os.path.dirname(cmd),
+            env=_subprocess_env(),
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         text = (out.stdout or '').strip() or (out.stderr or '').strip()
@@ -262,13 +263,54 @@ def get_version():
 
 
 def _parse_version(text):
-    """从 dsh --version 输出中提取版本号（如 "0.1.0-rc.6"）。"""
+    """从 dsh --version 输出中提取版本号（如 "0.1.0-rc.6"）。
+
+    匹配不到标准的 x.y.z[-prerelease] 时返回 None，绝不把命令报错/非版本文本
+    当作版本号返回（否则会把 "node 不是内部或外部命令" 等误判为版本）。
+    """
     import re
     if not text:
         return None
     # 匹配 x.y.z[-rc.N] 或 @deepseek-ai/dsh 后的版本
     m = re.search(r'(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)', text)
-    return m.group(1) if m else (text.strip() or None)
+    return m.group(1) if m else None
+
+
+def _find_node():
+    """定位 node.exe：优先 DSH 运行时内置，其次 PATH/where，再常见安装目录。
+
+    Returns:
+        str | None: node 可执行文件路径。
+    """
+    for p in (os.path.join(get_dsh_home(), 'app', 'node', 'node.exe'),
+              os.path.join(get_dsh_home(), 'app', 'node.exe'),
+              os.path.join(get_dsh_home(), 'node', 'node.exe')):
+        if os.path.isfile(p):
+            return p
+    found = shutil.which('node') or shutil.which('node.exe')
+    if found:
+        return found
+    for cand in (r'C:\Program Files\nodejs', r'C:\Program Files (x86)\nodejs',
+                 os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'nodejs')):
+        p = os.path.join(cand, 'node.exe')
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _subprocess_env():
+    """返回子进程环境，默认把 node 目录注入 PATH。
+
+    脚本 shim（dsh.cmd / dsh.ps1）依赖 PATH 里的 node 才能运行；直接从桌面进程
+    继承的 PATH 常不含 Node 安装目录（尤其 GUI 启动场景），这里显式补上，
+    否则 dsh.cmd --version 会报 "node 不是内部或外部命令"。
+    """
+    env = os.environ.copy()
+    node = _find_node()
+    if node:
+        node_dir = os.path.dirname(node)
+        env['PATH'] = node_dir + os.pathsep + env.get('PATH', '')
+    return env
 
 
 def _version_tuple(version):
@@ -426,6 +468,7 @@ def start(timeout=30.0):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
+                env=_subprocess_env(),
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
             )
         except (OSError, subprocess.SubprocessError) as e:
@@ -507,6 +550,7 @@ def run_headless(prompt, timeout=600):
             [cmd, '--profile', 'headless', prompt],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout,
             cwd=os.path.dirname(cmd),
+            env=_subprocess_env(),
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         return {
@@ -874,6 +918,7 @@ def _sync_profile(app_dir):
         subprocess.run([cmd, 'plugin', '--profile', 'web'],
                        capture_output=True, text=True, encoding='utf-8',
                        errors='replace', timeout=60, cwd=os.path.dirname(cmd),
+                       env=_subprocess_env(),
                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
         pass

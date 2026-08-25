@@ -25,7 +25,14 @@ class TestParseVersion:
         assert dsh_bridge._parse_version(None) is None
 
     def test_parse_no_version(self):
-        assert dsh_bridge._parse_version('unknown') == 'unknown'
+        # 匹配不到 x.y.z 时必须返回 None，绝不能把命令报错/非版本文本当版本号
+        assert dsh_bridge._parse_version('unknown') is None
+
+    def test_parse_error_text_returns_none(self):
+        # 复现 DSH 误判根因：node 不在 PATH 时 dsh.cmd --version 输出报错文本
+        error_text = '"node" 不是内部或外部命令，也不是可运行的程序或批处理文件。'
+        assert dsh_bridge._parse_version(error_text) is None
+        assert dsh_bridge._parse_version('dsfdsf 0.1.0') == '0.1.0'
 
 
 class TestVersionGate:
