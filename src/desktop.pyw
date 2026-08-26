@@ -48,7 +48,7 @@ if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
 from common.port_utils import find_free_port
-from common.desktop_prefs import get_port, set_port
+from common.desktop_prefs import get_port, set_port, get_window_state, set_window_state
 
 # Flask 就绪超时（秒）
 FLASK_READY_TIMEOUT = 30
@@ -188,6 +188,11 @@ def main():
     _allow_close = [False]
     _wndproc_callback = [None]
     _original_wndproc = [None]
+    _maximized = [False]             # 是否处于「最大化到工作区」状态
+    _pre_restore_bounds = [None]     # 最大化前的窗口 bounds：(left, top, right, bottom)
+
+    # T6：读取上次保存的窗口状态（位置/尺寸 + 最大化），启动时恢复
+    _saved_bounds, _saved_maximized = get_window_state()
 
     # Win32 常量
     WM_CLOSE = 0x0010
@@ -199,8 +204,16 @@ def main():
     ICON_SMALL = 0
     ICON_BIG = 1
     VK_LBUTTON = 0x01
+    SWP_NOSIZE = 0x0001
     SWP_NOZORDER = 0x0004
     SWP_NOACTIVATE = 0x0010
+    SPI_GETWORKAREA = 0x0030
+    MONITOR_DEFAULTTONEAREST = 2
+    SNAP_EDGE_PX = 6   # 顶边吸附判定阈值（像素）：鼠标 Y 距屏幕顶部 ≤ 该值时触发最大化
+    SM_XVIRTUALSCREEN = 76   # 虚拟屏幕（所有显示器包围盒）左上角 X
+    SM_YVIRTUALSCREEN = 77   # 虚拟屏幕左上角 Y
+    SM_CXVIRTUALSCREEN = 78  # 虚拟屏幕宽度
+    SM_CYVIRTUALSCREEN = 79  # 虚拟屏幕高度
 
     import ctypes.wintypes
 
@@ -220,12 +233,12 @@ def main():
     user32.SetForegroundWindow.restype = ctypes.c_bool
     user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_ulonglong, ctypes.c_longlong]
     user32.PostMessageW.restype = ctypes.c_bool
-    user32.IsZoomed.argtypes = [ctypes.c_void_p]
-    user32.IsZoomed.restype = ctypes.c_bool
     user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.wintypes.RECT)]
     user32.GetWindowRect.restype = ctypes.c_bool
     user32.GetCursorPos.argtypes = [ctypes.POINTER(ctypes.wintypes.POINT)]
     user32.GetCursorPos.restype = ctypes.c_bool
+    user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+    user32.GetSystemMetrics.restype = ctypes.c_int
 
     WNDPROC = ctypes.WINFUNCTYPE(
         ctypes.c_longlong,          # LRESULT
@@ -245,6 +258,24 @@ def main():
     user32.GetAsyncKeyState.restype = ctypes.c_short
     user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
     user32.SetWindowPos.restype = ctypes.c_bool
+
+    # 工作区（屏幕去任务栏）查询：多显示器时取窗口所在显示器的 workarea
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [
+            ('cbSize', ctypes.wintypes.DWORD),
+            ('rcMonitor', ctypes.wintypes.RECT),
+            ('rcWork', ctypes.wintypes.RECT),
+            ('dwFlags', ctypes.wintypes.DWORD),
+        ]
+
+    user32.SystemParametersInfoW.argtypes = [ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+    user32.SystemParametersInfoW.restype = ctypes.c_bool
+    user32.MonitorFromWindow.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    user32.MonitorFromWindow.restype = ctypes.c_void_p
+    user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(MONITORINFO)]
+    user32.GetMonitorInfoW.restype = ctypes.c_bool
+    user32.MonitorFromRect.argtypes = [ctypes.POINTER(ctypes.wintypes.RECT), ctypes.c_uint]
+    user32.MonitorFromRect.restype = ctypes.c_void_p
 
     def _wndproc(hwnd, msg, wparam, lparam):
         """父窗口子类化：仅 WM_CLOSE → 隐藏到托盘（除非 _allow_close）。"""
@@ -285,17 +316,186 @@ def main():
         )
         print("[Desktop] 父窗口子类化完成", flush=True)
 
+        # T6：恢复窗口几何（精确位置/尺寸 + 最大化状态），避免二次跳变。
+        # 最大化：复用最大化到工作区，还原前 bounds 用保存值（窗口已按 workarea
+        # 创建，此处 SetWindowPos 基本为 no-op，不会「先小后大」跳变）。
+        # 非最大化：用 SetWindowPos 把外框精确设回保存的 GetWindowRect 值，
+        # 消除 create_window(width/height) 语义与窗口外框（含不可见 resize 边框）
+        # 不一致带来的尺寸偏移。
+        if _saved_maximized:
+            _maximize_to_work_area(_saved_bounds)
+        elif _validated_bounds:
+            left, top, right, bottom = _validated_bounds
+            user32.SetWindowPos(
+                _hwnd[0], None, left, top, right - left, bottom - top,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+
     def _restore_window():
         """托盘回调：恢复并聚焦窗口。"""
         if _hwnd[0]:
             user32.ShowWindow(_hwnd[0], SW_RESTORE)
             user32.SetForegroundWindow(_hwnd[0])
 
+    def _save_window_state():
+        """保存当前窗口 bounds 与最大化状态到 prefs（仅真正退出时调用）。
+
+        最大化时保存「还原前 bounds」（_pre_restore_bounds），确保重启后能
+        还原回原位置；非最大化时保存当前窗口 rect。关闭到托盘不在此路径。
+        """
+        if _maximized[0]:
+            bounds = _pre_restore_bounds[0]
+            maximized = True
+        else:
+            bounds = None
+            if _hwnd[0]:
+                r = ctypes.wintypes.RECT()
+                if user32.GetWindowRect(_hwnd[0], ctypes.byref(r)):
+                    bounds = (r.left, r.top, r.right, r.bottom)
+            maximized = False
+        try:
+            set_window_state(bounds, maximized)
+        except Exception as e:
+            print(f"[Desktop] 保存窗口状态失败: {e}")
+
     def _quit_app():
         """托盘回调：真正退出。"""
+        # T6：真正退出前保存窗口状态
+        _save_window_state()
         _allow_close[0] = True
         if _hwnd[0]:
             user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)
+
+    def _get_work_area():
+        """返回窗口当前所在显示器的 workarea（屏幕去任务栏）矩形。
+
+        多显示器：用 MonitorFromWindow 取窗口所在显示器，再 GetMonitorInfoW 取 rcWork；
+        失败时回退到主显示器 SystemParametersInfo(SPI_GETWORKAREA)。
+        返回 (left, top, right, bottom)，失败返回 None。
+        """
+        hwnd = _hwnd[0]
+        if hwnd:
+            monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+            if monitor:
+                mi = MONITORINFO()
+                mi.cbSize = ctypes.sizeof(MONITORINFO)
+                if user32.GetMonitorInfoW(monitor, ctypes.byref(mi)):
+                    return (mi.rcWork.left, mi.rcWork.top, mi.rcWork.right, mi.rcWork.bottom)
+        # 兜底：主显示器工作区
+        rect = ctypes.wintypes.RECT()
+        if user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0):
+            return (rect.left, rect.top, rect.right, rect.bottom)
+        return None
+
+    def _get_work_area_for_bounds(bounds):
+        """返回指定 bounds 所在显示器的 workarea（窗口未创建前可用）。
+
+        bounds: (left, top, right, bottom) 或 None。
+        用 MonitorFromRect 定位保存位置所在显示器；None/失败时回退主显示器。
+        """
+        monitor = None
+        if bounds:
+            r = ctypes.wintypes.RECT(bounds[0], bounds[1], bounds[2], bounds[3])
+            monitor = user32.MonitorFromRect(ctypes.byref(r), MONITOR_DEFAULTTONEAREST)
+        if monitor:
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            if user32.GetMonitorInfoW(monitor, ctypes.byref(mi)):
+                return (mi.rcWork.left, mi.rcWork.top, mi.rcWork.right, mi.rcWork.bottom)
+        # 兜底：主显示器工作区
+        rect = ctypes.wintypes.RECT()
+        if user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0):
+            return (rect.left, rect.top, rect.right, rect.bottom)
+        return None
+
+    def _get_monitor_rect():
+        """返回窗口当前所在显示器的完整矩形 (left, top, right, bottom)。
+
+        用于顶边吸附：Aero Snap 的「顶边」是物理屏幕顶边（rcMonitor.top），
+        与 workarea（rcWork）不同——任务栏在顶部时 rcWork.top 会被下移。
+        多显示器：用 MonitorFromWindow 取窗口所在显示器。
+        """
+        hwnd = _hwnd[0]
+        if hwnd:
+            monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+            if monitor:
+                mi = MONITORINFO()
+                mi.cbSize = ctypes.sizeof(MONITORINFO)
+                if user32.GetMonitorInfoW(monitor, ctypes.byref(mi)):
+                    return (mi.rcMonitor.left, mi.rcMonitor.top,
+                            mi.rcMonitor.right, mi.rcMonitor.bottom)
+        return None
+
+    def _validate_window_bounds(bounds):
+        """校验保存的窗口 bounds 是否仍落在虚拟屏幕内（多显示器/DPI 容错）。
+
+        用虚拟屏幕（所有显示器包围盒）判断，避免显示器拔掉后窗口跑丢；
+        要求至少有足够可见区域（宽≥100、高≥40）才能抓取标题栏。
+        返回 (left, top, right, bottom) 或 None（无效 → 回退默认居中）。
+        """
+        if not bounds:
+            return None
+        left, top, right, bottom = bounds
+        if right <= left or bottom <= top:
+            return None
+        vx = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+        vy = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+        vw = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+        vh = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        vx2 = vx + vw
+        vy2 = vy + vh
+        ix = max(left, vx)
+        iy = max(top, vy)
+        ix2 = min(right, vx2)
+        iy2 = min(bottom, vy2)
+        if (ix2 - ix) >= 100 and (iy2 - iy) >= 40:
+            return (left, top, right, bottom)
+        return None
+
+    def _maximize_to_work_area(pre_bounds=None):
+        """把窗口最大化到「工作区」（不覆盖任务栏），并记录还原前的 bounds。
+
+        pre_bounds：可选，还原时的目标 bounds (left, top, right, bottom)。
+        顶边吸附拖动时传入拖动起始 rect，避免把「被拖到屏幕外」的负 top
+        记为还原位置；不传则用当前窗口 rect（双击标题栏等静态入口）。
+        """
+        hwnd = _hwnd[0]
+        if not hwnd:
+            return
+        work = _get_work_area()
+        if not work:
+            return
+        if pre_bounds is not None:
+            _pre_restore_bounds[0] = tuple(pre_bounds)
+        else:
+            r0 = ctypes.wintypes.RECT()
+            if user32.GetWindowRect(hwnd, ctypes.byref(r0)):
+                _pre_restore_bounds[0] = (r0.left, r0.top, r0.right, r0.bottom)
+        left, top, right, bottom = work
+        user32.SetWindowPos(
+            hwnd, None, left, top, right - left, bottom - top,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        _maximized[0] = True
+        _notify_win_state(True)
+
+    def _restore_from_work_area():
+        """从「最大化到工作区」状态还原到最大化前的 bounds。"""
+        hwnd = _hwnd[0]
+        if not hwnd:
+            return
+        bounds = _pre_restore_bounds[0]
+        if bounds:
+            left, top, right, bottom = bounds
+            user32.SetWindowPos(
+                hwnd, None, left, top, right - left, bottom - top,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        else:
+            user32.ShowWindow(hwnd, SW_RESTORE)
+        _maximized[0] = False
+        _pre_restore_bounds[0] = None
+        _notify_win_state(False)
 
     # F8: 暴露退出入口，供安装版自动升级 launch-installer 调用
     from common.desktop_signals import register_quit
@@ -333,15 +533,15 @@ def main():
                 self._window.minimize()
 
         def toggle_maximize(self):
-            if not self._window:
+            if not _hwnd[0]:
                 return
-            if _hwnd[0] and user32.IsZoomed(_hwnd[0]):
-                self._window.restore()
+            if _maximized[0]:
+                _restore_from_work_area()
             else:
-                self._window.maximize()
+                _maximize_to_work_area()
 
         def is_maximized(self):
-            return bool(_hwnd[0] and user32.IsZoomed(_hwnd[0]))
+            return bool(_hwnd[0] and _maximized[0])
 
         def close(self):
             # 走既有 _wndproc：非退出态隐藏到托盘，与系统 ✕ 语义一致
@@ -349,34 +549,79 @@ def main():
                 user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)
 
         def start_drag(self):
-            """拖动窗口：后台线程跟随鼠标移动窗口，直到左键松开（直接 SetWindowPos，不依赖消息处理）。"""
+            """拖动窗口：后台线程跟随鼠标相对位移移动窗口，直到左键松开。
+
+            采用「相对位移」而非一次性绝对偏移：
+              - 每帧读取当前窗口 rect 与鼠标增量，窗口只按鼠标 delta 平移，
+                不依赖一次性 offset，避免窗口被拖出屏幕后 GetWindowRect/坐标
+                空间不一致导致无法继续拖动；
+              - 最大化时先还原，并等待还原状态生效后再进入拖动循环，避免读到
+                未及时更新的最大化 rect；
+              - 顶边吸附（Aero Snap）：拖动过程中若鼠标到达窗口所在显示器的
+                物理顶边（rcMonitor.top）附近，松手时最大化到工作区。
+            """
             if not _hwnd[0]:
                 return
 
             def _worker():
                 # 最大化时先还原（模拟 Windows 拖顶栏还原行为）
-                if user32.IsZoomed(_hwnd[0]):
-                    user32.ShowWindow(_hwnd[0], SW_RESTORE)
+                was_maximized = _maximized[0]
+                if was_maximized:
+                    _restore_from_work_area()
+                    # 等待还原状态生效，避免 GetWindowRect 读到旧 rect
                     time.sleep(0.08)
+
+                # 记录拖动起始 rect：顶边吸附时的还原目标，避免把「被拖到
+                # 屏幕外」的负 top 记为还原位置（导致还原后标题栏不可见）。
+                drag_start_bounds = None
                 r0 = ctypes.wintypes.RECT()
-                if not user32.GetWindowRect(_hwnd[0], ctypes.byref(r0)):
+                if user32.GetWindowRect(_hwnd[0], ctypes.byref(r0)):
+                    drag_start_bounds = (r0.left, r0.top, r0.right, r0.bottom)
+
+                pt_prev = ctypes.wintypes.POINT()
+                if not user32.GetCursorPos(ctypes.byref(pt_prev)):
                     return
-                pt0 = ctypes.wintypes.POINT()
-                user32.GetCursorPos(ctypes.byref(pt0))
-                offset_x = r0.left - pt0.x
-                offset_y = r0.top - pt0.y
-                w = r0.right - r0.left
-                h = r0.bottom - r0.top
+
+                # 顶边吸附状态：起始即为最大化（刚还原）时，鼠标仍在顶边，
+                # 需先拖离顶边才允许吸附，否则会立刻被判定为「回到顶部」而
+                # 重新最大化，破坏「最大化后拖离顶部还原」的语义。
+                snap_to_max = False
+                snap_armed = not was_maximized
+
                 while True:
                     pt = ctypes.wintypes.POINT()
-                    user32.GetCursorPos(ctypes.byref(pt))
-                    user32.SetWindowPos(
-                        _hwnd[0], None, pt.x + offset_x, pt.y + offset_y, w, h,
-                        SWP_NOZORDER | SWP_NOACTIVATE,
-                    )
+                    if not user32.GetCursorPos(ctypes.byref(pt)):
+                        break
+                    dx = pt.x - pt_prev.x
+                    dy = pt.y - pt_prev.y
+                    if dx or dy:
+                        r = ctypes.wintypes.RECT()
+                        if not user32.GetWindowRect(_hwnd[0], ctypes.byref(r)):
+                            break
+                        user32.SetWindowPos(
+                            _hwnd[0], None, r.left + dx, r.top + dy, 0, 0,
+                            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                        )
+
+                    # 顶边吸附检测：以窗口所在显示器的物理顶边为准
+                    mon = _get_monitor_rect()
+                    if mon:
+                        at_top = pt.y <= mon[1] + SNAP_EDGE_PX
+                        if at_top:
+                            if snap_armed:
+                                snap_to_max = True
+                        else:
+                            snap_armed = True  # 离开顶边后，允许后续吸附
+
+                    pt_prev.x = pt.x
+                    pt_prev.y = pt.y
                     if not (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000):
                         break
                     time.sleep(0.01)
+
+                # 松手时命中顶边吸附 → 最大化到工作区（不挡任务栏）
+                if snap_to_max and not _maximized[0]:
+                    _maximize_to_work_area(drag_start_bounds)
 
             threading.Thread(target=_worker, name="win-drag", daemon=True).start()
 
@@ -384,7 +629,7 @@ def main():
             """边缘缩放：后台线程按方向拖动窗口边/角，直到鼠标左键松开。"""
             if not _hwnd[0]:
                 return
-            if user32.IsZoomed(_hwnd[0]):
+            if _maximized[0]:
                 return  # 最大化时禁边缘缩放
             direction = str(direction or '').lower()
             if direction not in ('n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'):
@@ -431,16 +676,41 @@ def main():
             threading.Thread(target=_worker, name="win-resize", daemon=True).start()
 
     window_api = WindowApi()
-    window = webview.create_window(
+
+    # T6：计算恢复目标几何（多显示器/DPI 容错，无效则回退默认 1280×800 居中）
+    _validated_bounds = _validate_window_bounds(_saved_bounds)
+    if _saved_maximized:
+        # 最大化：直接用目标显示器 workarea 创建，避免「先小后大」的可见跳变
+        _work = _get_work_area_for_bounds(_validated_bounds or _saved_bounds)
+        if _work:
+            _win_x, _win_y = _work[0], _work[1]
+            _win_w = _work[2] - _work[0]
+            _win_h = _work[3] - _work[1]
+        else:
+            _win_x = _win_y = None
+            _win_w, _win_h = 1280, 800
+    elif _validated_bounds:
+        _win_x, _win_y = _validated_bounds[0], _validated_bounds[1]
+        _win_w = max(_validated_bounds[2] - _validated_bounds[0], 1024)
+        _win_h = max(_validated_bounds[3] - _validated_bounds[1], 600)
+    else:
+        _win_x = _win_y = None
+        _win_w, _win_h = 1280, 800
+
+    _win_kwargs = dict(
         url=url,
         title='PersonLLMWiki',
-        width=1280,
-        height=800,
+        width=_win_w,
+        height=_win_h,
         min_size=(1024, 600),
         frameless=True,
         easy_drag=False,
         js_api=window_api,
     )
+    if _win_x is not None and _win_y is not None:
+        _win_kwargs['x'] = _win_x
+        _win_kwargs['y'] = _win_y
+    window = webview.create_window(**_win_kwargs)
     window_api._window = window
 
     def _notify_win_state(maximized):

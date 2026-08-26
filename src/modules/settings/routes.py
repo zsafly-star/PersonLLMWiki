@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import shutil
+import threading
 
 settings_bp = Blueprint('settings', __name__, template_folder='templates')
 
@@ -570,58 +571,171 @@ def apply_upgrade():
         return error_response(f'更新失败（已回滚）: {e}')
 
 
+# ──────────── 安装包后台下载（进度） ────────────
+
+_DOWNLOAD_LOCK = threading.Lock()
+_DOWNLOAD_STATE = {
+    'status': 'idle',        # idle | downloading | done | error
+    'downloaded': 0,
+    'total': 0,
+    'percent': None,
+    'error': None,
+}
+_DOWNLOAD_GEN = 0                       # 下载代次（每次触发 +1，用于覆盖旧任务时避免脏写）
+_DOWNLOAD_CANCEL = threading.Event()    # 当前下载的取消事件
+
+
+def _snapshot_progress():
+    """返回后台下载进度的只读快照。"""
+    with _DOWNLOAD_LOCK:
+        return dict(_DOWNLOAD_STATE)
+
+
+def _run_setup_download(url, local_path, cancel_event, gen):
+    """后台线程：流式下载 Setup.exe 到临时目录并更新进度。
+
+    总字节数取自响应头 Content-Length；拿不到时 total 为 0、percent 为 None（只报已下载字节）。
+    仅当自身仍是当前代次（gen == _DOWNLOAD_GEN）时才写状态，避免被覆盖的旧线程脏写。
+    """
+    import urllib.request
+
+    part_path = None
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'PersonLLMWiki-Updater'})
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            total = 0
+            cl = resp.headers.get('Content-Length')
+            if cl and str(cl).strip().isdigit():
+                total = int(cl)
+
+            with _DOWNLOAD_LOCK:
+                if gen == _DOWNLOAD_GEN:
+                    _DOWNLOAD_STATE['total'] = total
+
+            # 用代次生成唯一临时文件，避免新旧下载相互覆盖
+            part_path = local_path + '.part%d' % gen
+            downloaded = 0
+            with open(part_path, 'wb') as f:
+                while True:
+                    if cancel_event.is_set():
+                        raise RuntimeError('下载已取消')
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    with _DOWNLOAD_LOCK:
+                        if gen != _DOWNLOAD_GEN:
+                            raise RuntimeError('下载已被覆盖')
+                        _DOWNLOAD_STATE['downloaded'] = downloaded
+                        _DOWNLOAD_STATE['percent'] = round(downloaded * 100 / total, 1) if total > 0 else None
+
+        # 下载完成：原子替换到目标路径
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        os.replace(part_path, local_path)
+
+        with _DOWNLOAD_LOCK:
+            if gen == _DOWNLOAD_GEN:
+                _DOWNLOAD_STATE['status'] = 'done'
+                _DOWNLOAD_STATE['percent'] = 100 if total > 0 else None
+    except Exception as e:
+        with _DOWNLOAD_LOCK:
+            if gen == _DOWNLOAD_GEN:
+                _DOWNLOAD_STATE['status'] = 'error'
+                _DOWNLOAD_STATE['error'] = str(e)
+    finally:
+        # 清理残留的临时文件（成功时已被 os.replace 移走）
+        if part_path and os.path.exists(part_path):
+            try:
+                os.remove(part_path)
+            except Exception:
+                pass
+
+
 @settings_bp.route('/api/settings/upgrade/download-setup', methods=['POST'])
 def download_setup():
-    """下载新版 Setup.exe 到临时目录（安装版升级），返回本地路径与大小。"""
+    """启动后台下载新版 Setup.exe（安装版升级），立即返回；进度走 download-progress。"""
     data = request.get_json(silent=True) or {}
     url = (data.get('url') or '').strip()
     if not url.startswith('https://'):
         return error_response('无效的下载地址')
 
-    import urllib.request
     import tempfile
 
     local_path = os.path.join(tempfile.gettempdir(), 'PersonLLMWiki-Setup-latest.exe')
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'PersonLLMWiki-Updater'})
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            with open(local_path, 'wb') as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-    except Exception as e:
-        return error_response(f'下载安装包失败: {e}')
 
-    size = os.path.getsize(local_path)
-    return success_response({
-        'path': local_path,
-        'size': size,
-        'size_mb': round(size / 1024 / 1024, 1),
-    })
+    global _DOWNLOAD_GEN, _DOWNLOAD_CANCEL
+    with _DOWNLOAD_LOCK:
+        _DOWNLOAD_GEN += 1
+        gen = _DOWNLOAD_GEN
+        # 覆盖旧任务：先取消上一次下载，再替换取消事件并重置状态
+        _DOWNLOAD_CANCEL.set()
+        cancel_event = threading.Event()
+        _DOWNLOAD_CANCEL = cancel_event
+        _DOWNLOAD_STATE.update({
+            'status': 'downloading',
+            'downloaded': 0,
+            'total': 0,
+            'percent': None,
+            'error': None,
+        })
+
+    threading.Thread(
+        target=_run_setup_download,
+        args=(url, local_path, cancel_event, gen),
+        daemon=True,
+    ).start()
+
+    return success_response({'status': 'started', 'path': local_path})
+
+
+@settings_bp.route('/api/settings/upgrade/download-progress', methods=['GET'])
+def download_progress():
+    """查询安装包后台下载进度。"""
+    return success_response(_snapshot_progress())
 
 
 @settings_bp.route('/api/settings/upgrade/launch-installer', methods=['POST'])
 def launch_installer():
-    """退出应用并启动安装器（安装版升级）。"""
+    """静默升级：退出应用 → 静默安装 → 自动重启（安装版升级）。
+
+    支持 dry_run（开发模式强制 dry_run）：只返回将执行的静默参数与重启命令，
+    不真正安装、不退出应用，防止把开发目录覆盖掉。
+    """
     data = request.get_json(silent=True) or {}
     setup_path = (data.get('path') or '').strip()
     if not setup_path or not os.path.isfile(setup_path):
         return error_response('安装包不存在')
 
-    import subprocess
-    import threading
+    dry_run = bool(data.get('dry_run'))
+    if _is_dev_mode():
+        dry_run = True  # 开发模式禁止真实静默升级，强制 dry-run
+
+    from common.upgrade_installer import build_silent_args, restart_command, spawn_watcher
+
+    install_args = build_silent_args(setup_path)
+    restart_cmd = restart_command()
+
+    if dry_run:
+        return success_response({
+            'status': 'dry_run',
+            'install_args': install_args,
+            'restart_cmd': restart_cmd,
+            'dev_mode': _is_dev_mode(),
+            'note': 'dry-run：未启动安装器、未退出应用',
+        })
+
+    # 真实静默升级：spawn 独立 watcher（cmd.exe 批处理），随后优雅退出
     import time
 
     def _do_launch():
         time.sleep(0.5)  # 等响应发出
-        subprocess.Popen(
-            [setup_path],
-            cwd=os.path.dirname(setup_path),
-            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
-        )
-        # 启动安装器后请求应用退出（桌面壳走托盘退出；无回调则直接结束进程兜底）
+        try:
+            spawn_watcher(setup_path)
+        except Exception as e:
+            print(f'[Upgrade] 启动 watcher 失败: {e}')
+        # 退出应用（桌面壳走托盘退出；无回调则直接结束进程兜底）
         try:
             from common.desktop_signals import request_quit
             if not request_quit():
@@ -630,7 +744,7 @@ def launch_installer():
             os._exit(0)
 
     threading.Thread(target=_do_launch, daemon=True).start()
-    return success_response({'status': 'launching'}, '正在启动安装向导...')
+    return success_response({'status': 'upgrading'}, '正在静默升级，应用即将退出并自动重启...')
 
 
 def _compare_versions(a, b):

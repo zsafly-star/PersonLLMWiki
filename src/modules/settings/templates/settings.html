@@ -1372,6 +1372,16 @@
                 });
         }
 
+        function _formatBytes(n) {
+            n = Number(n) || 0;
+            if (n <= 0) return '0 B';
+            var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            var i = 0;
+            var v = n;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return (v >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' ' + units[i];
+        }
+
         function downloadAndInstall() {
             var statusEl = document.getElementById('about-update-status');
             var btn = document.getElementById('btn-download-upgrade');
@@ -1380,12 +1390,12 @@
             var url = window.__lastUpgradeUrl;
             if (!url) { statusEl.innerHTML = '<div class="about-update-error">缺少下载地址</div>'; return; }
 
-            if (!window.confirm('将退出应用并启动安装向导，是否继续？')) {
-                return;
-            }
-
             if (btn) btn.disabled = true;
-            statusEl.innerHTML = '<div class="about-update-loading">正在下载安装包，请稍候...</div>';
+            statusEl.innerHTML =
+                '<div class="about-update-progress">' +
+                '<div class="about-update-progress-track"><div class="about-update-progress-fill" id="upgrade-progress-fill" style="width:0%"></div></div>' +
+                '<div class="about-update-progress-text" id="upgrade-progress-text">正在启动下载...</div>' +
+                '</div>';
 
             fetch('/api/settings/upgrade/download-setup', {
                 method: 'POST',
@@ -1394,25 +1404,84 @@
             })
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
-                    if (res.code === 200 && res.data && res.data.path) {
-                        statusEl.innerHTML = '<div class="about-update-loading">下载完成，正在启动安装向导...</div>';
-                        return fetch('/api/settings/upgrade/launch-installer', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({path: res.data.path})
-                        }).then(function(r2) { return r2.json(); });
-                    }
-                    throw new Error(res.message || '下载安装包失败');
-                })
-                .then(function(res2) {
-                    if (res2 && res2.code === 200) {
-                        statusEl.innerHTML = '<div class="about-update-success">已启动安装向导，应用即将退出</div>';
+                    if (res.code === 200 && res.data && res.data.status === 'started') {
+                        pollDownloadProgress(statusEl, res.data.path || '');
                     } else {
-                        statusEl.innerHTML = '<div class="about-update-error">' + ((res2 && res2.message) || '启动安装器失败') + '</div>';
+                        throw new Error(res.message || '启动下载失败');
                     }
                 })
                 .catch(function(e) {
                     statusEl.innerHTML = '<div class="about-update-error">' + (e.message || '更新请求失败') + '</div>';
+                });
+        }
+
+        function pollDownloadProgress(statusEl, path) {
+            fetch('/api/settings/upgrade/download-progress')
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!(res.code === 200 && res.data)) {
+                        statusEl.innerHTML = '<div class="about-update-error">' + (res.message || '获取下载进度失败') + '</div>';
+                        return;
+                    }
+                    var p = res.data;
+                    var fillEl = document.getElementById('upgrade-progress-fill');
+                    var textEl = document.getElementById('upgrade-progress-text');
+
+                    if (p.status === 'downloading') {
+                        var pct = (typeof p.percent === 'number') ? p.percent : null;
+                        if (fillEl) {
+                            fillEl.style.width = (pct == null ? 0 : Math.min(100, pct)) + '%';
+                        }
+                        var label;
+                        if (pct == null) {
+                            label = '正在下载安装包... 已下载 ' + _formatBytes(p.downloaded);
+                        } else {
+                            label = '正在下载安装包... ' + Math.floor(pct) + '%（' + _formatBytes(p.downloaded) + ' / ' + _formatBytes(p.total) + '）';
+                        }
+                        if (textEl) textEl.textContent = label;
+                        setTimeout(function() { pollDownloadProgress(statusEl, path); }, 500);
+                    } else if (p.status === 'done') {
+                        if (fillEl) fillEl.style.width = '100%';
+                        statusEl.innerHTML =
+                            '<div class="about-update-success">' +
+                            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' +
+                            '<span>安装包下载完成，正在静默升级并自动重启...</span>' +
+                            '</div>';
+                        // 下载完成 → 自动进入「退出 → 静默安装 → 自动重启」
+                        launchInstaller(path);
+                    } else if (p.status === 'error') {
+                        statusEl.innerHTML = '<div class="about-update-error">下载失败：' + (p.error || '未知错误') + '</div>';
+                    } else {
+                        // idle：尚未开始，稍后重试
+                        setTimeout(function() { pollDownloadProgress(statusEl, path); }, 500);
+                    }
+                })
+                .catch(function(e) {
+                    statusEl.innerHTML = '<div class="about-update-error">获取下载进度失败</div>';
+                });
+        }
+
+        function launchInstaller(path) {
+            var statusEl = document.getElementById('about-update-status');
+            if (!statusEl) return;
+            if (!path) { statusEl.innerHTML = '<div class="about-update-error">缺少安装包路径</div>'; return; }
+            statusEl.innerHTML = '<div class="about-update-loading">正在静默升级，应用即将退出并自动重启...</div>';
+
+            fetch('/api/settings/upgrade/launch-installer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.code === 200) {
+                        statusEl.innerHTML = '<div class="about-update-success">已启动静默升级，应用即将退出并自动重启</div>';
+                    } else {
+                        statusEl.innerHTML = '<div class="about-update-error">' + (res.message || '启动升级失败') + '</div>';
+                    }
+                })
+                .catch(function(e) {
+                    statusEl.innerHTML = '<div class="about-update-error">启动升级请求失败</div>';
                 });
         }
 

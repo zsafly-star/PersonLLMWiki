@@ -992,6 +992,32 @@
     .about-update-loading::before { animation: none; }
 }
 
+.about-update-progress {
+    padding: 16px;
+}
+
+.about-update-progress-track {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.about-update-progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--color-primary);
+    border-radius: 999px;
+    transition: width 200ms ease;
+}
+
+.about-update-progress-text {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--color-muted);
+    text-align: center;
+}
+
 .about-update-available {
     padding: 16px;
     background: var(--color-primary-surface, rgba(13, 148, 136, 0.08));

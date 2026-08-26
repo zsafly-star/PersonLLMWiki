@@ -107,3 +107,41 @@ def set_port(port):
     prefs = _read_prefs()
     prefs["flask_port"] = port
     _write_prefs(prefs)
+
+
+def get_window_state():
+    """获取窗口状态偏好（位置/尺寸 + 最大化）。
+
+    Returns:
+        tuple: (bounds, maximized)
+          bounds: (left, top, right, bottom) 或 None（未保存/非法）
+          maximized: bool 是否处于最大化状态
+    """
+    state = _read_prefs().get("window_state")
+    if not isinstance(state, dict):
+        return (None, False)
+    raw = state.get("bounds")
+    bounds = None
+    if isinstance(raw, (list, tuple)) and len(raw) == 4:
+        try:
+            left, top, right, bottom = (int(v) for v in raw)
+        except (TypeError, ValueError):
+            bounds = None
+        else:
+            if right > left and bottom > top:
+                bounds = (left, top, right, bottom)
+    maximized = bool(state.get("maximized", False))
+    return (bounds, maximized)
+
+
+def set_window_state(bounds, maximized):
+    """写入窗口状态偏好。
+
+    Args:
+        bounds: (left, top, right, bottom) 或 None
+        maximized: bool 是否最大化
+    """
+    prefs = _read_prefs()
+    stored = [int(v) for v in bounds] if bounds is not None else None
+    prefs["window_state"] = {"bounds": stored, "maximized": bool(maximized)}
+    _write_prefs(prefs)
