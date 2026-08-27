@@ -292,28 +292,31 @@ def _atomic_write(path, content):
 
 
 def _append_cordis_patch(patch_path, name, url):
-    """向 DSH cordis.patch.yml 追加 mcp 连接条目（insert: 语法），幂等。
+    """向 DSH cordis.patch.yml 追加 mcp 连接条目（数组 `- insert:` 语法），幂等。
 
-    条目结构遵循设计文档 §7.5 / §5.1 的 {name, url, token} 连接声明。
+    条目结构对齐 DSH 实际 cordis.patch.yml（数组 `- insert:`，见 settings/routes.py 的
+    _build_insert_entry）。
     """
     entry_lines = [
-        '    - name: ' + name,
-        '      url: ' + url,
-        '      token: ""',
+        '- insert:',
+        '    - id: mcp-' + name,
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        '      config:',
+        '        serverName: ' + name,
+        '        transport: streamable-http',
+        '        url: ' + url,
+        '        failOnStartupError: false',
     ]
+    entry = '\n'.join(entry_lines)
 
     if os.path.isfile(patch_path):
         with open(patch_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        if 'name: ' + name in content:
+        if 'serverName: ' + name in content:
             return False
-        stripped = content.rstrip('\n')
-        if 'insert:' in content:
-            new_content = stripped + '\n' + '\n'.join(entry_lines) + '\n'
-        else:
-            new_content = stripped + '\n\ninsert:\n  mcpServers:\n' + '\n'.join(entry_lines) + '\n'
+        new_content = content.rstrip('\n') + '\n' + entry + '\n'
     else:
-        new_content = 'insert:\n  mcpServers:\n' + '\n'.join(entry_lines) + '\n'
+        new_content = entry + '\n'
 
     _atomic_write(patch_path, new_content)
     return True
@@ -371,7 +374,8 @@ def _install_mcp_connect(item_dir, info):
     if not url:
         return error_response('service.json 缺少 host/port 或 url，无法生成连接条目')
 
-    patch_path = os.path.join(_get_dsh_home(), 'profiles', 'web', 'cordis.patch.yml')
+    from common import dsh_bridge
+    patch_path = os.path.join(dsh_bridge.get_dsh_data_home(), 'profiles', 'web', 'cordis.patch.yml')
     appended = _append_cordis_patch(patch_path, name, url)
     return success_response({
         'installed': appended,

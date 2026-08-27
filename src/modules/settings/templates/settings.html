@@ -307,11 +307,6 @@
                             <input type="text" id="dsh-url" placeholder="http://127.0.0.1:3080">
                         </div>
                         <div class="form-group">
-                            <label for="dsh-mirror-url">运行时下载源（可选）</label>
-                            <input type="text" id="dsh-mirror-url" placeholder="公司镜像 / Nexus raw 基础地址（留空则走文本引导）">
-                            <p class="form-hint">用于「重新安装 / 一键更新」下载 dsh-runtime zip。可填 GitLab Release 资产基础地址或 Nexus raw 仓库地址。</p>
-                        </div>
-                        <div class="form-group">
                             <label class="dsh-checkbox-label"><input type="checkbox" id="dsh-auto-start"> 启动应用时自动拉起 DSH</label>
                         </div>
                         <div class="form-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -319,8 +314,6 @@
                             <button class="btn btn-secondary" id="btn-dsh-start">启动</button>
                             <button class="btn btn-secondary" id="btn-dsh-stop">停止</button>
                             <button class="btn btn-secondary" id="btn-dsh-check">检查更新</button>
-                            <button class="btn btn-secondary" id="btn-dsh-update">一键更新</button>
-                            <button class="btn btn-secondary" id="btn-dsh-reinstall">重新安装</button>
                             <button class="btn btn-secondary" id="btn-dsh-install-plugin">安装 PLW 知识库插件</button>
                         </div>
                         <div id="dsh-update-status" class="status-line"></div>
@@ -590,8 +583,6 @@
             _bindOnce(document.getElementById('btn-dsh-start'), 'click', startDsh);
             _bindOnce(document.getElementById('btn-dsh-stop'), 'click', stopDsh);
             _bindOnce(document.getElementById('btn-dsh-check'), 'click', checkDshUpdate);
-            _bindOnce(document.getElementById('btn-dsh-update'), 'click', updateDshRuntime);
-            _bindOnce(document.getElementById('btn-dsh-reinstall'), 'click', reinstallDsh);
             _bindOnce(document.getElementById('btn-dsh-install-plugin'), 'click', installDshPlugin);
 
             document.querySelectorAll('[data-action]').forEach(function(el) {
@@ -1535,11 +1526,9 @@
                     var cmdEl = document.getElementById('dsh-cmd');
                     var urlEl = document.getElementById('dsh-url');
                     var autoEl = document.getElementById('dsh-auto-start');
-                    var mirrorEl = document.getElementById('dsh-mirror-url');
                     if (cmdEl) cmdEl.value = cfg.dsh_cmd || '';
                     if (urlEl) urlEl.value = cfg.dsh_url || '';
                     if (autoEl) autoEl.checked = !!cfg.auto_start;
-                    if (mirrorEl) mirrorEl.value = cfg.dsh_mirror_url || '';
                     renderDshStatus(st);
                 })
                 .catch(function() {
@@ -1551,12 +1540,10 @@
             var cmdEl = document.getElementById('dsh-cmd');
             var urlEl = document.getElementById('dsh-url');
             var autoEl = document.getElementById('dsh-auto-start');
-            var mirrorEl = document.getElementById('dsh-mirror-url');
             var payload = {
                 dsh_cmd: (cmdEl && cmdEl.value) || '',
                 dsh_url: (urlEl && urlEl.value) || '',
-                auto_start: !!(autoEl && autoEl.checked),
-                dsh_mirror_url: (mirrorEl && mirrorEl.value) || ''
+                auto_start: !!(autoEl && autoEl.checked)
             };
             var btn = document.getElementById('btn-dsh-save');
             if (btn) btn.disabled = true;
@@ -1610,60 +1597,12 @@
                     if (d.error) { if (el) el.textContent = d.error; return; }
                     if (!d.installed) { if (el) el.textContent = '尚未安装 DSH，无法检查更新'; return; }
                     if (d.has_update) {
-                        if (el) el.textContent = '发现新版本 ' + d.latest + '（当前 ' + d.installed + '），请重新安装以更新。';
+                        if (el) el.textContent = d.guidance || '';
                     } else {
-                        if (el) el.textContent = '已是最新版本（' + d.installed + '）。';
+                        if (el) el.textContent = '当前已是最新版本（' + d.installed + '）';
                     }
                 })
                 .catch(function() { if (el) el.textContent = '更新检查失败'; });
-        }
-
-        function updateDshRuntime() {
-            var el = document.getElementById('dsh-update-status');
-            var btn = document.getElementById('btn-dsh-update');
-            if (el) el.textContent = '正在更新 DSH（npm 增量或 zip 换包，可能需要数分钟）...';
-            if (btn) btn.disabled = true;
-            fetch('/api/settings/dsh/update', { method: 'POST' })
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res.code === 200) {
-                        showToast(res.message || '更新完成');
-                        if (el) el.textContent = res.message || '更新完成';
-                    } else {
-                        showToast(res.message || '更新失败');
-                        if (el) el.textContent = res.message || '更新失败';
-                    }
-                    loadDshSettings();
-                })
-                .catch(function() {
-                    showToast('更新请求失败');
-                    if (el) el.textContent = '更新请求失败';
-                })
-                .then(function() { if (btn) btn.disabled = false; });
-        }
-
-        function reinstallDsh() {
-            var el = document.getElementById('dsh-update-status');
-            var btn = document.getElementById('btn-dsh-reinstall');
-            if (el) el.textContent = '正在下载并安装 DSH 运行时（可能需要数分钟）...';
-            if (btn) btn.disabled = true;
-            fetch('/api/settings/dsh/reinstall', { method: 'POST' })
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res.code === 200) {
-                        showToast(res.message || '重新安装完成');
-                        if (el) el.textContent = res.message || '重新安装完成';
-                    } else {
-                        showToast(res.message || '重新安装失败');
-                        if (el) el.textContent = res.message || '重新安装失败';
-                    }
-                    loadDshSettings();
-                })
-                .catch(function() {
-                    showToast('重新安装请求失败');
-                    if (el) el.textContent = '重新安装请求失败';
-                })
-                .then(function() { if (btn) btn.disabled = false; });
         }
 
         function installDshPlugin() {
