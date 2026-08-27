@@ -196,6 +196,8 @@ def list_all_services():
     })
 
 
+# LEGACY（1.1 标记）：/api/mcp/servers 系列路由已按三层架构收敛，仅保留给 MCP 管理 UI，
+# 详见 doc/待办-架构收敛.md。
 @mcp_client_bp.route('/api/mcp/servers', methods=['GET'])
 def list_servers():
     """列出所有 MCP 服务器状态"""
@@ -203,6 +205,7 @@ def list_servers():
     return success_response(bus.list_servers())
 
 
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
 @mcp_client_bp.route('/api/mcp/servers', methods=['POST'])
 def add_server():
     """添加 MCP 服务器"""
@@ -218,6 +221,7 @@ def add_server():
     return success_response(status, '服务器已添加')
 
 
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>', methods=['DELETE'])
 def remove_server(name):
     """移除 MCP 服务器"""
@@ -226,6 +230,7 @@ def remove_server(name):
     return success_response(None, '服务器已移除')
 
 
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>/reconnect', methods=['POST'])
 def reconnect_server(name):
     """重新连接 MCP 服务器。
@@ -263,6 +268,7 @@ def reconnect_server(name):
     return error_response('重新连接失败', 400)
 
 
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>/tools', methods=['GET'])
 def list_server_tools(name):
     """列出指定 MCP 服务器的工具。

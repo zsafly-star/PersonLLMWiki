@@ -25,13 +25,11 @@ AGENT_SYSTEM_PROMPT = """你是一个智能知识助手，专注于知识问答�
 
 示例：
 - "我先搜一下知识库，看有没有记录过相关经验的"
-- "知识库里的信息有点旧了，联网查查最新的资料"
+- "知识库里的信息有点旧了，我再读一下相关笔记补充细节"
 
 你可以通过调用工具来帮助用户：
 - 搜索知识库（search_kb）
 - 读取笔记和 Wiki 页面
-- 联网搜索最新资料（websearch__web_search）
-- 查询 SAP 物料信息（如果已连接 SAP MCP 服务器）
 - 以及其他知识问答类工具
 
 请根据用户需求智能选择工具。如果不需要工具，直接回答。
@@ -51,7 +49,7 @@ EXPERT_SYSTEM_PROMPT = """你是一个资深的领域专家顾问。你需要提
 
 示例：
 - "我先搜一下知识库，看有没有记录过类似的分析经验"
-- "知识库里的信息比较久远了，联网搜索一下最新的研究进展"
+- "知识库里的信息比较久远了，我再读一下相关笔记补充更多细节"
 
 回答要求：
 - 展示你的完整推理过程（thinking），让用户理解你的分析思路
@@ -68,14 +66,12 @@ EXPERT_SYSTEM_PROMPT = """你是一个资深的领域专家顾问。你需要提
 你专注于知识问答、检索与深度分析。当用户的需求属于复杂的多步自动化编排、Office 文档（Word/Excel/PPT）生成或编辑、或需要调用大量专业工具完成的工作流时，请礼貌地建议用户切换到「智能体（DSH）」模式来处理。
 
 ## 预搜索上下文
-系统已自动为你搜索了知识库和互联网，结果已在上下文中提供。请优先参考这些信息进行回答。
-如需更深入的信息，你可以自行调用 search_kb 或 websearch__web_search 进行补充搜索。
+系统已自动为你搜索了知识库，结果已在上下文中提供。请优先参考这些信息进行回答。
+如需更深入的信息，你可以自行调用 search_kb 进行补充搜索。
 
 ## 可用工具
 - 搜索知识库（search_kb）
-- 联网搜索最新资料（websearch__web_search）
 - 读取笔记和 Wiki 页面
-- 查询 SAP 物料信息（如果已连接 SAP MCP 服务器）
 - 以及其他知识问答类工具
 
 工具调用结果中的 isError=true 表示工具执行出错，请告知用户并尝试其他方法。"""
@@ -96,6 +92,26 @@ def _get_mermaid_prompt():
 """
 
 
+def _get_local_tools_for_llm():
+    """构建仅本地工具的 LLM function-calling 格式列表。
+
+    仅暴露 PersonLLMWiki 自身注册的本地 MCP 工具，不再合并远程/外部 MCP 工具
+    （外部 MCP 能力统一由 DSH 承接）。
+    """
+    from modules.mcp.registry import list_tools
+    tools = []
+    for tool in list_tools():
+        tools.append({
+            'type': 'function',
+            'function': {
+                'name': tool.name,
+                'description': tool.description,
+                'parameters': tool.input_schema or {'type': 'object', 'properties': {}},
+            },
+        })
+    return tools
+
+
 def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
     """Agent 模式对话（非流式）。
 
@@ -112,11 +128,10 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             'rounds': int,          # 总共几轮工具调用
         }
     """
-    # 获取工具列表
+    # 获取工具列表（仅本地工具，外部 MCP 能力统一由 DSH 承接）
     tools = None
     if use_tools:
-        bus = get_bus()
-        tools = bus.get_tools_for_llm()
+        tools = _get_local_tools_for_llm()
 
     # 构建 system prompt（注入 Skills 列表 + 上传路径）
     full_messages = list(messages)
@@ -139,7 +154,7 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
         # 注入 Mermaid 图表规范（从 skill 文件加载，始终生效）
         system_prompt += _get_mermaid_prompt()
 
-    # ── 专家模式强制流程：先查知识库 → 再联网搜 → 注入上下文 ──
+    # ── 专家模式强制流程：先查知识库 → 注入上下文 ──
     if mode == 'expert' and use_tools and progress_callback:
         # 提取用户最新问题
         user_query = ''
@@ -169,25 +184,7 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             })
             context_parts.append('【知识库搜索结果】\n' + kb_text)
 
-            # 第2步：自动联网搜索
-            progress_callback('tool_start', {
-                'name': 'websearch__web_search',
-                'arguments': {'query': user_query[:200]},
-                'round': 1,
-            })
-            web_text = ''
-            try:
-                web_result = bus.call_tool('websearch__web_search', {'query': user_query[:200]})
-                web_text = extract_tool_result_text(web_result)
-            except Exception as e:
-                web_text = f'联网搜索失败: {e}'
-            progress_callback('tool_result', {
-                'name': 'websearch__web_search', 'result': web_text[:300],
-                'success': True, 'round': 1,
-            })
-            context_parts.append('【联网搜索结果】\n' + web_text)
-
-            # 第3步：整理思路（展示性阶段）
+            # 第2步：整理思路（展示性阶段）
             progress_callback('custom_stage_start', {'stage_name': '整理思路'})
             time.sleep(0.3)
             progress_callback('custom_stage_end', {'stage_name': '整理思路'})
@@ -195,7 +192,7 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             # 注入预搜索结果到上下文
             full_messages.append({
                 'role': 'system',
-                'content': '以下是针对用户问题的自动搜索结果，请综合这些信息来回答：\n\n'
+                'content': '以下是针对用户问题的知识库搜索结果，请综合这些信息来回答：\n\n'
                            + '\n\n'.join(context_parts),
             })
 

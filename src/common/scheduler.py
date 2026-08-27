@@ -7,14 +7,12 @@
 通过 .env 配置：
   SCHEDULER_ENABLED=true          # 启用调度器（默认 true）
   SAP_SYNC_CRON="0 0 * * *"      # SAP 同步 cron 表达式（默认每天 0 点）
-  SAP_MCP_URL=http://sap:8000/mcp # SAP MCP 端点
   SAP_MCP_DB_PATH=D:/.../materials.db  # SAP MCP 数据库路径
 """
 
 import os
 import json
 import logging
-import requests
 from datetime import datetime, date, timedelta
 
 from config import Config
@@ -26,37 +24,15 @@ AUTO_JOB_PREFIX = 'auto_'
 
 
 def _sync_sap_and_import():
-    """定时任务：SAP 物料同步 + 导入到 Wiki。
+    """定时任务：从 SAP SQLite 直连导入物料到 Wiki。
 
-    流程：
-    1. 触发 SAP MCP sync_materials（拉取最新物料到 SQLite）
-    2. 从 SQLite 导入有规格书的物料到 Wiki
+    1.1 架构收敛已移除 PLW 主动 HTTP 调 SAP MCP sync_materials 的依赖，
+    SAP 物料数据刷新改由 DSH headless 或外部流程触发，PLW 仅直连 SQLite 导入，
+    详见 doc/待办-架构收敛.md。
     """
     logger.info('[Scheduler] SAP 物料同步任务开始')
 
-    # Step 1: 触发 SAP MCP 同步（如果配置了 MCP URL）
-    sap_mcp_url = os.environ.get('SAP_MCP_URL', '')
-    if sap_mcp_url:
-        try:
-            logger.info(f'[Scheduler] 触发 SAP MCP sync_materials: {sap_mcp_url}')
-            resp = requests.post(sap_mcp_url, json={
-                'jsonrpc': '2.0',
-                'method': 'tools/call',
-                'params': {
-                    'name': 'sync_materials',
-                    'arguments': {'force_full': False},
-                },
-                'id': 1,
-            }, timeout=300)
-            result = resp.json()
-            if 'error' in result:
-                logger.warning(f'[Scheduler] SAP MCP 同步返回错误: {result["error"]}')
-            else:
-                logger.info('[Scheduler] SAP MCP 同步完成')
-        except Exception as e:
-            logger.warning(f'[Scheduler] SAP MCP 同步失败（继续执行导入）: {e}')
-
-    # Step 2: 从 SAP SQLite 导入到 Wiki
+    # Step 1: 从 SAP SQLite 直连导入到 Wiki
     sap_db_path = os.environ.get('SAP_MCP_DB_PATH', '')
     if not sap_db_path:
         # 尝试默认路径
