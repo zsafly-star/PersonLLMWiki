@@ -44,7 +44,7 @@
   <text x="135" y="464" font-size="11" fill="#374151">审批 · 溯源 · 图谱</text>
 
   <rect x="273" y="340" width="140" height="150" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
-  <text x="283" y="362" font-size="12" font-weight="700" fill="#047857">记忆模块</text>
+  <text x="283" y="362" font-size="12" font-weight="700" fill="#047857">记忆模块（1.2 规划）</text>
   <text x="283" y="384" font-size="11" fill="#374151">会话记忆自动提取</text>
   <text x="283" y="404" font-size="11" fill="#374151">偏好/事实/决策</text>
   <text x="283" y="424" font-size="11" fill="#374151">开场自动召回注入</text>
@@ -55,7 +55,7 @@
   <text x="431" y="362" font-size="12" font-weight="700" fill="#047857">MCP Server（/mcp）</text>
   <text x="431" y="384" font-size="11" fill="#374151">19 个工具：检索知识库</text>
   <text x="431" y="404" font-size="11" fill="#374151">读写文章/触发编译</text>
-  <text x="431" y="424" font-size="11" fill="#374151">记忆读写/技能沉淀</text>
+  <text x="431" y="424" font-size="11" fill="#374151">待办/公共库提交</text>
   <text x="431" y="444" font-size="11" fill="#374151">待办/工作空间等</text>
   <text x="431" y="464" font-size="11" fill="#374151">供 DSH 统一调用</text>
 
@@ -72,25 +72,24 @@
   <text x="892" y="326" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">外部 MCP Server</text>
   <text x="892" y="346" text-anchor="middle" font-size="11.5" fill="#92400e">SAP 等业务系统</text>
   <text x="892" y="366" text-anchor="middle" font-size="11.5" fill="#92400e">工具 / 数据接入</text>
-  <text x="892" y="386" text-anchor="middle" font-size="11.5" fill="#92400e">（经 PLW 的</text>
-  <text x="892" y="402" text-anchor="middle" font-size="11.5" fill="#92400e">MCP Client 总线）</text>
+  <text x="892" y="386" text-anchor="middle" font-size="11.5" fill="#92400e">（统一由 DSH 消费）</text>
 
   <!-- DSH → 外部 MCP（主通道） -->
   <line x1="600" y1="165" x2="806" y2="350" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
   <text x="703" y="238" text-anchor="middle" font-size="11.5" font-weight="600" fill="#2563eb">直接配置使用</text>
   <text x="703" y="254" text-anchor="middle" font-size="11" fill="#6b7280">（主通道）</text>
 
-  <!-- PLW → 外部 MCP（过渡态，规划收敛） -->
+  <!-- PLW → 外部 MCP（legacy，仅内置 subprocess + 管理 UI） -->
   <line x1="720" y1="400" x2="806" y2="400" stroke="#6b7280" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
-  <text x="762" y="390" text-anchor="middle" font-size="11.5" fill="#6b7280">MCP Client 总线</text>
-  <text x="762" y="404" text-anchor="middle" font-size="11" fill="#9ca3af">（过渡态 · 规划收敛）</text>
+  <text x="762" y="390" text-anchor="middle" font-size="11.5" fill="#6b7280">MCP Client 总线（legacy）</text>
+  <text x="762" y="404" text-anchor="middle" font-size="11" fill="#9ca3af">（仅内置 subprocess + 管理 UI）</text>
 
   <!-- 图例 -->
   <text x="810" y="500" font-size="12" font-weight="600" fill="#374151">图例</text>
   <line x1="810" y1="520" x2="850" y2="520" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
   <text x="858" y="524" font-size="11.5" fill="#374151">主通道（DSH ↔ PLW · DSH → 外部）</text>
   <line x1="810" y1="542" x2="850" y2="542" stroke="#6b7280" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
-  <text x="858" y="546" font-size="11.5" fill="#374151">过渡态：PLW → 外部（规划收敛）</text>
+  <text x="858" y="546" font-size="11.5" fill="#374151">legacy：PLW → 外部（仅内置 subprocess + 管理 UI）</text>
   <line x1="810" y1="558" x2="850" y2="558" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="7 5"/>
   <text x="858" y="562" font-size="11.5" fill="#374151">桌面壳边界（包裹 PLW+DSH）</text>
 </svg>

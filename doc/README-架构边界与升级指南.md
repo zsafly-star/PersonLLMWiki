@@ -62,15 +62,15 @@
 
 ### 3.2 DSH 升级
 
+> 1.1 起：DSH 改为**独立手动升级**，PLW 不再接管 DSH 安装/更新文件（互不耦合）。
+
 | 路径 | 适用 | 步骤 |
 |---|---|---|
-| **npm 路径**（增量更新，主） | 有网络 | 设置页「检查更新」→「一键更新」→ 便携 node 自动 `npm install @deepseek-ai/dsh@latest` + **profile 同步** → 重启 DSH |
-| **zip 路径**（首次安装/重装/离线） | 无网络/全新安装 | 设置页「重新安装」→ 下载运行时包（发布渠道，如 GitHub Releases / 私有制品库）→ SHA256 校验 → 替换 `app\` 保留 `home\` → 重启 |
+| **手动升级**（开发者） | 有网络 | 设置页「检查更新」查看版本差异（当前 vs 最新）→ 开发者 `cd <DSH 安装目录> && npm install @deepseek-ai/dsh@latest` → 重启 DSH |
 
-- **升级包自动制作**：npm 路径无需制作（官方直拉）；zip 路径由 `packaging/build_dsh_runtime.py` + CI 定时自动构建（检测到 npm 新版即发布），**无需人工盯**；
 - **升级后必须重启 DSH**，新配置（MCP 客户端、技能）才生效；
 - **版本门禁**：`dsh_bridge.py` 软门禁 `>=0.1.0-rc.6`，过低时降级提示；
-- **回滚**：zip 路径重装旧版本 / npm 指定版本 `npm install @deepseek-ai/dsh@<旧版>`。
+- **回滚**：npm 指定版本 `npm install @deepseek-ai/dsh@<旧版>`。
 
 ### 3.3 升级顺序与兼容性
 
