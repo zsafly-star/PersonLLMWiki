@@ -1,0 +1,12 @@
+{
+    "latest": "1.1.0",
+    "versions": {
+        "1.1.0": {
+            "url": "https://github.com/zsafly-star/PersonLLMWiki/releases/download/v1.1.0.001/PersonLLMWiki-1.1.0-update.zip",
+            "date": "2026-08-27",
+            "notes": "V1.1.0：三层架构落地（外部 MCP 统一走 DSH）、DSH 交互收敛（检查更新改升级指引）、共享中心/笔记菜单回归",
+            "min_runtime": "1.0.0",
+            "size_mb": 62.5
+        }
+    }
+}
