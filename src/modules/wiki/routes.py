@@ -9,7 +9,6 @@ from .models import WikiPage
 from .graph_builder import normalize_link
 from . import wiki_service
 from .compiler import pipeline as wiki_compiler
-from modules.chat.models import ChatSession, ChatMessage
 
 wiki_bp = Blueprint('wiki', __name__, template_folder='templates')
 
@@ -234,6 +233,36 @@ def get_queries():
     return success_response(queries)
 
 
+@wiki_bp.route('/api/wiki/analyze', methods=['POST'])
+def analyze_concept():
+    """概念卡「用智能体深入分析」：经 dsh_bridge 调 DSH headless。
+
+    Body: {slug: str}
+    结果展示在 PersonLLMWiki 侧（详情弹层），需继续交互时再切到 DSH 模式。
+    """
+    data = request.get_json(silent=True) or {}
+    slug = (data.get('slug') or '').strip()
+    if not slug:
+        return error_response('slug 必填', 400)
+
+    # 解析概念标题（优先 DB，回退概念页 frontmatter）
+    title = slug
+    page = WikiPage.query.filter_by(slug=slug).first()
+    if page:
+        title = page.title
+    else:
+        fd = wiki_service.read_concept_page(slug)
+        if fd:
+            title = fd['frontmatter'].get('title', slug)
+
+    from common import dsh_bridge
+    result = dsh_bridge.run_headless(f'分析概念 {title}')
+    if not result.get('success'):
+        return error_response(result.get('error') or 'DSH 深入分析失败', 502)
+
+    return success_response({'title': title, 'output': result.get('output', '')}, '深入分析完成')
+
+
 @wiki_bp.route('/api/wiki/graph', methods=['GET'])
 def get_graph():
     def _merge_memory(nodes, edges, slug_set):
@@ -322,189 +351,6 @@ def get_graph():
 
     _merge_memory(nodes, edges, slug_set)
     return success_response({'nodes': nodes, 'edges': edges})
-
-
-WIKI_CHAT_NAME = 'Wiki 对话'
-
-
-def _get_or_create_wiki_session():
-    session = ChatSession.query.filter_by(name=WIKI_CHAT_NAME).order_by(ChatSession.id.desc()).first()
-    if session:
-        return session
-
-    from common.llm_config import LLMConfigService
-    config = LLMConfigService.get_active()
-    if not config:
-        raise RuntimeError('未配置 LLM')
-
-    provider = config.provider
-    model = config.model or 'gpt-4o'
-    model_name = f'{provider}/{model}'
-
-    session = ChatSession(name=WIKI_CHAT_NAME, model_name=model_name)
-    db.session.add(session)
-    db.session.commit()
-    return session
-
-
-def _build_wiki_system_prompt():
-    pages = WikiPage.query.filter(
-        WikiPage.review_status.in_(['approved', 'chat'])
-    ).order_by(WikiPage.updated_at.desc()).all()
-    if not pages:
-        return '你是一个知识助手。目前 Wiki 知识库中还没有内容，请先编译知识库。'
-
-    lines = ['你是一个知识助手，以下是当前 Wiki 知识库中所有概念的摘要信息，请基于这些知识回答用户的问题。\n']
-    lines.append('## 知识库概念列表\n')
-    for p in pages:
-        summary = p.summary or ''
-        lines.append(f'- **{p.title}**: {summary}')
-    lines.append('\n请用中文回答。如果知识库中没有相关信息，请说明。回答时可以引用相关概念。')
-    return '\n'.join(lines)
-
-
-@wiki_bp.route('/api/wiki/chat/sessions', methods=['GET'])
-def get_wiki_chat_sessions():
-    sessions = ChatSession.query.filter_by(name=WIKI_CHAT_NAME).order_by(ChatSession.updated_at.desc()).all()
-    return success_response([s.to_dict() for s in sessions])
-
-
-@wiki_bp.route('/api/wiki/chat/sessions', methods=['POST'])
-def create_wiki_chat_session():
-    try:
-        session = _get_or_create_wiki_session()
-        return success_response(session.to_dict())
-    except RuntimeError as e:
-        return error_response(str(e))
-
-
-@wiki_bp.route('/api/wiki/chat/sessions/<int:session_id>', methods=['GET'])
-def get_wiki_chat_session(session_id):
-    session = ChatSession.query.filter_by(id=session_id, name=WIKI_CHAT_NAME).first()
-    if not session:
-        return error_response('会话不存在', 404)
-
-    messages = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.created_at.asc()).all()
-    return success_response({
-        'session': session.to_dict(),
-        'messages': [m.to_dict() for m in messages],
-    })
-
-
-@wiki_bp.route('/api/wiki/chat/sessions/<int:session_id>', methods=['DELETE'])
-def delete_wiki_chat_session(session_id):
-    session = ChatSession.query.filter_by(id=session_id, name=WIKI_CHAT_NAME).first()
-    if not session:
-        return error_response('会话不存在', 404)
-
-    ChatMessage.query.filter_by(session_id=session_id).delete()
-    db.session.delete(session)
-    db.session.commit()
-    return success_response(None, '删除成功')
-
-
-@wiki_bp.route('/api/wiki/chat/sessions/<int:session_id>/messages', methods=['POST'])
-def send_wiki_chat_message(session_id):
-    session = ChatSession.query.filter_by(id=session_id, name=WIKI_CHAT_NAME).first()
-    if not session:
-        return error_response('会话不存在', 404)
-
-    data = request.get_json()
-    user_content = data.get('content', '').strip()
-    if not user_content:
-        return error_response('请输入消息')
-
-    user_msg = ChatMessage(session_id=session_id, role='user', content=user_content)
-    db.session.add(user_msg)
-    db.session.commit()
-
-    system_prompt = _build_wiki_system_prompt()
-
-    history_msgs = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.created_at.asc()).all()
-    llm_messages = [{'role': 'system', 'content': system_prompt}]
-    for m in history_msgs:
-        llm_messages.append({'role': m.role, 'content': m.content})
-
-    try:
-        from common.agent import agent_chat
-        use_tools = data.get('use_tools', True)
-        result = agent_chat(llm_messages, use_tools=use_tools)
-
-        answer = result['response']
-
-        # 如果有工具调用，在回复中附加工具记录（折叠显示）
-        if result['tool_calls']:
-            tool_summary = '\n\n<details>\n<summary>🔧 工具调用记录 (' + str(result['rounds']) + ' 轮)</summary>\n\n'
-            for tc in result['tool_calls']:
-                tool_summary += f"**第{tc['round']}轮**: `{tc['name']}`\n"
-                tool_summary += f"参数: `{json.dumps(tc['arguments'], ensure_ascii=False)[:200]}`\n"
-                tool_summary += f"结果: `{tc['result'][:200]}...`\n\n"
-            tool_summary += '</details>'
-            answer = answer + tool_summary
-
-        assistant_msg = ChatMessage(session_id=session_id, role='assistant', content=answer)
-        db.session.add(assistant_msg)
-        db.session.commit()
-
-        return success_response({
-            'user_message': user_msg.to_dict(),
-            'assistant_message': assistant_msg.to_dict(),
-            'tool_calls': result['tool_calls'],
-            'tool_rounds': result['rounds'],
-        })
-    except RuntimeError as e:
-        return error_response(str(e))
-    except Exception as e:
-        return error_response(f'发送失败: {str(e)}')
-
-
-@wiki_bp.route('/api/wiki/chat/messages/<int:message_id>/save', methods=['POST'])
-def save_chat_message_to_wiki(message_id):
-    message = ChatMessage.query.get(message_id)
-    if not message or message.role != 'assistant':
-        return error_response('消息不存在或不是 AI 回复')
-
-    data = request.get_json() or {}
-    title = data.get('title', '').strip()
-    if not title:
-        title = f'对话记录 {message.id}'
-
-    body = message.content
-    summary = body[:100] if len(body) > 100 else body
-
-    slug = title.lower().replace(' ', '_').replace('/', '_')
-    existing = WikiPage.query.filter_by(slug=slug).first()
-
-    if existing:
-        existing.body = body
-        existing.summary = summary
-        existing.updated_at = db.func.now()
-    else:
-        page = WikiPage(
-            title=title,
-            slug=slug,
-            summary=summary,
-            body=body,
-            sources='[]',
-            links='[]',
-            kind='chat',
-            confidence=0.7,
-        )
-        db.session.add(page)
-
-    db.session.commit()
-    wiki_service.save_concept_page(
-        slug=slug,
-        title=title,
-        body=body,
-        summary=summary,
-        sources=[],
-        kind='chat',
-        confidence=0.7,
-    )
-    wiki_service.generate_index()
-
-    return success_response({'slug': slug, 'title': title}, '保存到 Wiki 成功')
 
 
 @wiki_bp.route('/api/wiki/candidates', methods=['GET'])

@@ -8,7 +8,7 @@ from modules.wiki.models import WikiPage
 from modules.automation.models import AutomationTask, TaskRun
 from modules.weather.models import WeatherConfig
 from modules import (
-    article_bp, chat_bp, folder_bp, picture_bp,
+    article_bp, folder_bp, picture_bp,
     home_bp, todo_bp, plan_bp, settings_bp,
     agent_bp, shared_bp, memory_bp
 )
@@ -38,7 +38,6 @@ db.init_app(app)
 app.register_blueprint(home_bp)
 app.register_blueprint(article_bp)
 app.register_blueprint(picture_bp)
-app.register_blueprint(chat_bp)
 app.register_blueprint(folder_bp)
 app.register_blueprint(todo_bp)
 app.register_blueprint(plan_bp)
@@ -150,7 +149,6 @@ with app.app_context():
 
     # 子目录
     _subdirs = [
-        os.path.join(app.config['ATTACHMENT_PATH'], 'chat_uploads'),
         os.path.join(app.config['ATTACHMENT_PATH'], 'file_exports'),
     ]
     for d in _subdirs:

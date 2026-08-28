@@ -1,8 +1,7 @@
 """自动化任务执行引擎。
 
-复用公共 react loop（common/agent_core.run_agent_loop），专门为定时任务设计：
-- 接受自定义 system prompt（即任务描述）
-- 支持按 MCP 服务器过滤工具
+统一经 dsh_bridge 走 DSH headless 执行（DSH 有自己的 LLM 配置，与 PersonLLMWiki 独立）：
+- 接受任务描述 prompt
 - 执行结果写入 AutomationTask.last_result
 """
 
@@ -11,47 +10,9 @@ import logging
 from datetime import datetime
 
 from extensions import db
-from common.mcp_client import get_bus
-from common.agent_core import run_agent_loop, get_active_llm
 from common import dsh_bridge
 
 logger = logging.getLogger(__name__)
-
-MAX_TOOL_ROUNDS = 10
-
-
-def _filter_tools(task_mcp_servers):
-    """根据任务配置的 MCP 服务器过滤工具列表。
-
-    Args:
-        task_mcp_servers: 逗号分隔的服务器名，空字符串表示不过滤
-
-    Returns:
-        LLM function-calling 格式的工具列表
-    """
-    bus = get_bus()
-    all_tools = bus.get_tools_for_llm()
-
-    if not task_mcp_servers:
-        return all_tools
-
-    server_names = set(s.strip() for s in task_mcp_servers.split(',') if s.strip())
-    if not server_names:
-        return all_tools
-
-    filtered = []
-    for tool in all_tools:
-        tool_name = tool['function']['name']
-        # 本地工具（不含 __）始终包含
-        if '__' not in tool_name:
-            filtered.append(tool)
-            continue
-        # 远程工具：按服务器名过滤
-        server = tool_name.split('__', 1)[0]
-        if server in server_names:
-            filtered.append(tool)
-
-    return filtered
 
 
 def run_task(task_id, trigger='scheduled'):
@@ -74,44 +35,21 @@ def run_task(task_id, trigger='scheduled'):
     db.session.add(run)
     db.session.flush()  # 获取 run.id
 
-    # §8：优先经 dsh_bridge 走 DSH headless 执行（DSH 有自己的 LLM 配置，与 PersonLLMWiki 独立）；
-    # DSH 不可用或执行失败时，回退到本地 react loop。
+    # 统一经 dsh_bridge 走 DSH headless 执行，不再回退本地 react loop。
     try:
-        if dsh_bridge.is_installed():
-            _hr = dsh_bridge.run_headless(task.prompt)
-            if _hr.get('success'):
-                _finish_run(run, status='ok', response=_hr.get('output', ''))
-                _update_task_last(task, status='ok')
-                return run.id
-            logger.info(f'[Automation] DSH headless 执行失败，回退 react loop: {_hr.get("error")}')
-    except Exception as _e:
-        logger.warning(f'[Automation] DSH headless 桥异常，回退 react loop: {_e}')
+        if not dsh_bridge.is_installed():
+            _finish_run(run, status='error', error='DSH 未安装，无法执行自动化任务')
+            _update_task_last(task, status='error')
+            return run.id
 
-    # 获取活跃 LLM
-    provider, _, _ = get_active_llm()
-    if not provider:
-        _finish_run(run, status='error', error='未配置活跃的 LLM')
+        _hr = dsh_bridge.run_headless(task.prompt)
+        if _hr.get('success'):
+            _finish_run(run, status='ok', response=_hr.get('output', ''))
+            _update_task_last(task, status='ok')
+            return run.id
+
+        _finish_run(run, status='error', error=_hr.get('error') or 'DSH headless 执行失败')
         _update_task_last(task, status='error')
-        return run.id
-
-    # 获取工具（按 MCP 服务器过滤）
-    tools = _filter_tools(task.mcp_servers)
-
-    # 构建消息
-    system_prompt = f"""你是一个自动化任务执行助手。请严格按照以下任务描述执行操作：
- 
-{task.prompt}
- 
-你可以调用工具来完成任务。完成后请总结执行结果。"""
-    messages = [
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': task.prompt},
-    ]
-
-    try:
-        result = run_agent_loop(messages, tools=tools, max_rounds=MAX_TOOL_ROUNDS)
-        _finish_run(run, status='ok', response=result['response'], tool_calls=result['tool_calls'])
-        _update_task_last(task, status='ok')
         return run.id
     except Exception as e:
         logger.error(f'[Automation] 任务 #{task_id} 执行异常: {e}')

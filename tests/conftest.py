@@ -61,7 +61,6 @@ def app(tmp_path, monkeypatch):
     with app.app_context():
         # 导入所有 model 让 create_all 能创建对应表
         from modules.wiki.models import WikiPage  # noqa: F401
-        from modules.chat.models import ChatSession, ChatMessage  # noqa: F401
         _db.create_all()
 
     yield app

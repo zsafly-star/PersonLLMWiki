@@ -78,7 +78,7 @@ function renderMemoryList(items) {
             '<div class="mm-empty">' +
             '<svg class="mm-empty-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/></svg>' +
             '<p>还没有记忆</p>' +
-            '<p class="mm-empty-hint">去对话中自动沉淀，或用对话里的「记住本对话」</p>' +
+            '<p class="mm-empty-hint">记忆由 DSH 智能体沉淀（memory SKILL），此处管理已沉淀的记忆</p>' +
             '</div>';
         return;
     }
@@ -100,8 +100,7 @@ function renderMemoryList(items) {
 
         var sourceHtml = '';
         if (sourceChat != null && sourceChat !== '') {
-            sourceHtml = '<span class="mm-source">来源对话 ' +
-                '<a href="/chat" data-nav>#' + mmEsc(String(sourceChat)) + '</a></span>';
+            sourceHtml = '<span class="mm-source">来源对话 #' + mmEsc(String(sourceChat)) + '</span>';
         }
 
         var promoted = status === 'promoted';

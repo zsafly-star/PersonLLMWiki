@@ -1,4 +1,4 @@
-# PersonLLMWiki 设计规范
+﻿# PersonLLMWiki 设计规范
 
 > 总设计索引。修改任何子系统前先查本文，按链接找到对应设计文档阅读。
 
@@ -12,13 +12,13 @@ ZSSNote = Flask Blueprint 模块化 × 14 功能模块，围绕四条核心线�
 Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │
 ├─ common/                    共享层
-│  ├─ agent.py                Agent 循环 (LLM+MCP, ≤30轮) + 专家模式强制流程 + Skills 注入
+│  ├─ dsh_bridge.py           DSH 桥接（生命周期 / headless 调用 / 版本门禁）
 │  ├─ mcp_client.py           MCPClientBus (外部 MCP 连接 + persist 参数)
 │  ├─ builtin_mcp_manager.py  内置服务统一管理器 (bin/mcp/*/service.json 自包含发现)
 │  ├─ skill_loader.py         Skills 加载器 (扫描 ~/.personllmwiki/skills/*/SKILL.md)
 │  ├─ llm.py / llm_config.py  LLM 适配器 (OpenAI/Claude/Gemini/Ollama)
 │  ├─ scheduler.py            APScheduler 定时调度
-│  ├─ automation_runner.py    自动化 Agent 执行引擎
+│  ├─ automation_runner.py    自动化执行引擎（DSH headless）
 │  ├─ sync_service.py         公共库 git 同步 + 向量索引
 │  ├─ embedding_config.py     Embedding 配置
 │  ├─ self_update.py          自更新 (git pull + pip)
@@ -26,7 +26,6 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │
 ├─ modules/                   功能模块
 │  ├─ mcp/          MCP 双角色 (Server+Client) · 24 工具 + 内置服务管理（含 save_text_file 覆盖/追加）
-│  ├─ chat/         对话页 · SSE 流式 · Agent 自动 · 阶段节点式思考过程 · 附件分流读取 · 模型切换
 │  ├─ wiki/         知识编译管道 · 混合检索 · 图谱
 │  ├─ article/      Markdown 文章 · 图片 · 附件
 │  ├─ automation/   控制台 · 定时任务 · MCP/Skills 管理
@@ -36,7 +35,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │
 ├─ static/                    CSS (令牌体系) / JS / SVG 图标
 │  ├─ css/components/
-│  │  ├─ markdown.css         共享 Markdown 样式（chat/ article/ wiki/ drawer）
+│  │  ├─ markdown.css         共享 Markdown 样式（article/ wiki/ drawer）
 │  │  └─ ...
 │  └─ js/
 │     ├─ utils/md.js           共享 Markdown 渲染模块（LRU 缓存 + 后端渲染）
@@ -56,7 +55,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
    ├─ 02-设计/
    │  ├─ 01-PersonLLMWiki设计规范.md  ★ 本文件（子系统索引）
    │  ├─ 02-MCP设计方案.md           MCP 完整设计
-   │  ├─ 03-对话页设计方案.md
+   │  ├─ 03-对话页设计方案.md      （已废弃，对话迁至 DSH）
    │  ├─ 04-工作台设计方案.md
    │  ├─ 05-记忆与上下文交付设计方案.md
    │  └─ 06-PyWebView桌面窗口壳设计方案.md
@@ -74,8 +73,8 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 |----|------|------|
 | **LLM 知识编译** | `wiki/compiler/` | 文章 → 提取(LLM) → 合并 → 生成 → 审批 → 向量索引；SHA-256 增量 |
 | **MCP 双角色** | `modules/mcp/` + `common/mcp_client.py` | Server 24 工具 + Client 总线 + 内置服务管理器 |
-| **Agent 无处不在** | `common/agent.py` | 对话页始终 Agent (≤30轮)，定时任务也走 Agent，专家模式强制知识库+联网搜索，Skills 注入提示词 |
-| **Skills 工作流编排** | `common/skill_loader.py` + `~/.personllmwiki/skills/` | SKILL.md 声明式技能，Agent 自动匹配加载，编排 MCP 工具 |
+| **DSH headless 执行** | `common/dsh_bridge.py` | 对话/问答/复杂任务统一由 DSH 智能体承接；wiki 深入分析与定时任务走 `run_headless` |
+| **Skills 工作流编排** | `common/skill_loader.py` + `~/.personllmwiki/skills/` | SKILL.md 声明式技能，DSH 侧加载编排 MCP 工具 |
 
 ---
 
@@ -296,62 +295,15 @@ Agent 启动
 
 ---
 
-### Agent 与对话
+### Agent 与对话（已移除）
 
-Agent 循环 (`common/agent.py`) 是 MCP 工具调用的统一入口，对话页 (`modules/chat/`) 始终走 Agent。
+对话页已移除（T14），对话 / 问答 / 记忆统一由 DSH 智能体承接。PLW 不再自带 agent，仅保留：
 
-**[→ 阶段节点式思考过程组件规格 → 对话页设计方案 §14](03-对话页设计方案.md)**
-**[→ 对话页设计方案](03-对话页设计方案.md)**
+- **知识库检索**：`/api/wiki/query`（工作台搜索）；DSH agent 经 `/mcp` 调 `search_kb` / `read_wiki_page`
+- **Wiki 深入分析**：概念卡「用智能体深入分析」→ `/api/wiki/analyze` → `dsh_bridge.run_headless("分析概念 <X>")`
+- **自动化任务**：`common/automation_runner.py` 统一走 `dsh_bridge.run_headless`
 
-```
-用户消息 + Wiki 上下文 ──→ Agent ≤30 轮 ──→ SSE 流式返回
-      + Skills 摘要            │
-                              │
-                      MCPClientBus.call_tool()
-                      本地 24 + 远程 N + 内置 MCP 统一调度
-```
-
-**关键决策**：
-- 始终启用，无手动开关
-- Wiki 上下文 `---` 分隔符注入
-- **Skills 注入**：`get_skills_prompt()` 在系统提示词追加可用技能列表，`match_skill()` 匹配用户意图后自动加载完整 SKILL.md
-- **附件分流读取**：对话页上传附件按格式分流 — Office 文件 → OfficeCLI / PDF → pdf-mcp / 文本 → UTF-8 / 其他 → 标注二进制
-- `get_tools_for_llm()` 合并本地+远程+内置 → OpenAI function calling 格式
-- 远程工具命名规则 `server__tool_name`（双下划线，`call_tool` 据此路由到对应 MCPRemoteClient）
-- 工具 `isError: true` 不中断循环，LLM 可自行修正
-- 多模型支持：OpenAI / Claude / Gemini / Ollama（`common/llm.py` 适配器）
-- 会话持久化：`ChatSession` + `ChatMessage` ORM 模型，含 `thinking_json` 思考过程持久化
-- **Runtime 依赖**：`requirements.txt` 声明 pymupdf / fastembed / fastmcp（为 pdf-mcp 自包含运行所需，无需 `pip install pdf-mcp`）
-
-#### 专家模式强制流程
-
-专家模式不再依赖 LLM 自主决定是否搜索，而是**系统强制执行**两路搜索后注入上下文：
-
-```
-用户提问
-  ├─ 1. 自动调用 search_kb(keyword=用户问题) → 推送「搜索知识库」阶段
-  ├─ 2. 自动调用 websearch__web_search(query=用户问题) → 推送「联网搜索」阶段
-  ├─ 3. 推送「整理思路」展示性阶段
-  ├─ 4. 将两路搜索结果注入 full_messages 作为 system 消息
-  └─ 5. 进入正常 agent_chat 循环（LLM 可继续调用工具或直接回答）
-```
-
-快速模式不走强制流程，由 LLM 自主决定是否调用工具。
-
-#### 阶段节点式思考过程
-
-SSE 流式推送思考阶段，前端以横向节点进度条渲染：
-
-| 模式 | 阶段链 |
-|------|--------|
-| 专家模式（强制） | 分析问题 → 搜索知识库 → 联网搜索 → 整理思路 → [LLM工具调用...] → 生成回答 |
-| 快速模式 | 分析问题 → [LLM工具调用...] → 生成回答 |
-
-SSE 事件类型：`stage_start` / `stage_end` / `custom_stage_start` / `custom_stage_end` / `heartbeat` / `thinking_done` / `chunk` / `done`。历史消息加载时通过 `thinking_json` 恢复可折叠的思考过程面板。
-
-#### 模型切换
-
-对话页支持运行时切换 LLM 模型：`GET /api/chat/model-configs` 返回可用模型列表 + 当前活跃模型，`POST /api/chat/model-configs/switch` 切换活跃模型。前端下拉菜单乐观更新 UI。
+**[→ 对话页设计方案（已废弃归档）](03-对话页设计方案.md)**
 
 ---
 
@@ -367,10 +319,10 @@ SSE 事件类型：`stage_start` / `stage_end` / `custom_stage_start` / `custom_
 
 ### 自动化系统
 
-定时 Agent 任务：APScheduler 触发 → Agent 执行 → 写结果。
+定时任务：APScheduler 触发 → DSH headless 执行 → 写结果。
 
 - `common/scheduler.py`：BackgroundScheduler，加载 `automation_task` 表
-- `common/automation_runner.py`：按服务器名过滤工具，Agent 循环执行
+- `common/automation_runner.py`：统一经 DSH headless 执行（run_headless）
 - `modules/automation/`：自动化任务控制台（任务列表 + 运行记录弹层；MCP 服务 / Skill 管理已迁至 Settings「能力供给」面板）
 - 数据模型：`AutomationTask` (cron/描述/服务器) + `TaskRun` (状态/输出/耗时)
 
@@ -380,18 +332,14 @@ SSE 事件类型：`stage_start` / `stage_end` / `custom_stage_start` / `custom_
 
 ### 记忆模块
 
-会话记忆自动提取与召回，与知识库（Wiki）**双轨隔离**：记忆低可信、可一键撤回，知识需人工审批。
+会话记忆自动提取与召回，与知识库（Wiki）**双轨隔离**：记忆低可信、可一键撤回，知识需人工审批。采集与提炼逻辑已迁至 DSH 记忆 SKILL（`seed/dsh/dsh-personllmwiki/skills/memory/SKILL.md`），PLW 侧仅保留 storage + retrieval + 4 个 MCP 工具。
 
 #### 模块结构
 
 ```
 modules/memory/
 ├─ storage.py    记忆存储（JSON front matter + Markdown）
-├─ trace.py      过程级原始 trace 采集（JSONL）
-├─ prompts.py    记忆提取 Prompt
-├─ pipeline.py   异步提炼（频率限流 → LLM 提取 → save_memory → 更新 embedding）
 ├─ retrieval.py  语义检索（独立向量索引 + 本地余弦相似度，threading.Lock 保护索引读写）
-├─ injector.py   对话开场召回注入
 ├─ graph.py      记忆节点入知识星链（mem: 前缀）
 └─ routes.py     记忆管理页 /memory + REST API
 ```
@@ -437,7 +385,7 @@ static/css/
 └─ components/
    ├─ mcp.css       ★ 共享词汇表 (内置+自定义统一)
    ├─ automation.css 仅放覆盖，不重复定义 mcp.css
-   ├─ chat.css / wiki.css / sidebar.css / card.css / modal.css / graph.css
+   ├─ wiki.css / sidebar.css / card.css / modal.css / graph.css
 ```
 
 **核心规则**：改 MCP 样式 → 只改 `mcp.css`，两侧同步生效。Skills 标签页同样复用 `mcp.css` 的卡片模式（`.am-mcp-card`、`.am-mcp-chevron`、`.am-mcp-expanded`）。
@@ -479,7 +427,7 @@ static/css/
 | 模块 | 说明 |
 |------|------|
 | todo | 五泳道看板（收集箱→待办→进行中→已完成→已取消） |
-| home | 仪表盘：收藏夹 + 天气 + 实时搜索（输关键字自动进 Chat Agent 模式） |
+| home | 仪表盘：收藏夹 + 天气 + 知识库检索（深度问答引导前往 DSH） |
 | note | 快速笔记 |
 | folder | 文件夹管理 |
 | picture | 图片管理（`resource/img/`） |
@@ -542,7 +490,7 @@ Runtime 依赖（在 `requirements.txt` 中声明）：pymupdf、fastembed、fas
 
 ## websearch
 
-联网搜索 MCP 服务（1 个工具 `web_search`），使用 DuckDuckGo Lite 免费搜索（无需 API Key）。源码自包含在 `bin/mcp/websearch/websearch_mcp/` 下，通过 `launcher.py` 以 streamable-http 模式在端口 17655 启动。专家模式强制流程自动调用此服务进行联网搜索。
+联网搜索 MCP 服务（1 个工具 `web_search`），使用 DuckDuckGo Lite 免费搜索（无需 API Key）。源码自包含在 `bin/mcp/websearch/websearch_mcp/` 下，通过 `launcher.py` 以 streamable-http 模式在端口 17655 启动。
 
 目录结构：
 ```
@@ -563,13 +511,8 @@ bin/mcp/websearch/
 ```
 Tests/
 ├── conftest.py            ← pytest fixture（Flask app context、DB 隔离）
-├── mcp/                   ← MCP 工具单元测试
-│   └── test_tools_search.py
-├── chat/                  ← 对话与思考过程测试
-│   ├── test_agent_expert.py    ← 专家模式强制流程（5 个测试）
-│   ├── test_thinking_stages.py ← 思考阶段构建逻辑（8 个测试）
-│   ├── test_tool_map.py        ← TOOL_CN_MAP 映射完整性（5 个测试）
-│   └── test_mermaid_img.py     ← Mermaid 代理端点（10 个测试）
+├── mcp/                   ← MCP 工具单元测试（search/wiki/compile/approval/security/write 等）
+├── desktop/               ← 桌面壳与 DSH 桥接测试
 └── common/                ← 共享层测试
     └── test_seed_sync.py       ← 种子智能同步（12 个测试）
 ```
@@ -579,16 +522,13 @@ Tests/
 ```bash
 cd src
 python -m pytest tests/ -v          # 全部
-python -m pytest tests/chat/ -v     # 仅对话相关
+python -m pytest tests/mcp/ -v      # 仅 MCP 工具
 python -m pytest tests/common/ -v   # 仅共享层
 ```
 
 **测试策略**：
 - Mock LLM adapter + MCP bus，不依赖外部服务
-- 覆盖专家模式强制流程（自动搜索、结果注入、回调顺序、失败容错）
-- 覆盖思考阶段构建（阶段链顺序、轮次标注、completed 状态、JSON 序列化）
-- 回归保护：TOOL_CN_MAP 核心工具映射不遗漏
-- Mermaid 代理端点：base64url 编码、多图型代理、中文标签、错误处理
+- 覆盖 MCP 工具（检索 / 编译 / 审批 / 写入 / 安全）与种子同步
 - 种子同步：新增文件、更新文件、用户文件保留、子目录递归、源不存在容错
 
 ---

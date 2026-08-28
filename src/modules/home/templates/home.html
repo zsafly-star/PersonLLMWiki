@@ -97,15 +97,6 @@
         </div>
     </section>
 
-    <!-- ═══ Command Bar ═══ -->
-    <div class="ws-command">
-        <form class="ws-search-form" id="ws-search-form">
-            <svg class="ws-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="ws-search-input" placeholder="输入问题，搜索知识库或直接提问&hellip;" autocomplete="off" />
-            <kbd class="ws-search-hint">Enter</kbd>
-        </form>
-    </div>
-
     <!-- ═══ System Pulse ═══ -->
     <div class="ws-pulse" id="ws-pulse">
         <span class="ws-pulse-item" id="ws-pulse-sync">
@@ -138,7 +129,6 @@ onPageReady(function() {
     if (_homeTimeTimer) clearInterval(_homeTimeTimer);
     _homeTimeTimer = setInterval(updateTimeAndGreeting, 10000);
     loadWeather();
-    initSearchBar();
     loadTodos();
     loadAttention();
     loadRecentUpdates();
@@ -216,18 +206,6 @@ function loadWeather() {
 function fallbackWeather() {
     document.getElementById('ws-weather-temp').textContent = '--°';
     document.getElementById('ws-weather-city').textContent = '--';
-}
-
-/* ═══ 搜索栏 ═══ */
-function initSearchBar() {
-    var form = document.getElementById('ws-search-form');
-    if (!form) return;
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var q = document.getElementById('ws-search-input').value.trim();
-        if (!q) return;
-        window.location.href = '/chat?q=' + encodeURIComponent(q);
-    });
 }
 
 /* ═══ 今日待办 ═══ */

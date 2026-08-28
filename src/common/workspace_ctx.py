@@ -1,11 +1,11 @@
 """任务工作空间线程本地上下文。
 
-orchestrator 在运行某个节点前调用 set_workspace(path)，
+任务执行器在运行某个节点前调用 set_workspace(path)，
 节点结束后调用 clear_workspace()。
 MCP 工作空间工具（list_workspace / read_workspace_file / write_workspace_file）
 据此把相对路径锚定到当前任务的工作空间，防止越界写盘。
 
-因为 run_agent_loop 调用工具是同步同线程执行，thread-local 足够安全。
+MCP 工具调用在同一线程内同步执行，thread-local 足够安全。
 """
 import os
 import threading

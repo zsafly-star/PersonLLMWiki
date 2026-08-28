@@ -693,6 +693,7 @@ function openDrawer(slug) {
       '<div class="wk-drawer__content" id="wk-content-' + d.slug + '"></div>' +
       rel + src +
       '<div class="wk-drawer__actions">' +
+        '<button class="btn btn-sm" onclick="analyzeConcept(\'' + d.slug + '\')">用智能体深入分析</button>' +
         (d.source !== 'common' ? '<button class="btn btn-sm btn-primary" onclick="submitToPublic(\'' + d.slug + '\')">提交到公共库</button>' : '') +
       '</div>';
 
@@ -816,6 +817,46 @@ function _doSubmitToPublic(slug) {
     .then(r => r.json()).then(function(res) {
       alert(res.code === 200 ? '已提交到公共库审批队列' : '提交失败: ' + (res.message || ''));
     }).catch(function(e) { alert('提交失败: ' + e); });
+}
+
+/* ═══ 用智能体深入分析（DSH headless） ═══ */
+function analyzeConcept(slug) {
+  var body = document.getElementById('wk-drawer-body');
+  var box = document.getElementById('wk-analyze-result');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'wk-analyze-result';
+    box.style.marginTop = '16px';
+    body.appendChild(box);
+  }
+  box.innerHTML = '<div style="padding:14px;border:1px dashed var(--wk-line);border-radius:var(--wk-radius);color:var(--wk-soft);">正在调用 DSH 智能体深入分析，可能需要数秒…</div>';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  fetch('/api/wiki/analyze', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ slug: slug })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      box.innerHTML = '';
+      if (res.code !== 200) {
+        box.innerHTML = '<div style="padding:14px;color:var(--wk-red);">深入分析失败：' + (res.message || 'DSH 不可用') + '</div>';
+        return;
+      }
+      var head = document.createElement('div');
+      head.style.cssText = 'font-size:12px;font-weight:600;color:var(--wk-stone);margin-bottom:8px;';
+      head.textContent = '智能体深入分析';
+      var pre = document.createElement('pre');
+      pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;font:inherit;background:var(--wk-snow);border:1px solid var(--wk-line);border-radius:var(--wk-radius);padding:14px;max-height:420px;overflow:auto;margin:0;';
+      pre.textContent = (res.data && res.data.output) || '（无输出）';
+      box.appendChild(head);
+      box.appendChild(pre);
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    })
+    .catch(function() {
+      box.innerHTML = '<div style="padding:14px;color:var(--wk-red);">深入分析请求失败</div>';
+    });
 }
 
 /* ═══ Compile ═══ */
