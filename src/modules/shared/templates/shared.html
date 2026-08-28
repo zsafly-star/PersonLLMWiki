@@ -104,35 +104,6 @@
 {% endblock %}
 
 {% block scripts %}
-<style>
-.sh-subtitle{font-size:13px;color:var(--color-muted);margin-left:12px}
-.sh-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:16px}
-.sh-item{border:1px solid var(--color-border,#e5e7eb);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--color-surface,#fff);transition:box-shadow 150ms ease}
-.sh-item:hover{box-shadow:0 4px 16px rgba(0,0,0,0.08)}
-.sh-item-top{display:flex;align-items:center;gap:8px}
-.sh-item-name{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sh-badge{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
-.sh-badge-type{background:var(--color-bg-soft,#f3f4f6);color:var(--color-text-soft,#6b7280)}
-.sh-badge-official{background:#e0f2fe;color:#0369a1}
-.sh-badge-colleague{background:#ecfdf5;color:#047857}
-.sh-badge-external{background:#fef3c7;color:#b45309}
-.sh-item-desc{font-size:13px;color:var(--color-text-soft,#6b7280);line-height:1.5;min-height:38px}
-.sh-item-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--color-muted)}
-.sh-item-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
-.sh-kv{display:flex;flex-direction:column;gap:8px;font-size:13px}
-.sh-kv-row{display:flex;gap:8px}
-.sh-kv-key{color:var(--color-muted);min-width:72px;flex-shrink:0}
-.sh-kv-val{color:var(--color-text,#1a1a1a);word-break:break-all}
-.sh-kv-section{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}
-.sh-pre{background:var(--color-bg-soft,#f9fafb);border-radius:8px;padding:10px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:220px;white-space:pre-wrap;word-break:break-all}
-.sh-head-actions{display:flex;gap:8px}
-.sh-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.sh-field{display:flex;flex-direction:column;gap:5px;font-size:13px}
-.sh-field span{color:var(--color-muted);font-size:12px}
-.sh-field input,.sh-field select,.sh-field textarea{width:100%;box-sizing:border-box;border:1px solid var(--color-border,#e5e7eb);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--color-surface,#fff);color:var(--color-text,#1a1a1a);font-family:inherit}
-.sh-field textarea{resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-@media (max-width:520px){.sh-form-grid{grid-template-columns:1fr}}
-</style>
 <script>
 onPageReady(function() {
     loadItems();
@@ -144,9 +115,9 @@ function esc(str) { var d = document.createElement('div'); d.textContent = str |
 function escAttr(str) { return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function sourceBadge(level) {
-    if (level === '官方库') return '<span class="sh-badge sh-badge-official">官方库</span>';
-    if (level === '外部') return '<span class="sh-badge sh-badge-external">外部</span>';
-    return '<span class="sh-badge sh-badge-colleague">' + esc(level || '同事') + '</span>';
+    if (level === '官方库') return '<span class="am-tag am-tag-builtin">官方库</span>';
+    if (level === '外部') return '<span class="am-tag am-tag-remote">外部</span>';
+    return '<span class="am-tag am-tag-custom">' + esc(level || '同事') + '</span>';
 }
 
 function typeLabel(t) {
@@ -173,13 +144,13 @@ function renderItems(items) {
     if (!items || items.length === 0) { renderEmpty('暂无共享条目'); return; }
     container.innerHTML = items.map(function(it) {
         var install = it.install || {};
-        return '<div class="sh-item">'
-            + '<div class="sh-item-top">'
-            + '<span class="sh-item-name" title="' + escAttr(it.name) + '">' + esc(it.name) + '</span>'
-            + '<span class="sh-badge sh-badge-type">' + esc(typeLabel(it.type)) + '</span>'
+        return '<div class="am-mcp-card sh-card">'
+            + '<div class="am-mcp-name-row sh-item-top">'
+            + '<span class="am-mcp-name sh-item-name" title="' + escAttr(it.name) + '">' + esc(it.name) + '</span>'
+            + '<span class="am-mcp-badge">' + esc(typeLabel(it.type)) + '</span>'
             + sourceBadge(it.source_level)
             + '</div>'
-            + '<div class="sh-item-desc">' + esc(it.description || '') + '</div>'
+            + '<div class="am-mcp-sub sh-item-desc">' + esc(it.description || '') + '</div>'
             + '<div class="sh-item-meta">'
             + (it.version ? '<span>v' + esc(it.version) + '</span>' : '')
             + (it.author ? '<span>' + esc(it.author) + '</span>' : '')
@@ -211,7 +182,7 @@ function renderDetail(d) {
     var install = d.install || {};
     var requiresMcp = (d.requires_mcp || []).join(', ');
     var html = '<div class="sh-kv">'
-        + '<div class="sh-item-top"><span class="sh-item-name">' + esc(d.name) + '</span><span class="sh-badge sh-badge-type">' + esc(typeLabel(d.type)) + '</span>' + sourceBadge(d.source_level) + '</div>'
+        + '<div class="am-mcp-name-row sh-item-top"><span class="am-mcp-name sh-item-name">' + esc(d.name) + '</span><span class="am-mcp-badge">' + esc(typeLabel(d.type)) + '</span>' + sourceBadge(d.source_level) + '</div>'
         + '<div class="sh-kv-row"><span class="sh-kv-key">描述</span><span class="sh-kv-val">' + esc(d.description || '—') + '</span></div>'
         + '<div class="sh-kv-row"><span class="sh-kv-key">版本</span><span class="sh-kv-val">' + esc(d.version || '—') + '</span></div>'
         + '<div class="sh-kv-row"><span class="sh-kv-key">作者</span><span class="sh-kv-val">' + esc(d.author || '—') + '</span></div>'

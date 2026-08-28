@@ -1,0 +1,287 @@
+/* ═══════════════════════════════════════════════════════════════════
+   记忆管理页 — Swiss-Style Minimalism，对齐 Wiki 卡片网格
+   复用：.am-mcp-card / .am-mcp-chevron / .am-tag（-builtin 蓝/-custom 紫/
+         -local 绿/-remote 橙）
+   设计令牌：base.css（--font-sans/--font-mono/--color-*）
+   ═══════════════════════════════════════════════════════════════════ */
+
+.mm-page {
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 32px 32px 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+}
+
+/* ── Top Bar ── */
+.mm-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.mm-bar h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-foreground);
+}
+
+.mm-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── 显示已撤回开关 ── */
+.mm-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+.mm-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* ── Tabs ── */
+.mm-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.mm-tab {
+    padding: 6px 16px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: color 150ms ease, background 150ms ease;
+    font-family: inherit;
+}
+
+.mm-tab:hover {
+    color: var(--color-foreground-secondary, #5F7A78);
+    background: rgba(94, 122, 120, 0.06);
+}
+
+.mm-tab--on {
+    color: var(--color-foreground);
+    background: rgba(94, 122, 120, 0.08);
+}
+
+/* ── Body（可滚动内容） ── */
+.mm-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 64px;
+}
+
+/* ── Card Grid ── */
+.mm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+/* ── Card ── */
+.mm-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mm-card:active {
+    transform: scale(0.995);
+}
+
+.mm-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.mm-card-head .am-mcp-chevron {
+    margin-top: 3px;
+}
+
+.mm-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-foreground);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.mm-preview {
+    font-size: 16px;
+    color: var(--color-foreground-secondary, #5F7A78);
+    line-height: 1.6;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mm-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.mm-meta .am-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.mm-source {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.mm-source a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.mm-source a:hover {
+    text-decoration: underline;
+}
+
+/* ── Status Badge ── */
+.mm-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 100px;
+    flex-shrink: 0;
+}
+
+.mm-status-auto {
+    background: rgba(148, 163, 184, 0.12);
+    color: var(--color-muted);
+}
+
+.mm-status-promoted {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+}
+
+.mm-status-revoked {
+    background: var(--color-border-light);
+    color: var(--color-muted);
+    text-decoration: line-through;
+}
+
+.mm-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* ── 展开的正文 ── */
+.mm-body-full {
+    overflow: hidden;
+    animation: mmSlide 280ms ease;
+}
+
+@keyframes mmSlide {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 600px; }
+}
+
+.mm-body-text {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--color-foreground);
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+/* ── 操作栏 ── */
+.mm-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mm-actions .am-btn {
+    font-size: 14px;
+}
+
+/* ── 空态 ── */
+.mm-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 20px;
+    color: var(--color-muted);
+    text-align: center;
+    gap: 6px;
+}
+
+.mm-empty-icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.mm-empty p {
+    font-size: 16px;
+    margin: 0;
+}
+
+.mm-empty .mm-empty-hint {
+    font-size: 13px;
+    opacity: 0.75;
+}
+
+/* ── 无障碍：减少动效 ── */
+@media (prefers-reduced-motion: reduce) {
+    .mm-body-full,
+    .mm-tab,
+    .mm-card {
+        animation: none;
+        transition: none;
+    }
+}

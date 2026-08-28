@@ -3,24 +3,9 @@
 search_kb 接 retrieval.hybrid_search（向量 0.7 + BM25 0.3）。
 每次调用都会消耗 Embedding API 配额。
 """
-import json
 
 from .errors import INVALID_PARAMS, MCPError
-
-
-def _text_content(obj):
-    if isinstance(obj, str):
-        text = obj
-    else:
-        text = json.dumps(obj, ensure_ascii=False)
-    return {'content': [{'type': 'text', 'text': text}]}
-
-
-def _error_content(message: str):
-    return {
-        'isError': True,
-        'content': [{'type': 'text', 'text': message}],
-    }
+from .tools_common import text_content, error_content
 
 
 def handle_search_kb(args: dict) -> dict:
@@ -47,12 +32,19 @@ def handle_search_kb(args: dict) -> dict:
         top_k = 5
     top_k = min(top_k, 10)  # 硬上限
 
+    delivery = args.get('delivery', 'flat')
+    if delivery not in ('flat', 'layered'):
+        delivery = 'flat'
+    budget_tokens = args.get('budget_tokens')
+    if not isinstance(budget_tokens, int):
+        budget_tokens = None
+
     # ── Step 1: 本地检索 ──
     try:
         from modules.wiki.compiler.retrieval import hybrid_search
         local_results = hybrid_search(query, top_k=top_k)
     except Exception as e:
-        return _error_content(
+        return error_content(
             f'检索失败: {e}（注意：本次可能已消耗部分 OpenAI Embedding 配额）'
         )
 
@@ -150,6 +142,19 @@ def handle_search_kb(args: dict) -> dict:
         pass
 
     if not output:
-        return _text_content([])
+        return text_content([])
 
-    return _text_content(output)
+    if delivery == 'layered':
+        enriched = []
+        for hit in output:
+            h = dict(hit)
+            if hit.get('source') == 'local':
+                page = slug_to_page.get(hit.get('slug'))
+                h['summary'] = (page.summary or '') if page else ''
+            else:
+                h['summary'] = ''
+            enriched.append(h)
+        from common.context_assembler import assemble_layered
+        return text_content(assemble_layered(query, enriched, budget_tokens))
+
+    return text_content(output)

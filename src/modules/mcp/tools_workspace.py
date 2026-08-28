@@ -8,30 +8,15 @@
 路径全部相对工作空间根目录解析（common.workspace_ctx + security.resolve_workspace_path），
 防止 agent 越界写盘。工作空间由 orchestrator 在运行节点前设置。
 """
-import json
 import os
 import tempfile
 
 from .errors import INVALID_PARAMS, MCPError
 from .security import resolve_workspace_path
+from .tools_common import text_content, error_content
 
 # 读取文件的最大字节数，超出的部分截断并提示
 _READ_MAX_BYTES = 256 * 1024
-
-
-def _text_content(obj):
-    if isinstance(obj, str):
-        text = obj
-    else:
-        text = json.dumps(obj, ensure_ascii=False)
-    return {'content': [{'type': 'text', 'text': text}]}
-
-
-def _error_content(message: str):
-    return {
-        'isError': True,
-        'content': [{'type': 'text', 'text': message}],
-    }
 
 
 def handle_list_workspace(args: dict) -> dict:
@@ -47,13 +32,13 @@ def handle_list_workspace(args: dict) -> dict:
     abs_dir = resolve_workspace_path(sub)
 
     if not os.path.isdir(abs_dir):
-        return _error_content(f'目录不存在: {sub or "."}')
+        return error_content(f'目录不存在: {sub or "."}')
 
     entries = []
     try:
         names = sorted(os.listdir(abs_dir), key=lambda n: n.lower())
     except PermissionError:
-        return _error_content(f'无权限读取: {sub or "."}')
+        return error_content(f'无权限读取: {sub or "."}')
 
     dirs = []
     files = []
@@ -72,7 +57,7 @@ def handle_list_workspace(args: dict) -> dict:
                 pass
             files.append({'name': name, 'type': 'file', 'path': rel, 'size': size})
 
-    return _text_content(dirs + files)
+    return text_content(dirs + files)
 
 
 def handle_read_workspace_file(args: dict) -> dict:
@@ -89,7 +74,7 @@ def handle_read_workspace_file(args: dict) -> dict:
 
     abs_path = resolve_workspace_path(args['path'])
     if not os.path.isfile(abs_path):
-        return _error_content(f'文件不存在: {args["path"]}')
+        return error_content(f'文件不存在: {args["path"]}')
 
     try:
         total = os.path.getsize(abs_path)
@@ -101,11 +86,11 @@ def handle_read_workspace_file(args: dict) -> dict:
             content = f.read(_READ_MAX_BYTES)
             truncated = len(content) < total
     except UnicodeDecodeError:
-        return _error_content(f'不是文本文件（无法按 UTF-8 读取）: {args["path"]}')
+        return error_content(f'不是文本文件（无法按 UTF-8 读取）: {args["path"]}')
     except (PermissionError, OSError) as e:
-        return _error_content(f'读取失败: {e}')
+        return error_content(f'读取失败: {e}')
 
-    return _text_content({
+    return text_content({
         'path': args['path'],
         'size': total,
         'truncated': truncated,
@@ -162,7 +147,7 @@ def handle_write_workspace_file(args: dict) -> dict:
     except (PermissionError, OSError) as e:
         raise MCPError(INVALID_PARAMS, f'写入失败: {e}')
 
-    return _text_content({
+    return text_content({
         'path': raw_path,
         'bytes_written': len(content.encode('utf-8')),
         'created': created,

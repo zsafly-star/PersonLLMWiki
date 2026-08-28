@@ -90,7 +90,7 @@ def mock_env(app):
         patches.clear()
 
         patches.extend([
-            patch('common.agent._get_active_llm', return_value=('fake', 'fake-model', {})),
+            patch('common.agent_core.get_active_llm', return_value=('fake', 'fake-model', {})),
             patch('common.llm.LLMService', mock_llm),
             patch('common.agent.get_bus', return_value=bus),
             patch('common.skill_loader.get_skills_prompt', return_value=''),
@@ -112,7 +112,7 @@ def _run_and_collect(mock_env, mode='quick', responses=None):
     adapter, bus = mock_env(responses or [FakeMessage(content='回答')])
     progress_events = []
 
-    with patch('common.agent._get_active_llm', return_value=('fake', 'fake-model', {})), \
+    with patch('common.agent_core.get_active_llm', return_value=('fake', 'fake-model', {})), \
          patch('common.llm.LLMService') as mock_llm_svc, \
          patch('common.agent.get_bus', return_value=bus), \
          patch('common.skill_loader.get_skills_prompt', return_value=''):
@@ -185,14 +185,12 @@ class TestStageConstruction:
         names = [s['stage_name'] for s in stages]
         assert '分析问题' in names
         assert '搜索知识库' in names
-        assert '联网搜索' in names
         assert '整理思路' in names
         assert '生成回答' in names
 
         idx_kb = names.index('搜索知识库')
-        idx_web = names.index('联网搜索')
         idx_organize = names.index('整理思路')
-        assert idx_kb < idx_web < idx_organize
+        assert idx_kb < idx_organize
 
     def test_all_stages_completed(self, mock_env):
         stages = _run_and_collect(mock_env, mode='expert', responses=[
@@ -229,4 +227,4 @@ class TestStageConstruction:
         serialized = json.dumps(payload, ensure_ascii=False)
         parsed = json.loads(serialized)
         assert 'stages' in parsed
-        assert len(parsed['stages']) >= 5
+        assert len(parsed['stages']) >= 4

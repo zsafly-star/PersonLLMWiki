@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════════════════
+   共享中心 — 对齐 T13 卡片规范
+   复用：.am-mcp-card / .am-mcp-name-row / .am-mcp-name / .am-mcp-sub /
+         .am-mcp-badge / .am-tag（-builtin 蓝 / -custom 紫 / -remote 橙）
+   设计令牌：base.css（--color-surface / --color-surface-alt / --color-foreground /
+             --color-foreground-secondary / --color-muted / --color-border /
+             --color-border-light）
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sh-subtitle {
+    font-size: 13px;
+    color: var(--color-muted);
+    margin-left: 12px;
+}
+
+/* ── 列表网格 ── */
+.sh-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+/* ── 卡片（复用 .am-mcp-card） ── */
+.sh-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ── 卡片头：名称 + 类型胶囊 + 来源标签 ── */
+.sh-item-top {
+    flex-wrap: wrap;
+}
+
+.sh-item-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sh-item-top .am-tag {
+    margin-left: 0;
+}
+
+/* ── 描述（正文预览） ── */
+.sh-item-desc {
+    font-size: 16px;
+    color: var(--color-foreground-secondary);
+    line-height: 1.6;
+    min-height: 3.2em;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ── 标签/胶囊字号对齐 T13（标签 ≥12px） ── */
+.sh-card .am-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.sh-card .am-mcp-badge {
+    font-size: 12px;
+}
+
+/* ── meta 行（版本 / 作者 / 安装动作） ── */
+.sh-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+/* ── 卡片底部操作（详情 / 安装） ── */
+.sh-item-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+}
+
+.sh-card .am-btn {
+    font-size: 14px;
+}
+
+/* ── 详情抽屉 ── */
+.sh-kv {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.sh-kv-row {
+    display: flex;
+    gap: 8px;
+}
+
+.sh-kv-key {
+    color: var(--color-muted);
+    min-width: 72px;
+    flex-shrink: 0;
+}
+
+.sh-kv-val {
+    color: var(--color-foreground);
+    word-break: break-all;
+}
+
+.sh-kv-section {
+    margin: 14px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.sh-pre {
+    background: var(--color-surface-alt);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    overflow: auto;
+    max-height: 220px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ── 头部操作 ── */
+.sh-head-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── 发布表单 ── */
+.sh-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.sh-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 14px;
+}
+
+.sh-field span {
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
+.sh-field input,
+.sh-field select,
+.sh-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    background: var(--color-surface);
+    color: var(--color-foreground);
+    font-family: inherit;
+}
+
+.sh-field textarea {
+    resize: vertical;
+    font-family: var(--font-mono);
+}
+
+@media (max-width: 520px) {
+    .sh-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── 无障碍：减少动效 ── */
+@media (prefers-reduced-motion: reduce) {
+    .sh-card,
+    .sh-card .am-btn,
+    .sh-item-desc {
+        animation: none;
+        transition: none;
+    }
+}

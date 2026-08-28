@@ -1,7 +1,7 @@
 """Agent 专家模式强制流程测试。
 
 覆盖场景：
-1. 专家模式自动调用 search_kb + websearch__web_search
+1. 专家模式自动调用 search_kb
 2. 预搜索结果注入 full_messages
 3. progress_callback 事件顺序正确
 4. 快速模式不走强制流程
@@ -97,7 +97,7 @@ def mock_llm_env(app):
     mock_llm.get_adapter.return_value = adapter
 
     patches = [
-        patch('common.agent._get_active_llm', return_value=('fake', 'fake-model', {})),
+        patch('common.agent_core.get_active_llm', return_value=('fake', 'fake-model', {})),
         patch('common.llm.LLMService', mock_llm),
         patch('common.agent.get_bus', return_value=bus),
         patch('common.skill_loader.get_skills_prompt', return_value=''),
@@ -114,10 +114,10 @@ def mock_llm_env(app):
 # ── 测试用例 ───────────────────────────────────────────────
 
 class TestExpertForcedFlow:
-    """专家模式强制流程：search_kb → websearch__web_search → 注入上下文。"""
+    """专家模式强制流程：search_kb → 注入上下文。"""
 
-    def test_expert_calls_search_kb_and_web_search(self, mock_llm_env):
-        """专家模式自动调用 search_kb 和 websearch__web_search。"""
+    def test_expert_calls_search_kb(self, mock_llm_env):
+        """专家模式自动调用 search_kb。"""
         from common.agent import agent_chat
         agent_chat(
             [{'role': 'user', 'content': '什么是RESTful API'}],
@@ -128,7 +128,6 @@ class TestExpertForcedFlow:
         bus = mock_llm_env['bus']
         tool_names = [name for name, _ in bus.call_log]
         assert 'search_kb' in tool_names, "专家模式应自动调用 search_kb"
-        assert 'websearch__web_search' in tool_names, "专家模式应自动调用 websearch__web_search"
 
     def test_expert_injects_context_into_messages(self, mock_llm_env):
         """预搜索结果注入 full_messages 作为 system 消息。"""
@@ -143,7 +142,6 @@ class TestExpertForcedFlow:
         injected = [m for m in adapter.captured_messages
                     if m.get('role') == 'system' and '知识库结果' in m.get('content', '')]
         assert len(injected) >= 1, "应注入包含知识库结果的 system 消息"
-        assert '联网结果' in injected[-1]['content'], "注入消息应包含联网搜索结果"
 
     def test_expert_progress_callback_events(self, mock_llm_env):
         """专家模式回调事件顺序正确。"""
@@ -162,9 +160,8 @@ class TestExpertForcedFlow:
         assert 'custom_stage_end' in event_types
 
         tool_starts = [(e[0], e[1]) for e in events if e[0] == 'tool_start']
-        assert len(tool_starts) >= 2
+        assert len(tool_starts) >= 1
         assert tool_starts[0][1] == 'search_kb'
-        assert tool_starts[1][1] == 'websearch__web_search'
 
     def test_expert_search_failure_does_not_break_flow(self, mock_llm_env):
         """知识库或联网搜索失败时，流程不中断。"""

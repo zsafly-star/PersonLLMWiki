@@ -1,6 +1,6 @@
 """MCP save_text_file 工具测试。
 
-覆盖设计方案 MCP_通用文本写入工具设计方案.md：
+覆盖设计方案 02-MCP设计方案.md §19（save_text_file）：
 - overwrite 模式：原子写入，覆盖已有文件
 - append 模式：追加到文件末尾
 - 路径越界检测（默认锚定 ARTICLE_PATH，与 write_note 同根）

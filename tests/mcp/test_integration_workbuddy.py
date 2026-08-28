@@ -43,7 +43,7 @@ class TestWorkBuddyFullFlow:
         sid = headers.get('Mcp-Session-Id')
         assert sid
         assert payload['result']['protocolVersion'] == '2025-06-18'
-        assert payload['result']['serverInfo']['name'] == 'ZSSNote'
+        assert payload['result']['serverInfo']['name'] == 'PersonLLMWiki'
 
         # 2. notifications/initialized（客户端通知初始化完成）
         body = {'jsonrpc': '2.0', 'method': 'notifications/initialized'}

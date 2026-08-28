@@ -11,25 +11,13 @@ from flask import current_app
 
 from .errors import INVALID_PARAMS, MCPError
 from .security import resolve_article_path, resolve_resource_path, validate_markdown_extension
-
-
-def _text_content(obj):
-    if isinstance(obj, str):
-        text = obj
-    else:
-        text = json.dumps(obj, ensure_ascii=False)
-    return {'content': [{'type': 'text', 'text': text}]}
-
-
-def _error_content(message: str):
-    return {
-        'isError': True,
-        'content': [{'type': 'text', 'text': message}],
-    }
+from .tools_common import text_content, error_content
 
 
 def handle_write_note(args: dict) -> dict:
-    """创建或覆盖一篇文章（Markdown）。
+    """文章读写工具（读写 article/*.md），与已删除的「笔记」模块无关。
+
+    创建或覆盖一篇文章（Markdown）。
 
     自动提取 Markdown 中的内联 data URI 图片，保存到 resource/img/<文件名>/
     目录下，并将 Markdown 中的引用替换为 PersonLLMWiki 标准相对路径
@@ -103,7 +91,7 @@ def handle_write_note(args: dict) -> dict:
     except (PermissionError, OSError) as e:
         raise MCPError(INVALID_PARAMS, f'写入失败: {e}')
 
-    return _text_content({
+    return text_content({
         'path': raw_path,
         'word_count': len(new_content),
         'created': created,
@@ -147,12 +135,12 @@ def handle_compile_wiki(args: dict) -> dict:
 
     status = result.get('status', '')
     if status == 'already_running':
-        return _text_content({
+        return text_content({
             'started': False,
             'message': '编译已在进行中，用 get_compile_status 查询进度',
         })
 
-    return _text_content({
+    return text_content({
         'started': True,
         'message': '编译已启动，用 get_compile_status 查询进度',
     })
@@ -187,7 +175,7 @@ def handle_approve_candidate(args: dict) -> dict:
 
     page = db.session.get(WikiPage, page_id)
     if not page or page.review_status != 'pending':
-        return _error_content(f'候选页面不存在或已处理: id={page_id}')
+        return error_content(f'候选页面不存在或已处理: id={page_id}')
 
     try:
         page.review_status = 'approved'
@@ -195,7 +183,7 @@ def handle_approve_candidate(args: dict) -> dict:
         wiki_service.generate_index()
     except Exception as e:
         db.session.rollback()
-        return _error_content(f'审批失败: {e}')
+        return error_content(f'审批失败: {e}')
 
     # 异步更新向量索引（非阻塞，失败不影响审批）
     try:
@@ -216,7 +204,7 @@ def handle_approve_candidate(args: dict) -> dict:
     except Exception:
         pass
 
-    return _text_content({
+    return text_content({
         'id': page_id,
         'slug': page.slug,
         'approved': True,
@@ -250,7 +238,7 @@ def handle_reject_candidate(args: dict) -> dict:
 
     page = db.session.get(WikiPage, page_id)
     if not page or page.review_status != 'pending':
-        return _error_content(f'候选页面不存在或已处理: id={page_id}')
+        return error_content(f'候选页面不存在或已处理: id={page_id}')
 
     slug = page.slug
     try:
@@ -259,9 +247,9 @@ def handle_reject_candidate(args: dict) -> dict:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return _error_content(f'拒绝失败: {e}')
+        return error_content(f'拒绝失败: {e}')
 
-    return _text_content({
+    return text_content({
         'id': page_id,
         'rejected': True,
     })
@@ -323,7 +311,7 @@ def handle_create_folder(args: dict) -> dict:
     with open(meta_path, 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    return _text_content({
+    return text_content({
         'path': raw_path,
         'created': created,
     })
@@ -348,9 +336,9 @@ def handle_submit_to_public(args: dict) -> dict:
         {id, slug, review_status: 'pending', message}
     """
     if 'title' not in args or not args['title']:
-        return _error_content('title 参数必填')
+        return error_content('title 参数必填')
     if 'body' not in args or not args['body']:
-        return _error_content('body 参数必填')
+        return error_content('body 参数必填')
 
     from config import Config
     from extensions import db
@@ -396,7 +384,7 @@ def handle_submit_to_public(args: dict) -> dict:
     # 写入 concept 文件
     wiki_service.save_concept_page(slug, title, body, summary, sources, kind)
 
-    return _text_content({
+    return text_content({
         'id': page.id,
         'slug': slug,
         'review_status': 'pending',
@@ -422,7 +410,7 @@ def handle_create_todo(args: dict) -> dict:
     db.session.add(item)
     db.session.commit()
 
-    return _text_content({
+    return text_content({
         'id': item.id,
         'title': item.title,
         'message': f'已创建待办：{title}',
@@ -522,7 +510,7 @@ def handle_save_text_file(args: dict) -> dict:
     except OSError:
         total_bytes = len(content.encode('utf-8'))
 
-    return _text_content({
+    return text_content({
         'path': raw_path,
         'bytes_written': len(content.encode('utf-8')),
         'total_bytes': total_bytes,

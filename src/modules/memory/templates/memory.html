@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════ -->
+<!--  记忆管理页 — Swiss-Style Minimalism         -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="mm-page">
+    <header class="mm-bar">
+        <h1>记忆</h1>
+        <div class="mm-bar-right">
+            <label class="mm-toggle">
+                <input type="checkbox" id="mm-show-revoked">
+                显示已撤回
+            </label>
+        </div>
+    </header>
+
+    <div class="mm-tabs" role="tablist" aria-label="记忆分类">
+        <button class="mm-tab mm-tab--on" data-kind="" role="tab" aria-selected="true">全部</button>
+        <button class="mm-tab" data-kind="preference" role="tab" aria-selected="false">偏好</button>
+        <button class="mm-tab" data-kind="fact" role="tab" aria-selected="false">事实</button>
+        <button class="mm-tab" data-kind="decision" role="tab" aria-selected="false">决策</button>
+        <button class="mm-tab" data-kind="other" role="tab" aria-selected="false">其他</button>
+    </div>
+
+    <div class="mm-body">
+        <div class="mm-grid" id="mm-grid">
+            <div class="mm-empty"><p>加载中…</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/modules/memory.js') }}"></script>
+<script>
+onPageReady(function() {
+    initMemoryPage();
+});
+</script>
+{% endblock %}

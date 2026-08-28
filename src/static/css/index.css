@@ -22,3 +22,5 @@
 @import './components/markdown.css';
 @import './components/graph.css';
 @import './components/wiki.css';
+@import './components/memory.css';
+@import './components/shared.css';

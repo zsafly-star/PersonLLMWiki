@@ -29,6 +29,15 @@ from .tools_workspace import (
     handle_read_workspace_file,
     handle_write_workspace_file,
 )
+from .tools_memory import (
+    handle_search_memory,
+    handle_list_memories,
+    handle_remember,
+    handle_forget_memory,
+)
+from .tools_skill import (
+    handle_suggest_skill,
+)
 
 
 def _register_all():
@@ -160,6 +169,14 @@ def _register_all():
                     'query': {'type': 'string', 'description': '自然语言查询'},
                     'top_k': {
                         'type': 'integer', 'default': 5, 'minimum': 1, 'maximum': 10,
+                    },
+                    'delivery': {
+                        'type': 'string', 'enum': ['flat', 'layered'], 'default': 'flat',
+                        'description': 'flat=返回片段列表（默认），layered=按摘要/片段/原文三层组装',
+                    },
+                    'budget_tokens': {
+                        'type': 'integer',
+                        'description': 'layered 模式的 token 预算（可选，默认 1500）',
                     },
                 },
                 'required': ['query'],
@@ -434,6 +451,111 @@ def _register_all():
                 'additionalProperties': False,
             },
             handler=handle_write_workspace_file,
+            cost='none',
+        ),
+
+        # ---------- 1.2 记忆模块工具（记忆轨，独立于知识库） ----------
+        Tool(
+            name='search_memory',
+            description='语义检索记忆（记忆轨，独立于知识库 search_kb）。消耗 OpenAI Embedding 配额。返回 Top-K 相关记忆及正文片段。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'query': {'type': 'string', 'description': '自然语言查询'},
+                    'top_k': {
+                        'type': 'integer', 'default': 5, 'minimum': 1, 'maximum': 10,
+                    },
+                    'kind': {
+                        'type': 'string',
+                        'enum': ['preference', 'fact', 'decision', 'other'],
+                        'description': '记忆类型过滤（可选）',
+                    },
+                },
+                'required': ['query'],
+                'additionalProperties': False,
+            },
+            handler=handle_search_memory,
+            cost='openai-embedding',
+        ),
+        Tool(
+            name='list_memories',
+            description='列出记忆（记忆轨）。可按 kind/status 过滤，支持分页。无成本。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'kind': {
+                        'type': 'string',
+                        'enum': ['preference', 'fact', 'decision', 'other'],
+                        'description': '记忆类型过滤（可选）',
+                    },
+                    'status': {
+                        'type': 'string',
+                        'enum': ['auto', 'promoted', 'revoked'],
+                        'description': '状态过滤（可选）',
+                    },
+                    'limit': {
+                        'type': 'integer', 'default': 50, 'minimum': 1, 'maximum': 200,
+                    },
+                    'offset': {
+                        'type': 'integer', 'default': 0, 'minimum': 0,
+                    },
+                },
+                'additionalProperties': False,
+            },
+            handler=handle_list_memories,
+            cost='none',
+        ),
+        Tool(
+            name='remember',
+            description='记住一条记忆（记忆轨，status=auto）。kind 可选 preference/fact/decision/other。无成本。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'body': {'type': 'string', 'description': '记忆正文'},
+                    'kind': {
+                        'type': 'string',
+                        'enum': ['preference', 'fact', 'decision', 'other'],
+                        'description': '记忆类型',
+                    },
+                    'slug': {
+                        'type': 'string',
+                        'description': '记忆 slug（可选，不传自动生成）',
+                    },
+                },
+                'required': ['body', 'kind'],
+                'additionalProperties': False,
+            },
+            handler=handle_remember,
+            cost='none',
+        ),
+        Tool(
+            name='forget_memory',
+            description='撤回一条记忆（软删除，物理保留）。应仅在用户明确要求时调用，LLM 不应自动撤回。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'slug': {'type': 'string', 'description': '要撤回的记忆 slug'},
+                },
+                'required': ['slug'],
+                'additionalProperties': False,
+            },
+            handler=handle_forget_memory,
+            cost='none',
+        ),
+        Tool(
+            name='suggest_skill',
+            description='当识别到可复用操作流程时，生成技能候选草案（写入 candidates/，需人工审批后才生效）。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'name': {'type': 'string', 'description': '技能名'},
+                    'description': {'type': 'string', 'description': '技能描述'},
+                    'body': {'type': 'string', 'description': '技能工作流正文（Markdown）'},
+                },
+                'required': ['name', 'description', 'body'],
+                'additionalProperties': False,
+            },
+            handler=handle_suggest_skill,
             cost='none',
         ),
     ]

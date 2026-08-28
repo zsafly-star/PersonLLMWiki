@@ -137,6 +137,11 @@ def create_session():
     data = request.get_json() or {}
     model_name = data.get('model_name')
     session = ChatService.create_session(model_name)
+    try:
+        from modules.memory import trace as _mt
+        _mt.record_session_boundary(session['id'], 'session_start')
+    except Exception:
+        pass
     return success_response(session, '创建成功')
 
 
@@ -292,6 +297,14 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
             with _app.app_context():
                 def on_progress(evt, data):
                     result_queue.put(('progress', {'type': evt, 'data': data}))
+                    try:
+                        from modules.memory import trace as _mt
+                        if evt == 'tool_start':
+                            _mt.record_tool_start(session_id, data.get('round', 0), data.get('name', ''), data.get('arguments', {}))
+                        elif evt == 'tool_result':
+                            _mt.record_tool_result(session_id, data.get('round', 0), data.get('name', ''), data.get('result', '') or data.get('error', ''))
+                    except Exception:
+                        pass
                 result = agent_chat(message_history, use_tools=True, mode=mode,
                                     progress_callback=on_progress)
                 result_queue.put(('ok', result))
@@ -386,6 +399,20 @@ def _generate_agent_sse(session_id, message_history, mode, stream_msg_id, user_m
         db.session.commit()
         yield f"data: {json.dumps({'done': True, 'stopped': sent_chars < len(full_response), 'thinking': thinking_payload}, ensure_ascii=False)}{sep}"
 
+    try:
+        from modules.memory import trace as _mt
+        from modules.memory import pipeline as _mp
+        _mt.record_session_boundary(session_id, 'session_end')
+        def _trigger_extract(sid):
+            try:
+                with _app.app_context():
+                    _mp.extract_memories(sid)
+            except Exception:
+                pass
+        threading.Thread(target=_trigger_extract, args=(session_id,), daemon=True).start()
+    except Exception:
+        pass
+
     # 自动生成标题（仅 stream_message 传入 user_message）
     if user_message:
         from .models import ChatSession as Cs
@@ -430,6 +457,12 @@ def stream_message(session_id):
     user_message = data.get('display_text', user_message)
 
     ChatService.add_message(session_id, 'user', user_message)
+
+    try:
+        from modules.memory import trace as _mt
+        _mt.record_user_message(session_id, user_message)
+    except Exception:
+        pass
 
     from .models import ChatMessage
     messages = ChatMessage.query.filter_by(session_id=session_id)\

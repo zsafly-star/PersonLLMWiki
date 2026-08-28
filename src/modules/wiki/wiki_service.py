@@ -3,6 +3,7 @@ import json
 import hashlib
 
 from config import Config
+from common.slug_utils import safe_slug as _safe_slug_fn
 
 
 def ensure_wiki_dirs():
@@ -93,7 +94,7 @@ def save_concept_page(slug, title, body, summary='', sources=None, kind='concept
     concepts_dir = get_concepts_dir()
     os.makedirs(concepts_dir, exist_ok=True)
 
-    safe_slug = slug.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe_slug = _safe_slug_fn(slug)
     filepath = os.path.join(concepts_dir, safe_slug + '.md')
 
     frontmatter = {
@@ -117,7 +118,7 @@ def save_concept_page(slug, title, body, summary='', sources=None, kind='concept
 
 def read_concept_page(slug):
     concepts_dir = get_concepts_dir()
-    safe_slug = slug.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe_slug = _safe_slug_fn(slug)
     filepath = os.path.join(concepts_dir, safe_slug + '.md')
 
     if not os.path.isfile(filepath):
@@ -200,7 +201,7 @@ def read_common_concept_page(slug):
     if not concepts_dir:
         return None
 
-    safe_slug = slug.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe_slug = _safe_slug_fn(slug)
     filepath = os.path.join(concepts_dir, safe_slug + '.md')
 
     if not os.path.isfile(filepath):
@@ -225,7 +226,7 @@ def read_common_concept_page(slug):
 
 def delete_concept_page(slug):
     concepts_dir = get_concepts_dir()
-    safe_slug = slug.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe_slug = _safe_slug_fn(slug)
     filepath = os.path.join(concepts_dir, safe_slug + '.md')
     if os.path.isfile(filepath):
         os.remove(filepath)

@@ -1,10 +1,12 @@
 # ZSSNote MCP 设计文档（v3.0）
 
+> 说明：本文档撰写时产品名为 ZSSNote，现已更名为 PersonLLMWiki；正文中 ZSSNote 均指 PersonLLMWiki。
+
 > 目标：让 MCP 客户端通过 MCP 协议用自然语言读写 ZSSNote 知识库、操作 Office 文档、联网搜索。
 > 架构：Flask 内手写 `/mcp` 端点（零新增依赖）+ Agent 自动调用全部工具 + 声明式内置服务管理。
-> 当前状态：25 个 embedded 工具 + 3 个内置服务（officecli 9 / pdf-mcp 13 / websearch 1）+ 远程自定义服务接入。
+> 当前状态：24 个 embedded 工具 + 3 个内置服务（officecli 9 / pdf-mcp 13 / websearch 1）+ 远程自定义服务接入。
 
-![方案 E 整体架构](assets/mcp_architecture.svg)
+![方案 E 整体架构](../assets/mcp_architecture.svg)
 
 ---
 
@@ -38,7 +40,7 @@ ZSSNote 在 MCP 生态中扮演双重角色，同时管理本地内置 MCP 服�
 │  │ MCP Server   │  │ 内置服务管理 │  │ MCP Client   │   │
 │  │ (POST /mcp)  │  │ (builtin_mgr)│  │ (MCPClientBus)│   │
 │  │              │  │              │  │              │   │
-│  │ 25 内置工具  │  │ officecli    │  │ sap-mcp → .. │   │
+│  │ 24 内置工具  │  │ officecli    │  │ sap-mcp → .. │   │
 │  │ • 知识库读写 │  │ pdf-mcp      │  │ 自定义 → ...  │   │
 │  │ • Office 文档│  │ websearch    │  │              │   │
 │  │ • 任务管理   │  │ zssnote      │  │ 工具 → Agent │   │
@@ -121,7 +123,7 @@ src/modules/mcp/
 ├── routes.py              # Blueprint + POST /mcp 端点 + JSON-RPC 分发（Server 角色）
 ├── client_routes.py       # MCP Client 路由：内置+自定义服务管理 + 统一 API
 ├── registry.py            # Tool dataclass + TOOL_REGISTRY（全局注册表）
-├── tools_registration.py  # 集中导入所有 handler，触发注册（当前 25 工具）
+├── tools_registration.py  # 集中导入所有 handler，触发注册（当前 24 工具）
 ├── security.py            # 路径安全（commonpath 越界检测 + .md 扩展名白名单）
 ├── image_extractor.py     # 内联 data URI 图片提取（base64 → 文件 + SVG 过滤）
 ├── errors.py              # JSON-RPC 错误码常量 + MCPError 异常
@@ -145,7 +147,7 @@ src/bin/mcp/               # 内置 MCP 服务目录（每个文件夹自包含 
 │   ├── service.json
 │   ├── launcher.py
 │   └── websearch_mcp/     # 自包含源码（DuckDuckGo Lite，零第三方依赖）
-└── zssnote/service.json   # embedded 类型（25 tools, ZSSNote 自身对外 MCP Server）
+└── zssnote/service.json   # embedded 类型（24 tools, ZSSNote 自身对外 MCP Server）
 ```
 
 在 `app.py` 注册：`from modules.mcp import mcp_bp` + `app.register_blueprint(mcp_bp)`。
@@ -319,7 +321,7 @@ TOOL_REGISTRY: list[Tool] = [...]
 
 ---
 
-## 7. 工具清单（完整，25 工具）
+## 7. 工具清单（完整，24 工具）
 
 ### Tier 1 — 只读（知识库，无成本，7 个）
 
@@ -377,7 +379,7 @@ OfficeCLI 是 `.NET` 独立可执行文件，通过 `subprocess` 调用实现 Wo
 
 ## 8. 内联图片提取（write_note 集成）
 
-![图片提取数据流](assets/mcp_image_flow.svg)
+![图片提取数据流](../assets/mcp_image_flow.svg)
 
 ### 8.1 动机
 MCP 客户端等发送的 Markdown 常包含内联 `data:image/...;base64,...` 图片（截图、示意图）。若直接写入 `.md`，会导致：
@@ -458,7 +460,7 @@ if os.path.commonpath([article_root, real_path]) != article_root:
 
 ## 10. 错误处理
 
-![MCP 请求生命周期](assets/mcp_lifecycle.svg)
+![MCP 请求生命周期](../assets/mcp_lifecycle.svg)
 
 ### 10.1 JSON-RPC 错误码
 
@@ -555,7 +557,7 @@ ZSSNote 中所有 MCP 工具按代码位置和通信方式分为四种存在形�
    ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
    │   本地工具池      │   │  内置 subprocess │   │  远程自定义服务   │
    │                  │   │                  │   │                  │
-   │ embedded(25)     │   │ pdf-mcp(13)      │   │ sap-mcp(16)      │
+   │ embedded(24)     │   │ pdf-mcp(13)      │   │ sap-mcp(16)      │
    │ binary(9)        │   │ websearch(1)     │   │ 用户添加...       │
    │                  │   │                  │   │                  │
    │ builtin_mgr 发现  │   │ builtin_mgr 拉起  │   │ mcp_servers.json │
@@ -877,7 +879,7 @@ src/bin/mcp/websearch/
 
 **注意**：binary 类型的工具注册在 `modules/mcp/tools_office.py` 中硬编码，二进制本身的工具列表不动态发现。若 OfficeCLI 新增了命令，需要同步在 `tools_office.py` 添加 handler + 在 `tools_registration.py` 注册。
 
-### 16.4 embedded 类型升级（zssnote 核心 25 工具）
+### 16.4 embedded 类型升级（zssnote 核心 24 工具）
 
 embedded 工具代码在主进程内，升级需要改动源码：
 
@@ -926,11 +928,11 @@ common/agent.py              ← 如工具描述变化，更新 Agent prompt
 | tools_search.py | `modules/mcp/` | search_kb handler |
 | tools_write.py | `modules/mcp/` | 7 个写入 handler |
 | tools_office.py | `modules/mcp/` | 9 个 OfficeCLI handler + 平台检测 + subprocess 封装 |
-| tools_registration.py | `modules/mcp/` | 25 工具注册入口 |
+| tools_registration.py | `modules/mcp/` | 24 工具注册入口 |
 | agent.py | `common/` | Agent 循环（LLM + MCP + Skills 注入） |
 | service.json × 4 | `bin/mcp/*/` | 内置服务自包含声明（officecli / pdf-mcp / websearch / zssnote） |
 
-### 17.2 工具实现矩阵（25 工具）
+### 17.2 工具实现矩阵（24 工具）
 
 | Tier | 工具 | 状态 | 成本 |
 |------|------|------|------|
@@ -978,7 +980,7 @@ common/agent.py              ← 如工具描述变化，更新 Agent prompt
 | officecli | binary | 9 | ✅ |
 | pdf-mcp | subprocess | 13 | ✅ |
 | websearch | subprocess | 1 | ✅ |
-| zssnote | embedded | 25 | ✅ |
+| zssnote | embedded | 24 | ✅ |
 
 ### 17.5 前端管理页面
 
@@ -996,7 +998,7 @@ common/agent.py              ← 如工具描述变化，更新 Agent prompt
 
 #### Skills 展示
 
-Skills 标签页完全复用 MCP 服务的卡片模式，保持视觉一致性：
+Skills 展示位于 Settings「能力供给」面板，完全复用 MCP 服务的卡片模式，保持视觉一致性：
 
 - **卡片容器**：`.am-mcp-card`（12px 圆角、hover 边框变色）
 - **头部**：`.am-mcp-head` + 名称 + 描述副标题
@@ -1022,3 +1024,182 @@ Skills API：
 - **多知识库**：path 入参加 `kb` 字段支持多套 resource 目录
 - **图片反向引用**：在 ZSSNote 图片管理 UI 标注"来自 MCP write_note"，便于追溯 AI 生成内容
 - **更多内嵌工具**：`bin/mcp/` 目录 + service.json 声明式添加，零代码零配置
+
+---
+
+## 19. 通用文本写入工具（save_text_file）
+
+> 本节为原「MCP 通用文本写入工具设计方案」并入，属 MCP 写入层子设计。
+> 目标：新增 `save_text_file` 工具，支持任意路径、任意扩展名、超长内容的通用文本写入，
+> 通过 `mode: "append"` 实现按块追加，绕过客户端单次 JSON-RPC 传输大小限制。
+> 不影响现有 `write_note` 的行为和语义。
+
+### 19.1 背景与问题
+
+#### 19.1.1 现状
+
+`write_note`（[tools_write.py](../../src/modules/mcp/tools_write.py)）是当前唯一的 MCP 文件写入工具，定位为"知识库文章写入"：
+
+| 特性 | write_note |
+|------|------------|
+| 路径范围 | `ARTICLE_PATH` 内 |
+| 扩展名 | 仅 `.md` |
+| 写入模式 | 覆盖写入 |
+| 图片处理 | 自动提取内联 base64 图片 |
+| 路径安全 | `resolve_article_path()` + commonpath 校验 |
+
+#### 19.1.2 两个缺陷
+
+| 问题 | 根因 | 影响 |
+|------|------|------|
+| 1.5 万字超长文档截断 | 客户端 JSON-RPC 传输大小限制（非 ZSSNote 服务端） | 长文档无法通过单次 `write_note` 写入 |
+| 缺少通用文本写入能力 | `write_note` 限定 article 路径 + .md 扩展名 + 图片提取 | LLM 无法写入 `.json` / `.csv` / `.txt` 等格式，或写到非文章目录 |
+
+#### 19.1.3 解决策略
+
+| 问题 | 策略 |
+|------|------|
+| 超长截断 | **方案 A：分块追加** — `mode: "append"` 支持多次调用，客户端自行分块 |
+| 通用写入 | 新增独立工具 `save_text_file`，默认路径范围为 `ARTICLE_PATH`（与 write_note 同根），`root="resource"` 时锚定 `RESOURCE_BASE_PATH` |
+
+> 方案 B（文件路径中转）放弃：要求客户端有文件系统访问权限，不通用。
+
+### 19.2 工具定义
+
+#### 19.2.1 save_text_file
+
+```
+tool: save_text_file
+description: >
+  将任意文本/Markdown 内容写入指定文件。支持覆盖和追加两种模式。
+  路径相对于资源根目录（RESOURCE_BASE_PATH），自动创建父目录。
+  【超长内容】若单次写入受限，请分多次调用：首次用
+  mode="overwrite" 创建文件，后续用 mode="append" 追加。
+  【注意事项】仅在最初覆盖写入时发生实际覆盖；追加时内容附加到文件末尾。
+```
+
+**输入参数**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `path` | string | 是 | — | 相对路径，如 `"data/export.json"` 或 `"notes/draft.md"` |
+| `content` | string | 是 | — | 要写入的文本内容 |
+| `mode` | string | 否 | `"overwrite"` | `"overwrite"` 覆盖 / `"append"` 追加 |
+| `create_folders` | boolean | 否 | `true` | 自动创建不存在的父目录 |
+
+**返回**：
+
+```json
+{
+  "path": "notes/draft.md",
+  "bytes_written": 15234,
+  "total_bytes": 15234,
+  "mode": "overwrite",
+  "created": true
+}
+```
+
+**错误**（`isError: true`）：
+
+| 场景 | 错误码 | 消息 |
+|------|--------|------|
+| path 缺失 | -32602 | `path 参数必填` |
+| content 缺失 | -32602 | `content 参数必填` |
+| 路径越界 | -32602 | `路径越界` |
+| 父目录不存在且 create_folders=false | -32602 | `父目录不存在: ...` |
+| 权限/IO 错误 | -32602 | `写入失败: {err}` |
+
+### 19.3 安全设计
+
+#### 19.3.1 路径校验（和 write_note 保持一致的范式）
+
+新增 `resolve_resource_path()` 在 [security.py](../../src/modules/mcp/security.py)：
+
+```
+resolve_resource_path(rel_path) → abs_path
+  ├── 规范化路径分隔符（Windows/Unix）
+  ├── 与 RESOURCE_BASE_PATH 拼接后 os.path.normpath + abspath
+  └── os.path.commonpath 校验：结果必须在 RESOURCE_BASE_PATH 内
+```
+
+与现有 `resolve_article_path()` 的区别只在于锚定根目录不同（`RESOURCE_BASE_PATH` vs `ARTICLE_PATH`）。
+
+#### 19.3.2 扩展名不限
+
+非 `.md` 文件不能通过 `write_note` 写入，但 `save_text_file` 定位为"通用文本写入"，
+不对扩展名做限制。安全依赖路径越界检测，不依赖扩展名白名单。
+
+#### 19.3.3 原子写入（overwrite 模式）
+
+```
+写入流程（overwrite）：
+  1. tempfile.mkstemp(dir=父目录) → 临时文件
+  2. f.write(content)              → 写入临时文件
+  3. os.replace(tmp, target)       → 原子替换
+  4. 异常时 os.unlink(tmp)         → 清理临时文件
+```
+
+write 模式（append）：
+
+```
+写入流程（append）：
+  1. os.makedirs(父目录, exist_ok=True)
+  2. with open(path, 'a', encoding='utf-8') as f:
+       f.write(content)
+```
+
+追加模式不用原子替换，因为：
+- 追加不涉及"全量覆盖"的完整性风险
+- 分块追加天然有断点续写的需求，原子化反而增加复杂度
+
+### 19.4 与现有 write_note 的关系
+
+| 维度 | write_note | save_text_file |
+|------|------------|----------------|
+| 定位 | 知识库文章写入 | 通用文本/数据写入 |
+| 路径根 | `ARTICLE_PATH` | `RESOURCE_BASE_PATH` |
+| 扩展名 | 仅 `.md` | 不限 |
+| 图片提取 | 自动处理 base64 内联图片 | 不处理（纯文本写入） |
+| 写入模式 | 仅覆盖 | 覆盖 + 追加 |
+| 原子写入 | 否（直接 `open + write`） | overwrite 模式是 |
+
+**共存策略**：
+- `write_note` 保持不变，不修改语义
+- `save_text_file` 作为补充，不替代
+- LLM 描述中明确何时用哪个：写文章用 `write_note`，写数据/日志/配置/超长文档用 `save_text_file`
+
+### 19.5 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `modules/mcp/security.py` | 修改 | 新增 `resolve_resource_path()` |
+| `modules/mcp/tools_write.py` | 修改 | 新增 `handle_save_text_file()` |
+| `modules/mcp/tools_registration.py` | 修改 | 注册 `save_text_file` 工具 |
+| `doc/02-设计/01-PersonLLMWiki设计规范.md` | 修改 | 更新 MCP 工具列表文档 |
+
+### 19.6 测试要点
+
+| 用例 | 预期 |
+|------|------|
+| overwrite 创建新文件 | 返回 `{created: true, mode: "overwrite"}` |
+| overwrite 覆盖已有文件 | 返回 `{created: false, mode: "overwrite"}`，内容替换 |
+| append 追加到已有文件 | 返回 `{mode: "append"}`，内容追加到末尾 |
+| append 追加到不存在文件 | 返回 `{created: true, mode: "append"}`，相当于覆盖 |
+| 路径越界 `../` | 返回 `isError: true, "路径越界"` |
+| 父目录不存在 + create_folders=false | 返回 `isError: true, "父目录不存在"` |
+| path 缺失 | 返回 `isError: true, "path 参数必填"` |
+| content 缺失 | 返回 `isError: true, "content 参数必填"` |
+| 写入非 .md 文件（如 .json） | 正常写入 |
+| 写入到 RESOURCE_BASE_PATH 子目录（如 img/） | 正常写入 |
+| 覆盖模式原子性（模拟断电） | 若写入中断，原文件不受影响 |
+
+### 19.7 变更记录
+
+#### 2026-08-11
+
+**新增 `save_text_file` MCP 工具**（本设计文档）
+
+- 新增通用文本写入工具，默认锚定 `ARTICLE_PATH`（与 write_note 同根），`root="resource"` 时锚定 `RESOURCE_BASE_PATH`
+- 支持覆盖和追加两种模式，通过分块追加解决客户端传输大小限制
+- 覆盖模式使用临时文件 + `os.replace` 原子写入
+- 不影响现有 `write_note` 工具的行为和语义

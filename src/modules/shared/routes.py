@@ -4,7 +4,7 @@
 - 复用 INSTANCE_MODE=personal + COMMON_GIT_REPO 的 git 同步管道（共享中心只是其 UI 化）；
 - 未启用公共库（single 模式）时回退到本地 ~/.personllmwiki/shared/。
 
-manifest 定稿见《DSH集成架构设计方案.md》§7.5（v0.5）。
+manifest 定稿见《01-架构与集成.md》第二部分 §7.5（v0.5）。
 """
 import json
 import os

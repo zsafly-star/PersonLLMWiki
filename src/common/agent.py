@@ -154,6 +154,22 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
         # 注入 Mermaid 图表规范（从 skill 文件加载，始终生效）
         system_prompt += _get_mermaid_prompt()
 
+    # ── 记忆召回：对话开场自动注入（快速/专家模式都注入，记忆块在 Wiki 块之前）──
+    if use_tools:
+        user_query = ''
+        for m in reversed(messages):
+            if m.get('role') == 'user':
+                user_query = m.get('content', '')
+                break
+        if user_query:
+            try:
+                from modules.memory.injector import inject_memory_context
+                mem_text = inject_memory_context(user_query, top_k=3)
+                if mem_text:
+                    full_messages.append({'role': 'system', 'content': mem_text})
+            except Exception:
+                pass
+
     # ── 专家模式强制流程：先查知识库 → 注入上下文 ──
     if mode == 'expert' and use_tools and progress_callback:
         # 提取用户最新问题
@@ -169,12 +185,14 @@ def agent_chat(messages, use_tools=True, mode='quick', progress_callback=None):
             # 第1步：自动搜索知识库
             progress_callback('tool_start', {
                 'name': 'search_kb',
-                'arguments': {'keyword': user_query[:200]},
+                'arguments': {'keyword': user_query[:200],
+                              'delivery': 'layered', 'budget_tokens': 1500},
                 'round': 0,
             })
             kb_text = ''
             try:
-                kb_result = bus.call_tool('search_kb', {'keyword': user_query[:200]})
+                kb_result = bus.call_tool('search_kb', {'keyword': user_query[:200],
+                                                        'delivery': 'layered', 'budget_tokens': 1500})
                 kb_text = extract_tool_result_text(kb_result)
             except Exception as e:
                 kb_text = f'知识库搜索失败: {e}'

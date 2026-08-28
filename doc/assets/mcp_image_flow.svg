@@ -1,6 +1,6 @@
 <svg viewBox="0 0 800 520" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
   <title>write_note 内联图片提取数据流</title>
-  <desc>MCP 客户端发送含 data:image base64 的 Markdown → write_note handler 提取/解码/替换 → 写入 .md 文件 → ZSSNote 渲染器自动解析。</desc>
+  <desc>MCP 客户端发送含 data:image base64 的 Markdown → write_note handler 提取/解码/替换 → 写入 .md 文件 → PersonLLMWiki 渲染器自动解析。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>

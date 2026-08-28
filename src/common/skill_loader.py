@@ -23,6 +23,7 @@ Agent 工作流程：
 """
 import os
 import re
+import shutil
 
 # SKILLS_DIR（~/.personllmwiki/skills/，首次启动时从 seed/ 播种）
 def _get_skills_dir():
@@ -168,3 +169,90 @@ def match_skill(user_message):
 def get_skill_dir(name):
     """返回 skill 目录的绝对路径。"""
     return os.path.join(_get_skills_dir(), name)
+
+
+# ═══ 技能候选（T12） ═══
+
+def _get_candidates_dir():
+    return os.path.join(_get_skills_dir(), 'candidates')
+
+
+def _validate_skill_name(name):
+    r"""校验技能名：拒绝空、含 / \ ..、以 . 开头（防目录穿越）。"""
+    if not name:
+        raise ValueError('技能名不能为空')
+    if '/' in name or '\\' in name:
+        raise ValueError('技能名不能包含路径分隔符')
+    if '..' in name:
+        raise ValueError('技能名不能包含 ..')
+    if name.startswith('.'):
+        raise ValueError('技能名不能以 . 开头')
+
+
+def save_skill_candidate(name, description, body):
+    """校验 name → 建 candidates/<name>/ → 写 SKILL.md → 返回路径。"""
+    _validate_skill_name(name)
+    candidate_dir = os.path.join(_get_candidates_dir(), name)
+    os.makedirs(candidate_dir, exist_ok=True)
+
+    skill_file = os.path.join(candidate_dir, 'SKILL.md')
+    content = '---\nname: ' + name + '\ndescription: ' + description + '\n---\n' + body
+    with open(skill_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+    return skill_file
+
+
+def list_skill_candidates():
+    """扫描 candidates/*/SKILL.md，返回 [{'name','description','path'}]。"""
+    candidates_dir = _get_candidates_dir()
+    candidates = []
+    if not os.path.isdir(candidates_dir):
+        return candidates
+
+    for entry in sorted(os.listdir(candidates_dir)):
+        candidate_dir = os.path.join(candidates_dir, entry)
+        skill_file = os.path.join(candidate_dir, 'SKILL.md')
+        if not os.path.isfile(skill_file):
+            continue
+
+        try:
+            with open(skill_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            meta, _ = _parse_front_matter(content)
+            candidates.append({
+                'name': meta.get('name', entry),
+                'description': meta.get('description', ''),
+                'path': candidate_dir,
+            })
+        except Exception:
+            pass
+
+    return candidates
+
+
+def approve_skill_candidate(name):
+    """candidates/<name>/ → SKILLS_DIR/<name>/；候选不存在或目标已存在返回 False。"""
+    _validate_skill_name(name)
+    src = os.path.join(_get_candidates_dir(), name)
+    dst = os.path.join(_get_skills_dir(), name)
+
+    if not os.path.isdir(src):
+        return False
+    if os.path.exists(dst):
+        return False
+
+    shutil.move(src, dst)
+    return True
+
+
+def reject_skill_candidate(name):
+    """删除 candidates/<name>/ 整个目录；不存在返回 False。"""
+    _validate_skill_name(name)
+    src = os.path.join(_get_candidates_dir(), name)
+
+    if not os.path.isdir(src):
+        return False
+
+    shutil.rmtree(src)
+    return True

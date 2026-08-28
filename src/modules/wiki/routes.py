@@ -6,6 +6,7 @@ from config import Config
 from common.response import success_response, error_response
 from extensions import db
 from .models import WikiPage
+from .graph_builder import normalize_link
 from . import wiki_service
 from .compiler import pipeline as wiki_compiler
 from modules.chat.models import ChatSession, ChatMessage
@@ -235,6 +236,13 @@ def get_queries():
 
 @wiki_bp.route('/api/wiki/graph', methods=['GET'])
 def get_graph():
+    def _merge_memory(nodes, edges, slug_set):
+        from modules.memory.graph import collect_memory_nodes, build_memory_edges
+        mem_nodes = collect_memory_nodes()
+        for n in mem_nodes:
+            nodes.append({'id': n['id'], 'label': n['title'], 'kind': 'memory', 'size': n['size'], 'source': 'local'})
+        edges.extend(build_memory_edges(mem_nodes, slug_set))
+
     pages = WikiPage.query.filter(
         WikiPage.review_status.in_(['approved', 'chat'])
     ).all()
@@ -277,6 +285,7 @@ def get_graph():
                     'source': 'common',
                 })
 
+        _merge_memory(nodes, edges, slug_set)
         return success_response({'nodes': nodes, 'edges': edges})
 
     nodes = []
@@ -300,21 +309,7 @@ def get_graph():
     for p in pages:
         pd = p.to_dict()
         for link in pd.get('links', []):
-            target_slug = link.lower().replace(' ', '_').replace('/', '_')
-            matched_slug = None
-
-            if target_slug in slug_set:
-                matched_slug = target_slug
-            else:
-                for s in slug_set:
-                    if link in slug_title_map.get(s, '') or slug_title_map.get(s, '') in link:
-                        matched_slug = s
-                        break
-                if not matched_slug:
-                    for s in slug_set:
-                        if target_slug in s or s in target_slug:
-                            matched_slug = s
-                            break
+            matched_slug = normalize_link(link, slug_set, slug_title_map)
 
             if matched_slug:
                 edge_key = f"{pd['slug']}->{matched_slug}"
@@ -325,6 +320,7 @@ def get_graph():
                         'target': matched_slug,
                     })
 
+    _merge_memory(nodes, edges, slug_set)
     return success_response({'nodes': nodes, 'edges': edges})
 
 

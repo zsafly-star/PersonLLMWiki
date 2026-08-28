@@ -957,7 +957,7 @@ function renderGraph(data) {
   var clrMuted = cs.getPropertyValue('--color-muted').trim() || '#94A3B8';
   var clrSurface = cs.getPropertyValue('--color-surface').trim() || '#FFFFFF';
   var clrBlue = '#2563EB', clrAmber = '#D97706';
-  var colorMap = { concept: clrBlue, query: clrAmber, entity: '#6366F1', overview: '#EC4899' };
+  var colorMap = { concept: clrBlue, query: clrAmber, entity: '#6366F1', overview: '#EC4899', memory: '#10B981' };
 
   var maxSize = d3.max(data.nodes, function(d) { return d.size || 1; }) || 1;
   var maxRadius = Math.max(14, Math.min(26, Math.sqrt(w * h) / 35));

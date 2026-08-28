@@ -7,11 +7,10 @@ from common.embedding_config import EmbeddingConfig
 from modules.wiki.models import WikiPage
 from modules.automation.models import AutomationTask, TaskRun
 from modules.weather.models import WeatherConfig
-from modules.tasks.models import Scenario, ScenarioNode, TaskState
 from modules import (
     article_bp, chat_bp, folder_bp, picture_bp,
-    home_bp, note_bp, todo_bp, plan_bp, settings_bp,
-    agent_bp, shared_bp
+    home_bp, todo_bp, plan_bp, settings_bp,
+    agent_bp, shared_bp, memory_bp
 )
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -31,7 +30,6 @@ from modules.weather import weather_bp
 from modules.mcp import mcp_bp
 from modules.mcp.client_routes import mcp_client_bp
 from modules.automation import automation_bp
-from modules.tasks import tasks_bp
 
 CORS(app)
 
@@ -42,7 +40,6 @@ app.register_blueprint(article_bp)
 app.register_blueprint(picture_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(folder_bp)
-app.register_blueprint(note_bp)
 app.register_blueprint(todo_bp)
 app.register_blueprint(plan_bp)
 app.register_blueprint(settings_bp)
@@ -51,9 +48,9 @@ app.register_blueprint(weather_bp)
 app.register_blueprint(mcp_bp)
 app.register_blueprint(mcp_client_bp)
 app.register_blueprint(automation_bp)
-app.register_blueprint(tasks_bp)
 app.register_blueprint(agent_bp)
 app.register_blueprint(shared_bp)
+app.register_blueprint(memory_bp)
 
 @app.route('/api')
 def api_index():
@@ -159,61 +156,6 @@ with app.app_context():
     for d in _subdirs:
         os.makedirs(d, exist_ok=True)
     db.create_all()
-
-    # ===== 播种内置场景（智能体流水线定义）=====
-    # 首次启动插入内置场景，之后用户可自由修改，不被覆盖。
-    def _seed_scenarios():
-        import json as _json
-        builtins = [
-            {
-                'name': 'software_delivery', 'label': '写代码',
-                'description': '从需求到开发交付的软件开发流水线',
-                'nodes': [
-                    ('requirement', '需求', '你是产品需求分析师。请把用户的诉求整理成清晰、可执行的需求文档，明确范围、目标与非目标。', True, ['*']),
-                    ('prototype', '原型', '你是原型/架构设计师。请基于已确认需求，给出技术方案、数据结构与关键流程设计。', True, ['*']),
-                    ('develop', '开发', '你是资深开发工程师。请基于已确认需求与设计，编写并落地代码。', True, ['*']),
-                ],
-            },
-            {
-                'name': 'ppt', 'label': '写 PPT',
-                'description': '从主题到成稿的演示文稿制作流水线',
-                'nodes': [
-                    ('requirement', '需求', '你是演示策划。请明确演示主题、受众与核心观点。', True, ['*']),
-                    ('outline', '大纲', '你是内容策划。请输出演示文稿的详细大纲与分页结构。', True, ['*']),
-                    ('draft', '初稿', '你是文案撰写。请根据大纲撰写每一页的标题与正文要点。', False, ['*']),
-                    ('polish', '润色', '你是演示美化顾问。请优化表达、提炼要点并检查逻辑连贯性。', True, ['*']),
-                ],
-            },
-            {
-                'name': 'todo_import', 'label': '导入待办',
-                'description': '把一段文字解析并整理成结构化待办',
-                'nodes': [
-                    ('parse', '解析', '你负责从用户提供的文本中提取出所有待办事项。', False, ['*']),
-                    ('organize', '整理', '你负责把提取出的待办去重、分类并补充优先级。', True, ['*']),
-                    ('import', '导入', '你负责把整理好的待办写入待办系统。', True, ['*']),
-                ],
-            },
-        ]
-        for spec in builtins:
-            if Scenario.query.filter_by(name=spec['name']).first():
-                continue
-            scenario = Scenario(
-                name=spec['name'], label=spec['label'],
-                description=spec['description'], is_builtin=True, is_active=True,
-            )
-            db.session.add(scenario)
-            db.session.flush()
-            for i, (key, name, role_prompt, gate, tools) in enumerate(spec['nodes']):
-                db.session.add(ScenarioNode(
-                    scenario_id=scenario.id, key=key, name=name,
-                    role_prompt=role_prompt, gate=gate,
-                    allowed_tools=_json.dumps(tools, ensure_ascii=False),
-                    sort_order=i,
-                ))
-        db.session.commit()
-        print('[Seed] 内置场景（智能体）已就绪')
-
-    _seed_scenarios()
 
     import sqlite3
     db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')

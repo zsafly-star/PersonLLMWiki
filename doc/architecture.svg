@@ -53,7 +53,7 @@
 
   <rect x="421" y="340" width="140" height="150" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
   <text x="431" y="362" font-size="12" font-weight="700" fill="#047857">MCP Server（/mcp）</text>
-  <text x="431" y="384" font-size="11" fill="#374151">19 个工具：检索知识库</text>
+  <text x="431" y="384" font-size="11" fill="#374151">24 个工具：检索知识库</text>
   <text x="431" y="404" font-size="11" fill="#374151">读写文章/触发编译</text>
   <text x="431" y="424" font-size="11" fill="#374151">待办/公共库提交</text>
   <text x="431" y="444" font-size="11" fill="#374151">待办/工作空间等</text>

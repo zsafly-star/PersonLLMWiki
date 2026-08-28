@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import current_app
 from extensions import db
 from . import prompts
-from .extractor import _is_llm_error
+from .extractor import is_llm_error
 from ..models import WikiPage
 from .. import wiki_service
 
@@ -36,7 +36,7 @@ def generate_page(adapter, model, concept_name, entries, existing_pages, known_c
     messages = [{'role': 'user', 'content': prompt}]
     body = adapter.chat(messages, model=model)
 
-    if _is_llm_error(body):
+    if is_llm_error(body):
         raise RuntimeError(f"LLM 调用失败: {body}")
 
     wikilinks = re.findall(r'\[\[(.+?)\]\]', body)
@@ -112,7 +112,7 @@ def generate_candidate_page(adapter, model, concept_name, entries, known_concept
     messages = [{'role': 'user', 'content': prompt}]
     body = adapter.chat(messages, model=model)
 
-    if _is_llm_error(body):
+    if is_llm_error(body):
         raise RuntimeError(f"LLM 调用失败: {body}")
 
     wikilinks = re.findall(r'\[\[(.+?)\]\]', body)

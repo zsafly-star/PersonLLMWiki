@@ -49,6 +49,8 @@ class Config:
     IMAGE_PATH = os.path.join(RESOURCE_BASE_PATH, 'img')
     ATTACHMENT_PATH = os.path.join(RESOURCE_BASE_PATH, 'attachments')
     WIKI_PATH = os.path.join(RESOURCE_BASE_PATH, 'wiki')
+    MEMORIES_DIR = os.path.join(RESOURCE_BASE_PATH, 'memories')
+    MEMORIES_RAW_DIR = os.path.join(MEMORIES_DIR, '_raw')
 
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(INSTANCE_PATH, 'sseditor.db')
 

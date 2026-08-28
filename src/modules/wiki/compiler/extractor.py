@@ -18,7 +18,7 @@ def get_llm():
     return adapter, model
 
 
-def _is_llm_error(response):
+def is_llm_error(response):
     error_prefixes = (
         'OpenAI API 调用失败',
         'Claude API 调用失败',
@@ -29,12 +29,15 @@ def _is_llm_error(response):
     return any(response.startswith(p) for p in error_prefixes)
 
 
+_is_llm_error = is_llm_error
+
+
 def extract_concepts(adapter, model, title, content):
     prompt = prompts.EXTRACT_PROMPT.format(title=title, content=content[:8000])
     messages = [{'role': 'user', 'content': prompt}]
     response = adapter.chat(messages, model=model)
 
-    if _is_llm_error(response):
+    if is_llm_error(response):
         raise RuntimeError(f"LLM 调用失败: {response}")
 
     try:
@@ -59,7 +62,7 @@ def batch_extract_concepts(adapter, model, articles):
     try:
         response = adapter.chat(messages, model=model)
 
-        if _is_llm_error(response):
+        if is_llm_error(response):
             raise RuntimeError(f"LLM 调用失败: {response}")
 
         json_match = re.search(r'\[.*\]', response, re.DOTALL)

@@ -15,7 +15,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │  ├─ agent.py                Agent 循环 (LLM+MCP, ≤30轮) + 专家模式强制流程 + Skills 注入
 │  ├─ mcp_client.py           MCPClientBus (外部 MCP 连接 + persist 参数)
 │  ├─ builtin_mcp_manager.py  内置服务统一管理器 (bin/mcp/*/service.json 自包含发现)
-│  ├─ skill_loader.py         Skills 加载器 (扫描 bin/skills/*/SKILL.md)
+│  ├─ skill_loader.py         Skills 加载器 (扫描 ~/.personllmwiki/skills/*/SKILL.md)
 │  ├─ llm.py / llm_config.py  LLM 适配器 (OpenAI/Claude/Gemini/Ollama)
 │  ├─ scheduler.py            APScheduler 定时调度
 │  ├─ automation_runner.py    自动化 Agent 执行引擎
@@ -25,7 +25,7 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │  └─ response.py             统一 JSON 响应
 │
 ├─ modules/                   功能模块
-│  ├─ mcp/          MCP 双角色 (Server+Client) · 25 工具 + 内置服务管理（含 save_text_file 覆盖/追加）
+│  ├─ mcp/          MCP 双角色 (Server+Client) · 24 工具 + 内置服务管理（含 save_text_file 覆盖/追加）
 │  ├─ chat/         对话页 · SSE 流式 · Agent 自动 · 阶段节点式思考过程 · 附件分流读取 · 模型切换
 │  ├─ wiki/         知识编译管道 · 混合检索 · 图谱
 │  ├─ article/      Markdown 文章 · 图片 · 附件
@@ -49,8 +49,22 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 │  └─ skills/                 Skills（Markdown 工作流）
 │     └─ bom-picking/         BOM 检查技能 (SKILL.md + scripts/)
 └─ doc/                       设计文档
-   ├─ PersonLLMWiki设计规范.md      ★ 本文件
-   ├─ ZSSNote_MCP_设计方案.md    MCP 完整设计
+   ├─ README.md                   文档索引（唯一入口）
+   ├─ architecture.svg            主架构图
+   ├─ 01-架构/
+   │  └─ 01-架构与集成.md           总览 + 集成细节
+   ├─ 02-设计/
+   │  ├─ 01-PersonLLMWiki设计规范.md  ★ 本文件（子系统索引）
+   │  ├─ 02-MCP设计方案.md           MCP 完整设计
+   │  ├─ 03-对话页设计方案.md
+   │  ├─ 04-工作台设计方案.md
+   │  ├─ 05-记忆与上下文交付设计方案.md
+   │  └─ 06-PyWebView桌面窗口壳设计方案.md
+   ├─ 03-分发打包/
+   │  ├─ 01-打包与发布.md
+   │  └─ 02-打包验证任务书.md
+   ├─ 04-用户/
+   │  └─ 01-用户使用指南.md
    └─ assets/                    架构图 (SVG)
 ```
 
@@ -59,9 +73,9 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 | 线 | 核心 | 要点 |
 |----|------|------|
 | **LLM 知识编译** | `wiki/compiler/` | 文章 → 提取(LLM) → 合并 → 生成 → 审批 → 向量索引；SHA-256 增量 |
-| **MCP 双角色** | `modules/mcp/` + `common/mcp_client.py` | Server 26 工具 + Client 总线 + 内置服务管理器 |
+| **MCP 双角色** | `modules/mcp/` + `common/mcp_client.py` | Server 24 工具 + Client 总线 + 内置服务管理器 |
 | **Agent 无处不在** | `common/agent.py` | 对话页始终 Agent (≤30轮)，定时任务也走 Agent，专家模式强制知识库+联网搜索，Skills 注入提示词 |
-| **Skills 工作流编排** | `common/skill_loader.py` + `bin/skills/` | SKILL.md 声明式技能，Agent 自动匹配加载，编排 MCP 工具 |
+| **Skills 工作流编排** | `common/skill_loader.py` + `~/.personllmwiki/skills/` | SKILL.md 声明式技能，Agent 自动匹配加载，编排 MCP 工具 |
 
 ---
 
@@ -69,14 +83,14 @@ Flask App (app.py) ─ 注册 14 Blueprint + CORS + SQLite 自动迁移
 
 ### MCP 系统
 
-**[→ 完整设计文档](ZSSNote_MCP_%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88.md)**
-**[→ 通用文本写入工具设计](MCP_%E9%80%9A%E7%94%A8%E6%96%87%E6%9C%AC%E5%86%99%E5%85%A5%E5%B7%A5%E5%85%B7%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88.md)**
+**[→ 完整设计文档](02-MCP设计方案.md)**
+**[→ 通用文本写入工具（save_text_file）设计 → MCP设计方案 §19](02-MCP设计方案.md)**
 
 ZSSNote 的 MCP 系统兼具 **Server** 和 **Client** 双角色：
 
 | 角色 | 模块 | 说明 |
 |------|------|------|
-| **Server** | `modules/mcp/routes.py` + `registry.py` | 对外暴露 26 个工具（JSON-RPC 2.0 over `/mcp`），供外部 AI 客户端调用 |
+| **Server** | `modules/mcp/routes.py` + `registry.py` | 对外暴露 24 个工具（JSON-RPC 2.0 over `/mcp`），供外部 AI 客户端调用 |
 | **Client** | `common/mcp_client.py` | `MCPClientBus` 总线，连接远程 MCP 服务器（`server__tool` 命名空间路由） |
 | **内置服务** | `common/builtin_mcp_manager.py` | 管理本地内置 MCP 服务（子进程拉起、健康检查、注册到总线） |
 | **统一 API** | `modules/mcp/client_routes.py` | 前端 MCP 管理页面的 REST API，合并内置 + 自定义服务 |
@@ -205,12 +219,12 @@ app.py 启动
 
 ---
 
-### Skills 系统（bin/skills/）
+### Skills 系统（~/.personllmwiki/skills/）
 
 Skill = Markdown 工作流指令 + 可选脚本。LLM 读取 SKILL.md 后按指令编排 MCP 工具完成跨系统任务。
 
 ```
-bin/skills/
+~/.personllmwiki/skills/
 └── bom-picking/               ← 每个 skill 一个文件夹
     ├── SKILL.md               ← YAML front matter (name+description) + 工作流指令
     └── scripts/
@@ -230,11 +244,11 @@ description: Use when checking or validating PCB BOM Excel files ...
 
 **添加自定义 Skill（零代码零配置）**
 
-1. 在 `bin/skills/` 下新建文件夹（名称即 skill 标识）
+1. 在 `~/.personllmwiki/skills/` 下新建文件夹（名称即 skill 标识）
 2. 创建 `SKILL.md`，填写 YAML front matter（`name` 必填，`description` 必填——Agent 据此匹配用户意图）
 3. 编写 Markdown 工作流指令（分步骤、交互规则、常见问题等）
 4. 可选：在 `scripts/` 子目录放置辅助脚本
-5. 重启服务即可生效，前端 Skill 标签页自动显示
+5. 重启服务即可生效，前端「能力供给」面板自动显示
 
 删除也一样：删文件夹 = 移除 Skill，无需改代码。
 
@@ -242,7 +256,7 @@ description: Use when checking or validating PCB BOM Excel files ...
 
 ```
 Agent 启动
-  → skill_loader.list_skills()     扫描 bin/skills/*/SKILL.md
+  → skill_loader.list_skills()     扫描 ~/.personllmwiki/skills/*/SKILL.md
   → get_skills_prompt()            生成技能摘要 → 注入系统提示词
   → match_skill(user_message)      关键词匹配用户意图
   → 命中 → load_skill(name)        读取完整 SKILL.md
@@ -251,7 +265,7 @@ Agent 启动
 
 **API**：`GET /api/skills`（列表）· `GET /api/skills/<name>`（详情）
 
-**前端展示**：Skill 标签页采用与 MCP 服务相同的卡片模式（`.am-mcp-card` + 展开箭头 + `[内置]` `[本地]` 标签），点击卡片展开 SKILL.md 完整内容（Markdown 渲染为 HTML），支持 280ms 动画过渡、按压反馈、`prefers-reduced-motion` 无障碍。
+**前端展示**：「能力供给」面板采用与 MCP 服务相同的卡片模式（`.am-mcp-card` + 展开箭头 + `[内置]` `[本地]` 标签），点击卡片展开 SKILL.md 完整内容（Markdown 渲染为 HTML），支持 280ms 动画过渡、按压反馈、`prefers-reduced-motion` 无障碍。
 
 **与 MCP 的关系**：MCP 工具是原子操作接口，Skills 是编排多个 MCP 工具完成业务流程的指令书
 
@@ -269,7 +283,7 @@ Agent 启动
 | 模块 | 职责 |
 |------|------|
 | `extractor.py` | LLM 提取概念（单篇/批量） |
-| `merger.py` | 去重合并相同概念 |
+| `extractor.py（merge_concepts）` | 去重合并相同概念 |
 | `generator.py` | 生成 Wiki 页面 + 候选页 |
 | `pipeline.py` | 编排全量/增量编译 |
 | `hasher.py` | SHA-256 变更检测，增量编译 |
@@ -286,15 +300,15 @@ Agent 启动
 
 Agent 循环 (`common/agent.py`) 是 MCP 工具调用的统一入口，对话页 (`modules/chat/`) 始终走 Agent。
 
-**[→ 阶段节点式思考过程组件规格](阶段节点式思考过程组件%20开发规格说明.md)**
-**[→ 对话页设计方案](对话页设计方案.md)**
+**[→ 阶段节点式思考过程组件规格 → 对话页设计方案 §14](03-对话页设计方案.md)**
+**[→ 对话页设计方案](03-对话页设计方案.md)**
 
 ```
 用户消息 + Wiki 上下文 ──→ Agent ≤30 轮 ──→ SSE 流式返回
       + Skills 摘要            │
                               │
                       MCPClientBus.call_tool()
-                      本地 25 + 远程 N + 内置 MCP 统一调度
+                      本地 24 + 远程 N + 内置 MCP 统一调度
 ```
 
 **关键决策**：
@@ -357,10 +371,56 @@ SSE 事件类型：`stage_start` / `stage_end` / `custom_stage_start` / `custom_
 
 - `common/scheduler.py`：BackgroundScheduler，加载 `automation_task` 表
 - `common/automation_runner.py`：按服务器名过滤工具，Agent 循环执行
-- `modules/automation/`：三标签页控制台（自动化任务 / MCP 服务 / Skill 技能）
+- `modules/automation/`：自动化任务控制台（任务列表 + 运行记录弹层；MCP 服务 / Skill 管理已迁至 Settings「能力供给」面板）
 - 数据模型：`AutomationTask` (cron/描述/服务器) + `TaskRun` (状态/输出/耗时)
 
-**Skill 标签页**：展示 `bin/skills/` 下所有 Skill，采用与 MCP 服务相同的卡片模式（展开箭头 + 标签 + Markdown 渲染），点击展开查看完整 SKILL.md 内容。
+**Skill 管理**：位于 Settings「能力供给」面板，展示 `~/.personllmwiki/skills/` 下所有 Skill，采用与 MCP 服务相同的卡片模式（展开箭头 + 标签 + Markdown 渲染），点击展开查看完整 SKILL.md 内容。
+
+---
+
+### 记忆模块
+
+会话记忆自动提取与召回，与知识库（Wiki）**双轨隔离**：记忆低可信、可一键撤回，知识需人工审批。
+
+#### 模块结构
+
+```
+modules/memory/
+├─ storage.py    记忆存储（JSON front matter + Markdown）
+├─ trace.py      过程级原始 trace 采集（JSONL）
+├─ prompts.py    记忆提取 Prompt
+├─ pipeline.py   异步提炼（频率限流 → LLM 提取 → save_memory → 更新 embedding）
+├─ retrieval.py  语义检索（独立向量索引 + 本地余弦相似度，threading.Lock 保护索引读写）
+├─ injector.py   对话开场召回注入
+├─ graph.py      记忆节点入知识星链（mem: 前缀）
+└─ routes.py     记忆管理页 /memory + REST API
+```
+
+#### 目录结构
+
+```
+resource/memories/
+├─ <slug>.md                 记忆条目（front matter: slug/kind/status/summary/source_chat_id/...）
+├─ memories_embeddings.json  向量索引
+└─ _raw/                     原始 trace（JSONL）
+```
+
+#### MCP 工具（4 个）
+
+| 工具 | 说明 |
+|------|------|
+| `remember` | 记住一条记忆（body + kind） |
+| `search_memory` | 语义检索记忆 |
+| `list_memories` | 列出记忆（kind/status 过滤） |
+| `forget_memory` | 撤回记忆（软删除 status=revoked） |
+
+#### context_assembler
+
+`common/context_assembler.py`：按 token 预算分「摘要 → 命中片段 → 原文」三层组装检索结果，供 `search_kb` 分层交付使用。
+
+#### 技能候选
+
+技能候选由 `common/skill_loader.save_skill_candidate` 写入 `SKILLS_DIR/candidates/<name>/`，在设置页「能力供给 → 候选技能」区块审批（通过/拒绝）；通过后移入 `SKILLS_DIR/<name>/` 即生效。
 
 ---
 

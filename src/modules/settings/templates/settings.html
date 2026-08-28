@@ -191,6 +191,30 @@
                                 <div class="am-loading">加载中…</div>
                             </div>
                         </div>
+
+                        <div class="am-card">
+                            <div class="am-card-head">
+                                <h2 class="am-card-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M6 15l.75 2.25L9 18l-2.25.75L6 21l-.75-2.25L3 18l2.25-.75z"/></svg>
+                                    技能（Skills）
+                                </h2>
+                            </div>
+                            <div class="am-mcp-list" id="skill-list">
+                                <div class="am-loading">加载中…</div>
+                            </div>
+                        </div>
+
+                        <div class="am-card" id="skill-candidates-card" style="display:none">
+                            <div class="am-card-head">
+                                <h2 class="am-card-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+                                    候选技能
+                                </h2>
+                            </div>
+                            <div class="am-mcp-list" id="skill-candidates-list">
+                                <div class="am-loading">加载中…</div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="setting-paths" class="setting-content-section" style="display:none;" role="tabpanel" aria-label="路径设置">
@@ -1911,6 +1935,123 @@
                 });
         }
 
+        /* ═══ Skills（能力供给） ═══ */
+        function loadSkills() {
+            fetch('/api/skills')
+                .then(function(r) { return r.json().catch(function() { throw new Error('HTTP ' + r.status); }); })
+                .then(function(result) {
+                    if (result.code !== 200) {
+                        document.getElementById('skill-list').innerHTML = '<div class="am-empty">加载技能失败: ' + esc(result.message || '') + '</div>';
+                        return;
+                    }
+                    renderSkills((result.data && result.data.skills) || []);
+                })
+                .catch(function(e) {
+                    document.getElementById('skill-list').innerHTML = '<div class="am-empty">无法加载技能: ' + esc(e.message || '网络错误') + '</div>';
+                })
+                .finally(function() {
+                    var el = document.getElementById('skill-list');
+                    if (el && el.querySelector('.am-loading')) {
+                        el.innerHTML = '<div class="am-empty">暂无技能</div>';
+                    }
+                });
+        }
+
+        function renderSkills(skills) {
+            var container = document.getElementById('skill-list');
+            if (!skills || skills.length === 0) {
+                container.innerHTML = '<div class="am-empty">暂无技能</div>';
+                return;
+            }
+            container.innerHTML = skills.map(function(s) {
+                return '<div class="am-mcp-card">'
+                     + '<div class="am-mcp-head">'
+                     + '<div class="am-mcp-info">'
+                     + '<div class="am-mcp-name-row"><span class="am-mcp-name">' + esc(s.name) + '</span></div>'
+                     + '<span class="am-mcp-sub">' + esc(s.description || '') + '</span>'
+                     + '</div>'
+                     + '</div>'
+                     + '</div>';
+            }).join('');
+        }
+
+        function loadSkillCandidates() {
+            fetch('/api/skills/candidates')
+                .then(function(r) { return r.json().catch(function() { throw new Error('HTTP ' + r.status); }); })
+                .then(function(result) {
+                    if (result.code !== 200) {
+                        document.getElementById('skill-candidates-list').innerHTML = '<div class="am-empty">加载候选失败: ' + esc(result.message || '') + '</div>';
+                        return;
+                    }
+                    renderSkillCandidates((result.data && result.data.candidates) || []);
+                })
+                .catch(function(e) {
+                    document.getElementById('skill-candidates-list').innerHTML = '<div class="am-empty">无法加载候选技能: ' + esc(e.message || '网络错误') + '</div>';
+                })
+                .finally(function() {
+                    var el = document.getElementById('skill-candidates-list');
+                    if (el && el.querySelector('.am-loading')) {
+                        el.innerHTML = '<div class="am-empty">暂无候选技能</div>';
+                    }
+                });
+        }
+
+        function renderSkillCandidates(candidates) {
+            var container = document.getElementById('skill-candidates-list');
+            var card = document.getElementById('skill-candidates-card');
+            if (!candidates || candidates.length === 0) {
+                if (card) card.style.display = 'none';
+                return;
+            }
+            if (card) card.style.display = '';
+            container.innerHTML = candidates.map(function(c) {
+                return '<div class="am-mcp-card">'
+                     + '<div class="am-mcp-head">'
+                     + '<div class="am-mcp-info">'
+                     + '<div class="am-mcp-name-row"><span class="am-mcp-name">' + esc(c.name) + '</span></div>'
+                     + '<span class="am-mcp-sub">' + esc(c.description || '') + '</span>'
+                     + '</div>'
+                     + '<div class="am-card-actions">'
+                     + '<button class="am-btn-primary am-btn-sm" onclick="approveSkillCandidate(\'' + escAttr(c.name) + '\')">通过</button>'
+                     + '<button class="am-btn-ghost am-btn-sm am-btn-danger" onclick="rejectSkillCandidate(\'' + escAttr(c.name) + '\')">拒绝</button>'
+                     + '</div>'
+                     + '</div>'
+                     + '</div>';
+            }).join('');
+        }
+
+        function approveSkillCandidate(name) {
+            fetch('/api/skills/candidates/' + encodeURIComponent(name) + '/approve', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.code === 200) {
+                        showToast('技能已审批通过');
+                        loadSkills();
+                        loadSkillCandidates();
+                    } else {
+                        showToast(res.message || '审批失败');
+                    }
+                })
+                .catch(function() { showToast('审批失败'); });
+        }
+
+        function rejectSkillCandidate(name) {
+            customConfirm('拒绝后候选将被删除，是否继续？', '拒绝技能候选').then(function(ok) {
+                if (!ok) return;
+                fetch('/api/skills/candidates/' + encodeURIComponent(name) + '/reject', { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.code === 200) {
+                            showToast('技能候选已拒绝');
+                            loadSkillCandidates();
+                        } else {
+                            showToast(res.message || '拒绝失败');
+                        }
+                    })
+                    .catch(function() { showToast('拒绝失败'); });
+            });
+        }
+
         onPageReady(function() {
             initSettingsPage();
             loadCurrentPath();
@@ -1920,6 +2061,8 @@
             loadProfileSettings();
             loadEmbeddingConfig();
             loadMcpServers();
+            loadSkills();
+            loadSkillCandidates();
             loadVersionInfo();
             loadDshSettings();
             bindSettingsEvents();

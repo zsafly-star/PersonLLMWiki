@@ -1,5 +1,5 @@
 <svg viewBox="0 0 900 560" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>ZSSNote MCP 工具分层（4 Tier / 24 工具）</title>
+  <title>PersonLLMWiki MCP 工具分层（4 Tier / 24 工具）</title>
   <desc>四层工具架构：Tier 1 只读(7)、Tier 2 检索(1)、Tier 3 写入(7)、Tier 4 OfficeCLI(9)。按成本和风险递进排列。</desc>
   <defs>
     <style>

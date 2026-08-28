@@ -1,5 +1,5 @@
 <svg viewBox="0 0 900 380" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>ZSSNote MCP 实现历程（6 Phase）</title>
+  <title>PersonLLMWiki MCP 实现历程（6 Phase）</title>
   <desc>从 Phase 1 最小闭环到 Phase 6 OfficeCLI 的完整实现路线，所有阶段均已交付。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

@@ -197,7 +197,7 @@ def list_all_services():
 
 
 # LEGACY（1.1 标记）：/api/mcp/servers 系列路由已按三层架构收敛，仅保留给 MCP 管理 UI，
-# 详见 doc/待办-架构收敛.md。
+# 详见 doc/01-架构/01-架构与集成.md。
 @mcp_client_bp.route('/api/mcp/servers', methods=['GET'])
 def list_servers():
     """列出所有 MCP 服务器状态"""
@@ -205,7 +205,7 @@ def list_servers():
     return success_response(bus.list_servers())
 
 
-# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/01-架构/01-架构与集成.md。
 @mcp_client_bp.route('/api/mcp/servers', methods=['POST'])
 def add_server():
     """添加 MCP 服务器"""
@@ -221,7 +221,7 @@ def add_server():
     return success_response(status, '服务器已添加')
 
 
-# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/01-架构/01-架构与集成.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>', methods=['DELETE'])
 def remove_server(name):
     """移除 MCP 服务器"""
@@ -230,7 +230,7 @@ def remove_server(name):
     return success_response(None, '服务器已移除')
 
 
-# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/01-架构/01-架构与集成.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>/reconnect', methods=['POST'])
 def reconnect_server(name):
     """重新连接 MCP 服务器。
@@ -268,7 +268,7 @@ def reconnect_server(name):
     return error_response('重新连接失败', 400)
 
 
-# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/待办-架构收敛.md。
+# LEGACY（1.1 标记）：仅保留给 MCP 管理 UI，详见 doc/01-架构/01-架构与集成.md。
 @mcp_client_bp.route('/api/mcp/servers/<name>/tools', methods=['GET'])
 def list_server_tools(name):
     """列出指定 MCP 服务器的工具。
@@ -364,3 +364,47 @@ def get_skill_detail(name):
         return success_response(skill)
     except Exception as e:
         return error_response(str(e), 500)
+
+
+# ═══ 技能候选（T12，仅 REST，LLM 不可自审批） ═══
+
+@mcp_client_bp.route('/api/skills/candidates', methods=['GET'])
+def list_skill_candidates_route():
+    """列出所有技能候选（待审批，不生效）。"""
+    try:
+        from common.skill_loader import list_skill_candidates
+        candidates = list_skill_candidates()
+        return success_response({
+            'candidates': candidates,
+            'total': len(candidates),
+        })
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@mcp_client_bp.route('/api/skills/candidates/<name>/approve', methods=['POST'])
+def approve_skill_candidate_route(name):
+    """审批通过技能候选：移入技能目录即生效。"""
+    try:
+        from common.skill_loader import approve_skill_candidate
+        ok = approve_skill_candidate(name)
+    except ValueError as e:
+        return error_response(str(e), 400)
+
+    if not ok:
+        return error_response('候选不存在或目标技能已存在', 400)
+    return success_response({'name': name}, '技能已审批通过')
+
+
+@mcp_client_bp.route('/api/skills/candidates/<name>/reject', methods=['POST'])
+def reject_skill_candidate_route(name):
+    """拒绝技能候选：删除候选目录。"""
+    try:
+        from common.skill_loader import reject_skill_candidate
+        ok = reject_skill_candidate(name)
+    except ValueError as e:
+        return error_response(str(e), 400)
+
+    if not ok:
+        return error_response(f'候选不存在: {name}', 404)
+    return success_response({'name': name}, '技能候选已拒绝')

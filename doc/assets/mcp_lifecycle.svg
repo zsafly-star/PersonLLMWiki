@@ -1,5 +1,5 @@
 <svg viewBox="0 0 800 640" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>ZSSNote MCP 请求生命周期</title>
+  <title>PersonLLMWiki MCP 请求生命周期</title>
   <desc>从 MCP 客户端发起 initialize 握手到工具调用与错误处理的完整 JSON-RPC 2.0 流程，含鉴权、分发、service 调用、异常回滚。</desc>
   <defs>
     <marker id="arrow-req" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">

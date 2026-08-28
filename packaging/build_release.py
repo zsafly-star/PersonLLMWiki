@@ -113,7 +113,7 @@ def build_full(version):
         f.write(version)
 
     # 6. 用户指南
-    guide_src = os.path.join(SRC_DIR, "doc", "用户使用指南.md")
+    guide_src = os.path.join(SRC_DIR, "doc", "04-用户", "01-用户使用指南.md")
     if os.path.isfile(guide_src):
         shutil.copy2(guide_src, os.path.join(target, "README-用户指南.md"))
 

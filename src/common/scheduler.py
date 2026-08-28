@@ -28,7 +28,7 @@ def _sync_sap_and_import():
 
     1.1 架构收敛已移除 PLW 主动 HTTP 调 SAP MCP sync_materials 的依赖，
     SAP 物料数据刷新改由 DSH headless 或外部流程触发，PLW 仅直连 SQLite 导入，
-    详见 doc/待办-架构收敛.md。
+    详见 doc/01-架构/01-架构与集成.md 第三部分。
     """
     logger.info('[Scheduler] SAP 物料同步任务开始')
 

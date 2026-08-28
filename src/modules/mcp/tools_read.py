@@ -10,23 +10,7 @@ from flask import current_app
 
 from .errors import INVALID_PARAMS, MCPError
 from .security import resolve_article_path
-
-
-def _text_content(obj):
-    """把 dict/str 包成 MCP content 响应。"""
-    if isinstance(obj, str):
-        text = obj
-    else:
-        text = json.dumps(obj, ensure_ascii=False)
-    return {'content': [{'type': 'text', 'text': text}]}
-
-
-def _error_content(message: str):
-    """构造 isError=true 的工具错误响应。"""
-    return {
-        'isError': True,
-        'content': [{'type': 'text', 'text': message}],
-    }
+from .tools_common import text_content, error_content
 
 
 def handle_list_folders(args: dict) -> dict:
@@ -44,7 +28,7 @@ def handle_list_folders(args: dict) -> dict:
     try:
         entries = sorted(os.listdir(article_root))
     except (FileNotFoundError, PermissionError):
-        return _text_content([])
+        return text_content([])
 
     for entry in entries:
         entry_path = os.path.join(article_root, entry)
@@ -83,11 +67,13 @@ def handle_list_folders(args: dict) -> dict:
 
         folders.append(item)
 
-    return _text_content(folders)
+    return text_content(folders)
 
 
 def handle_read_note(args: dict) -> dict:
-    """按路径读取一篇文章。
+    """文章读写工具（读写 article/*.md），与已删除的「笔记」模块无关。
+
+    按路径读取一篇文章。
 
     Args:
         args: {path: str (required), full: bool (default false)}
@@ -107,13 +93,13 @@ def handle_read_note(args: dict) -> dict:
     abs_path = resolve_article_path(args['path'])
 
     if not os.path.isfile(abs_path):
-        return _error_content(f'文件不存在: {args["path"]}')
+        return error_content(f'文件不存在: {args["path"]}')
 
     try:
         with open(abs_path, 'r', encoding='utf-8') as f:
             content = f.read()
     except (PermissionError, UnicodeDecodeError) as e:
-        return _error_content(f'读取失败: {e}')
+        return error_content(f'读取失败: {e}')
 
     # 解析标题：第一行 # xxx
     lines = content.split('\n')
@@ -156,7 +142,7 @@ def handle_read_note(args: dict) -> dict:
         from .image_extractor import strip_inline_images
         data['content'] = strip_inline_images(content)
 
-    return _text_content(data)
+    return text_content(data)
 
 
 # ---------- Wiki 概念页面 ----------
@@ -216,7 +202,7 @@ def handle_list_wiki_pages(args: dict) -> dict:
         except Exception:
             pass
 
-    return _text_content(result)
+    return text_content(result)
 
 
 def handle_read_wiki_page(args: dict) -> dict:
@@ -255,7 +241,7 @@ def handle_read_wiki_page(args: dict) -> dict:
 
         from .image_extractor import strip_inline_images
 
-        return _text_content({
+        return text_content({
             'slug': slug,
             'title': page.title,
             'summary': page.summary or '',
@@ -269,14 +255,14 @@ def handle_read_wiki_page(args: dict) -> dict:
         from modules.wiki import wiki_service
         file_data = wiki_service.read_concept_page(slug)
     except Exception as e:
-        return _error_content(f'读取失败: {e}')
+        return error_content(f'读取失败: {e}')
 
     if not file_data:
-        return _error_content(f'Wiki 页面不存在: {slug}')
+        return error_content(f'Wiki 页面不存在: {slug}')
 
     fm = file_data.get('frontmatter', {})
     from .image_extractor import strip_inline_images
-    return _text_content({
+    return text_content({
         'slug': slug,
         'title': fm.get('title', slug),
         'summary': fm.get('summary', ''),
@@ -301,7 +287,7 @@ def handle_get_compile_status(args: dict) -> dict:
     """
     from modules.wiki.compiler.pipeline import get_compile_status
     status = get_compile_status()
-    return _text_content(status)
+    return text_content(status)
 
 
 # ---------- 候选审批 ----------
@@ -344,7 +330,7 @@ def handle_list_candidates(args: dict) -> dict:
             'preview': preview,
         })
 
-    return _text_content(result)
+    return text_content(result)
 
 
 # ---------- 知识星链图谱 ----------
@@ -372,91 +358,122 @@ def handle_get_graph(args: dict) -> dict:
     depth = min(depth, 2)
 
     from modules.wiki.models import WikiPage
+    from modules.wiki.graph_builder import build_adjacency
 
     pages = WikiPage.query.filter(
         WikiPage.review_status.in_(['approved', 'chat'])
     ).all()
 
     if not pages:
-        return _text_content({'nodes': [], 'edges': []})
+        return text_content({'nodes': [], 'edges': []})
 
-    import json as _json
-
-    # 构建 slug → 页面 映射
+    # 构建 slug → 页面 映射 + 邻接表（复用 graph_builder 避免双端点漂移）
     slug_to_page = {p.slug: p for p in pages}
-    slug_title_map = {p.slug: p.title for p in pages}
+    adjacency, slug_title_map = build_adjacency(pages)
 
-    # 收集所有 links（规范化为 slug）
-    def normalize_link(link_str):
-        target = link_str.lower().replace(' ', '_').replace('/', '_')
-        if target in slug_to_page:
-            return target
-        # 模糊匹配：标题包含 / slug 包含
-        for s, title in slug_title_map.items():
-            if link_str in title or title in link_str:
-                return s
-        for s in slug_to_page:
-            if target in s or s in target:
-                return s
-        return None
-
-    # 构建邻接表
-    adjacency = {p.slug: set() for p in pages}
-    for p in pages:
-        links = _json.loads(p.links) if p.links else []
-        for link in links:
-            target_slug = normalize_link(link)
-            if target_slug and target_slug != p.slug:
-                adjacency[p.slug].add(target_slug)
-                # 双向
-                if target_slug in adjacency:
-                    adjacency[target_slug].add(p.slug)
+    # 记忆节点（只读合并，计入预算）
+    from modules.memory.graph import collect_memory_nodes, build_memory_edges
+    mem_nodes = collect_memory_nodes()
+    mem_edges = build_memory_edges(mem_nodes, set(slug_to_page.keys()))
 
     if seed:
-        # seed 模式：BFS 收集邻居
+        # seed 模式：优先匹配 wiki（原 BFS 行为）
         seed_slug = None
         for s, title in slug_title_map.items():
             if seed in title or title in seed or seed == s:
                 seed_slug = s
                 break
-        if not seed_slug:
-            return _text_content({'nodes': [], 'edges': []})
 
-        visited = {seed_slug}
-        frontier = {seed_slug}
-        for _ in range(depth):
-            next_frontier = set()
-            for node in frontier:
-                for neighbor in adjacency.get(node, set()):
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        next_frontier.add(neighbor)
-            frontier = next_frontier
-            if not frontier:
+        if seed_slug:
+            visited = {seed_slug}
+            frontier = {seed_slug}
+            for _ in range(depth):
+                next_frontier = set()
+                for node in frontier:
+                    for neighbor in adjacency.get(node, set()):
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            next_frontier.add(neighbor)
+                frontier = next_frontier
+                if not frontier:
+                    break
+
+            nodes = []
+            for slug in visited:
+                page = slug_to_page.get(slug)
+                if page:
+                    nodes.append({
+                        'id': slug,
+                        'title': page.title,
+                        'size': len(adjacency.get(slug, set())) + 1,
+                    })
+
+            edges = []
+            added_edges = set()
+            for slug in visited:
+                for target in adjacency.get(slug, set()):
+                    if target in visited:
+                        edge_key = tuple(sorted([slug, target]))
+                        if edge_key not in added_edges:
+                            added_edges.add(edge_key)
+                            edges.append({'source': slug, 'target': target})
+
+            return text_content({'nodes': nodes, 'edges': edges})
+
+        # seed 未命中 wiki → 尝试匹配记忆节点
+        matched_mem = None
+        for n in mem_nodes:
+            if seed == n['id'] or seed == n['title'] or seed in n['title'] or n['title'] in seed:
+                matched_mem = n
                 break
 
-        included_slugs = visited
-    else:
-        # 全图模式：按关联数排序后截断到硬上限
-        sorted_slugs = sorted(
-            pages,
-            key=lambda p: len(adjacency.get(p.slug, set())),
-            reverse=True,
-        )
-        included_slugs = {p.slug for p in sorted_slugs[:_GRAPH_NODE_HARD_CAP]}
+        if not matched_mem:
+            return text_content({'nodes': [], 'edges': []})
 
-    # 构建节点和边
-    nodes = []
+        mem_id = matched_mem['id']
+        neighbor_ids = set()
+        for e in mem_edges:
+            if e['source'] == mem_id:
+                neighbor_ids.add(e['target'])
+            elif e['target'] == mem_id:
+                neighbor_ids.add(e['source'])
+
+        nodes = []
+        for n in mem_nodes:
+            if n['id'] == mem_id or n['id'] in neighbor_ids:
+                nodes.append({'id': n['id'], 'title': n['title'], 'size': n['size']})
+        for nid in neighbor_ids:
+            page = slug_to_page.get(nid)
+            if page:
+                nodes.append({
+                    'id': nid,
+                    'title': page.title,
+                    'size': len(adjacency.get(nid, set())) + 1,
+                })
+
+        edges = [e for e in mem_edges if e['source'] == mem_id or e['target'] == mem_id]
+
+        return text_content({'nodes': nodes, 'edges': edges})
+
+    # 全图模式：按关联数排序后截断 wiki 到硬上限
+    sorted_slugs = sorted(
+        pages,
+        key=lambda p: len(adjacency.get(p.slug, set())),
+        reverse=True,
+    )
+    included_slugs = {p.slug for p in sorted_slugs[:_GRAPH_NODE_HARD_CAP]}
+
+    wiki_nodes = []
     for slug in included_slugs:
         page = slug_to_page.get(slug)
         if page:
-            nodes.append({
+            wiki_nodes.append({
                 'id': slug,
                 'title': page.title,
                 'size': len(adjacency.get(slug, set())) + 1,
             })
 
-    edges = []
+    wiki_edges = []
     added_edges = set()
     for slug in included_slugs:
         for target in adjacency.get(slug, set()):
@@ -464,6 +481,19 @@ def handle_get_graph(args: dict) -> dict:
                 edge_key = tuple(sorted([slug, target]))
                 if edge_key not in added_edges:
                     added_edges.add(edge_key)
-                    edges.append({'source': slug, 'target': target})
+                    wiki_edges.append({'source': slug, 'target': target})
 
-    return _text_content({'nodes': nodes, 'edges': edges})
+    mem_node_list = [{'id': n['id'], 'title': n['title'], 'size': n['size']} for n in mem_nodes]
+
+    all_nodes = wiki_nodes + mem_node_list
+    all_edges = wiki_edges + list(mem_edges)
+
+    # 硬上限 80：超出则裁掉多余记忆节点（保留 wiki 节点）
+    if len(all_nodes) > _GRAPH_NODE_HARD_CAP:
+        budget = max(0, _GRAPH_NODE_HARD_CAP - len(wiki_nodes))
+        all_nodes = wiki_nodes + mem_node_list[:budget]
+
+    kept_ids = {n['id'] for n in all_nodes}
+    all_edges = [e for e in all_edges if e['source'] in kept_ids and e['target'] in kept_ids]
+
+    return text_content({'nodes': all_nodes, 'edges': all_edges})
