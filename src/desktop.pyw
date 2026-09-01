@@ -362,6 +362,12 @@ def main():
         """托盘回调：真正退出。"""
         # T6：真正退出前保存窗口状态
         _save_window_state()
+        # 停止 PLW 拉起的 DSH（只杀本进程拉起的，用户自启的不误杀；绝不阻塞退出）
+        try:
+            from common import dsh_bridge
+            dsh_bridge.stop()
+        except Exception as e:
+            print(f"[Desktop] 停止 DSH 失败: {e}")
         _allow_close[0] = True
         if _hwnd[0]:
             user32.PostMessageW(_hwnd[0], WM_CLOSE, 0, 0)
@@ -738,6 +744,13 @@ def main():
     # 阻塞直到用户点击托盘"退出"
     webview.start()
     print("[Desktop] 已退出")
+
+    # 兜底：覆盖其它退出路径，幂等停止 PLW 拉起的 DSH（用户自启的不杀）
+    try:
+        from common import dsh_bridge
+        dsh_bridge.stop()
+    except Exception as e:
+        print(f"[Desktop] 停止 DSH 失败: {e}")
 
     tray.stop()
 

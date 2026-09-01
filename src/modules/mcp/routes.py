@@ -26,11 +26,12 @@ from .errors import (
     UNAUTHORIZED,
 )
 from .registry import get_tool, list_tools
+from config import APP_VERSION
 
 
 MCP_PROTOCOL_VERSION = '2025-06-18'
 MCP_SERVER_NAME = 'PersonLLMWiki'
-MCP_SERVER_VERSION = '1.0.0'
+MCP_SERVER_VERSION = APP_VERSION
 
 # 合法的 JSON-RPC 2.0 方法
 _KNOWN_METHODS = {

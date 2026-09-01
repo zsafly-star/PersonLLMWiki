@@ -20,6 +20,10 @@ else:
     _SEED_DIR = os.path.join(_PROJECT_ROOT, 'seed')
 
 
+APP_VERSION = '1.2.1'
+APP_NAME = 'PersonLLMWiki'
+
+
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
     SQLALCHEMY_TRACK_MODIFICATIONS = False

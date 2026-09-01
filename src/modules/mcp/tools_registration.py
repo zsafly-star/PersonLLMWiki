@@ -34,6 +34,8 @@ from .tools_memory import (
     handle_list_memories,
     handle_remember,
     handle_forget_memory,
+    handle_settle_memory,
+    handle_stage_memory_signals,
 )
 from .tools_skill import (
     handle_suggest_skill,
@@ -541,6 +543,72 @@ def _register_all():
             },
             handler=handle_forget_memory,
             cost='none',
+        ),
+        Tool(
+            name='settle_memory',
+            description='批量沉降记忆到自动记忆轨（status=auto，带 source）。接收 [{body, kind, source?}] 列表，逐条近似查重后写入，宁缺毋滥；绝不自动撤回任何记忆。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'items': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'body': {'type': 'string', 'description': '记忆正文'},
+                                'kind': {
+                                    'type': 'string',
+                                    'enum': ['preference', 'fact', 'decision', 'other'],
+                                    'description': '记忆类型',
+                                },
+                                'source': {
+                                    'type': 'string',
+                                    'description': '来源标识（可选）',
+                                },
+                            },
+                            'required': ['body', 'kind'],
+                            'additionalProperties': False,
+                        },
+                    },
+                },
+                'required': ['items'],
+                'additionalProperties': False,
+            },
+            handler=handle_settle_memory,
+            cost='openai-embedding',
+        ),
+        Tool(
+            name='stage_memory_signals',
+            description='暂存记忆信号（自动记忆沉降通道入口）。接收 [{body, kind?, source?}]，经卫生过滤（空/非法 kind/超长/近似重复跳过）后写入 _raw/pending.jsonl，等待空闲超时自动沉降；绝不自动撤回任何记忆。',
+            input_schema={
+                'type': 'object',
+                'properties': {
+                    'items': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'body': {'type': 'string', 'description': '信号正文'},
+                                'kind': {
+                                    'type': 'string',
+                                    'enum': ['preference', 'fact', 'decision', 'other'],
+                                    'description': '记忆类型（可选，默认 other）',
+                                },
+                                'source': {
+                                    'type': 'string',
+                                    'description': '来源标识（可选）',
+                                },
+                            },
+                            'required': ['body'],
+                            'additionalProperties': False,
+                        },
+                    },
+                },
+                'required': ['items'],
+                'additionalProperties': False,
+            },
+            handler=handle_stage_memory_signals,
+            cost='openai-embedding',
         ),
         Tool(
             name='suggest_skill',

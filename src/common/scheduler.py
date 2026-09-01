@@ -58,6 +58,20 @@ def _sync_sap_and_import():
         logger.error(f'[Scheduler] 导入失败: {e}')
 
 
+def _idle_memory_settle():
+    """定时检查 _raw 暂存，空闲超时后批量沉降记忆（多信号沉降通道，轨道 B）。"""
+    try:
+        from modules.memory.settle import settle_if_idle
+        result = settle_if_idle()
+        if result and result.get('written'):
+            logger.info(
+                f"[Scheduler] 记忆空闲沉降完成: 写入 {len(result['written'])} 条, "
+                f"跳过 {len(result['skipped'])} 条"
+            )
+    except Exception as e:
+        logger.warning(f'[Scheduler] 记忆空闲沉降失败: {e}')
+
+
 def init_scheduler(app):
     """初始化定时任务调度器。
 
@@ -102,6 +116,22 @@ def init_scheduler(app):
         replace_existing=True,
         misfire_grace_time=3600,
     )
+
+    # 记忆空闲沉降（多信号沉降通道，轨道 B）：周期性检查 _raw 暂存是否空闲超时
+    try:
+        from apscheduler.triggers.interval import IntervalTrigger
+        settle_interval = int(os.environ.get('MEMORY_SETTLE_CHECK_INTERVAL_S', '60'))
+        _scheduler.add_job(
+            func=_idle_memory_settle,
+            trigger=IntervalTrigger(seconds=settle_interval),
+            id='memory_idle_settle',
+            name='记忆空闲沉降',
+            replace_existing=True,
+            misfire_grace_time=30,
+        )
+        logger.info(f'[Scheduler] 记忆空闲沉降任务已注册，检查间隔 {settle_interval}s')
+    except Exception as e:
+        logger.warning(f'[Scheduler] 记忆空闲沉降任务注册失败: {e}')
 
     _scheduler.start()
     logger.info(f'[Scheduler] 调度器已启动，SAP 同步 cron: {cron_expr}')

@@ -1,6 +1,6 @@
 from flask import Flask, request
 from flask_cors import CORS
-from config import Config
+from config import Config, APP_NAME, APP_VERSION
 from extensions import db
 from common.llm_config import LLMProviderConfig
 from common.embedding_config import EmbeddingConfig
@@ -54,8 +54,8 @@ app.register_blueprint(memory_bp)
 @app.route('/api')
 def api_index():
     return {
-        'name': 'SSEditor',
-        'version': '1.0.0',
+        'name': APP_NAME,
+        'version': APP_VERSION,
         'description': '个人知识管理系统',
         'api': '/api'
     }

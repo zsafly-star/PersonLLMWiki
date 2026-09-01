@@ -69,6 +69,26 @@ def handle_remember(args: dict) -> dict:
     return text_content({'slug': safe_slug, 'path': path, 'kind': kind, 'status': 'auto'})
 
 
+def handle_settle_memory(args: dict) -> dict:
+    """批量沉降记忆到自动记忆轨。{items: [{body, kind, source?}]}"""
+    items = args.get('items')
+    if not isinstance(items, list) or not items:
+        raise MCPError(INVALID_PARAMS, 'items 必须是包含 {body, kind} 的非空列表')
+
+    from modules.memory.settle import settle_memories
+    return text_content(settle_memories(items, source='mcp_settle'))
+
+
+def handle_stage_memory_signals(args: dict) -> dict:
+    """暂存记忆信号（卫生过滤后入 _raw/pending.jsonl）。{items: [{body, kind?, source?}]}"""
+    items = args.get('items')
+    if not isinstance(items, list) or not items:
+        raise MCPError(INVALID_PARAMS, 'items 必须是包含 {body} 的非空列表')
+
+    from modules.memory.settle import stage_memory_signals
+    return text_content(stage_memory_signals(items, source='mcp_signal'))
+
+
 def handle_forget_memory(args: dict) -> dict:
     """撤回一条记忆（软删除，物理保留）。"""
     if 'slug' not in args or not args['slug']:

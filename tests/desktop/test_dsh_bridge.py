@@ -264,3 +264,54 @@ class TestCheckUpdate:
         assert r['latest'] is None
         assert r['has_update'] is False
         assert r['error']
+
+
+class TestStop:
+    def test_stop_kills_managed_proc(self, monkeypatch):
+        """_managed_proc 存活时 stop() 以 taskkill /PID /T /F 终止之。"""
+        class _FakeProc:
+            pid = 3080
+
+            def poll(self):
+                return None
+
+        monkeypatch.setattr(dsh_bridge, '_managed_proc', _FakeProc())
+        monkeypatch.setattr(dsh_bridge, 'check_health', lambda *a, **k: False)
+        monkeypatch.setattr(dsh_bridge.os, 'name', 'nt')
+
+        calls = []
+
+        def _fake_run(args, **kwargs):
+            calls.append(args)
+
+        monkeypatch.setattr(dsh_bridge.subprocess, 'run', _fake_run)
+
+        r = dsh_bridge.stop()
+
+        assert calls, '应调用 taskkill'
+        assert calls[0][:4] == ['taskkill', '/PID', '3080', '/T']
+        assert '/F' in calls[0]
+        # 句柄被清理
+        assert dsh_bridge._managed_proc is None
+        # 已停止（健康检查返回 False）
+        assert r['stopped'] is True
+
+    def test_stop_noop_when_not_managed(self, monkeypatch):
+        """_managed_proc 为 None（用户自启 DSH）时 stop() 不执行 taskkill、不误杀。"""
+        monkeypatch.setattr(dsh_bridge, '_managed_proc', None)
+        monkeypatch.setattr(dsh_bridge, 'check_health', lambda *a, **k: True)
+        monkeypatch.setattr(dsh_bridge.os, 'name', 'nt')
+
+        calls = []
+
+        def _fake_run(args, **kwargs):
+            calls.append(args)
+
+        monkeypatch.setattr(dsh_bridge.subprocess, 'run', _fake_run)
+
+        r = dsh_bridge.stop()
+
+        assert calls == [], '用户自启 DSH 不应被 taskkill'
+        assert dsh_bridge._managed_proc is None
+        # 仍在健康运行（未被杀），stopped=False
+        assert r['stopped'] is False

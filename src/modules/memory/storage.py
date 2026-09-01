@@ -27,7 +27,8 @@ def get_memories_raw_dir():
 
 
 def save_memory(slug, body, *, kind, status='auto', source_chat_id=None,
-                summary='', basis=None, source_refs=None, related_entities=None):
+                source=None, summary='', basis=None, source_refs=None,
+                related_entities=None):
     """写 memories/<safe_slug>.md，返回文件路径。"""
     ensure_memory_dirs()
 
@@ -44,6 +45,9 @@ def save_memory(slug, body, *, kind, status='auto', source_chat_id=None,
 
     if source_chat_id is not None:
         frontmatter['source_chat_id'] = source_chat_id
+
+    if source is not None:
+        frontmatter['source'] = source
 
     if kind == 'decision':
         frontmatter['basis'] = basis or ''
