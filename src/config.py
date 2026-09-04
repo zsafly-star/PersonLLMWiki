@@ -20,7 +20,7 @@ else:
     _SEED_DIR = os.path.join(_PROJECT_ROOT, 'seed')
 
 
-APP_VERSION = '1.2.1'
+APP_VERSION = '1.2.2'
 APP_NAME = 'PersonLLMWiki'
 
 

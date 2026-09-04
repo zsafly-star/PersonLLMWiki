@@ -320,7 +320,11 @@ def handle_list_candidates(args: dict) -> dict:
     for p in pages:
         import json as _json
         sources = _json.loads(p.sources) if p.sources else []
-        source_file = sources[0].get('file', '') if sources else ''
+        if sources:
+            first = sources[0]
+            source_file = first.get('file', '') if isinstance(first, dict) else str(first)
+        else:
+            source_file = ''
         preview = (p.body or '')[:200]
         result.append({
             'id': p.id,

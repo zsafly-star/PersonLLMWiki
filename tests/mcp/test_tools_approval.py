@@ -70,6 +70,42 @@ class TestListCandidates:
         assert 'title' in item
         assert 'preview' in item
 
+    def test_string_array_sources_returns_first_title(self, app, db):
+        from modules.wiki.models import WikiPage
+        with app.app_context():
+            page = WikiPage(
+                title='字符串来源', slug='str_src', body='正文',
+                summary='', sources='["人物_傻傻"]',
+                links='[]', review_status='pending',
+            )
+            db.session.add(page)
+            db.session.commit()
+
+            from modules.mcp.tools_read import handle_list_candidates
+            result = handle_list_candidates({})
+
+        data = json.loads(result['content'][0]['text'])
+        item = data[0]
+        assert item['source_file'] == '人物_傻傻'
+
+    def test_empty_sources_returns_empty_string(self, app, db):
+        from modules.wiki.models import WikiPage
+        with app.app_context():
+            page = WikiPage(
+                title='空来源', slug='empty_src', body='正文',
+                summary='', sources='[]',
+                links='[]', review_status='pending',
+            )
+            db.session.add(page)
+            db.session.commit()
+
+            from modules.mcp.tools_read import handle_list_candidates
+            result = handle_list_candidates({})
+
+        data = json.loads(result['content'][0]['text'])
+        item = data[0]
+        assert item['source_file'] == ''
+
 
 class TestApproveCandidate:
 
