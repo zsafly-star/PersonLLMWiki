@@ -213,6 +213,35 @@ class TestCheckHealth:
         monkeypatch.setattr(dsh_bridge.urllib.request, 'build_opener', lambda *a, **k: _FakeOpener())
         assert dsh_bridge.check_health('http://127.0.0.1:3080') is True
 
+    def test_401_unauthorized_counts_as_alive(self, monkeypatch):
+        # DSH 0.1.5 起根路径返回 401（需认证），仍说明服务在运行，不应误判为未运行
+        import urllib.error
+
+        class _FakeOpener:
+            def open(self, req, timeout=None):
+                raise urllib.error.HTTPError(
+                    req.full_url, 401, 'Unauthorized', {}, None,
+                )
+
+        monkeypatch.setattr(dsh_bridge.urllib.request, 'build_opener', lambda *a, **k: _FakeOpener())
+        assert dsh_bridge.check_health('http://127.0.0.1:3080') is True
+
+
+class TestExtractAuthenticatedUrl:
+    def test_extract_token_url(self):
+        line = 'dsh web: http://127.0.0.1:3080/?token=abc_123-xyz'
+        assert dsh_bridge._extract_authenticated_url(line) == 'http://127.0.0.1:3080/?token=abc_123-xyz'
+
+    def test_extract_ignores_lan(self):
+        line = 'dsh web: http://127.0.0.1:3080/?token=abc (LAN: http://192.168.1.5:3080/?token=abc)'
+        assert dsh_bridge._extract_authenticated_url(line) == 'http://127.0.0.1:3080/?token=abc'
+
+    def test_no_token_returns_none(self):
+        assert dsh_bridge._extract_authenticated_url('dsh web: http://127.0.0.1:3080') is None
+        assert dsh_bridge._extract_authenticated_url('some random text') is None
+        assert dsh_bridge._extract_authenticated_url('') is None
+        assert dsh_bridge._extract_authenticated_url(None) is None
+
 
 class TestResolveDshCmd:
     def test_path_fallback(self, monkeypatch):

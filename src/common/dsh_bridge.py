@@ -50,6 +50,9 @@ STATUS_RUNNING = 'running'
 # 由本进程拉起的 DSH 句柄（用于 stop 时回收）
 _managed_proc = None
 
+# 本进程拉起的 DSH 打印的带认证 token 的 URL（DSH 0.1.5 起 web 需 token 认证）
+_launch_url = None
+
 # 版本探测结果缓存（避免每次状态查询都跑子进程）
 _VERSION_CACHE_TTL = 30.0
 _version_cache = {'ts': 0.0, 'value': None}
@@ -348,10 +351,33 @@ def version_ok(version):
     return vt >= mt
 
 
+# ─── 认证 URL 提取 ────────────────────────────────────────
+
+def _extract_authenticated_url(text):
+    """从 DSH stdout 行中提取带 token 的认证 URL。
+
+    DSH 0.1.5 起 `dsh web` 启动时打印形如
+    ``dsh web: http://127.0.0.1:3080/?token=xxx`` 的认证地址；iframe 需用
+    带 token 的 URL 才能通过认证看到页面（裸地址会 401 空白）。
+    """
+    import re
+    if not text:
+        return None
+    # 仅匹配回环地址的带 token URL，避免误采 LAN 非回环地址
+    m = re.search(
+        r'https?://(?:127\.\d+\.\d+\.\d+|localhost|\[::1\])(?::\d+)?/\?token=[A-Za-z0-9_-]+',
+        text,
+    )
+    return m.group(0) if m else None
+
+
 # ─── 健康检查 ──────────────────────────────────────────────
 
 def check_health(url=None, timeout=HEALTH_TIMEOUT):
-    """检查 DSH web 是否健康（HTTP 200）。
+    """检查 DSH web 是否在运行（HTTP 可达即视为存活）。
+
+    DSH 0.1.5 起根路径可能返回 401（需认证）；2xx/3xx/4xx/5xx 均说明服务在
+    监听并响应 HTTP，视为存活。仅网络连接失败（URLError/OSError）才判未运行。
 
     Returns:
         bool: True 表示 DSH web 正在运行。
@@ -367,11 +393,11 @@ def check_health(url=None, timeout=HEALTH_TIMEOUT):
 
         opener = urllib.request.build_opener(_NoRedirect)
         req = urllib.request.Request(target, headers={'User-Agent': 'PersonLLMWiki-DSHBridge'})
-        with opener.open(req, timeout=timeout) as resp:
-            return resp.status == 200
+        with opener.open(req, timeout=timeout):
+            return True
     except urllib.error.HTTPError as e:
-        # 3xx 重定向（已被禁跟随）仍说明服务存活，避免把根路径 302 误判为未运行
-        return 300 <= e.code < 400
+        # 收到任何 HTTP 状态码（401/403/404/500 等）都说明服务在监听并响应，视为存活
+        return True
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
@@ -422,7 +448,9 @@ def get_status():
         'version': version,
         'version_ok': ok,
         'running': running,
-        'url': cfg.get('dsh_url') or DEFAULT_DSH_URL,
+        # DSH 0.1.5 起 web 需 token 认证；优先返回本进程捕获到的带 token URL，
+        # 否则回退裸地址（用户自启 DSH 时拿不到 token，仅作退化）。
+        'url': (_launch_url if (running and _launch_url) else (cfg.get('dsh_url') or DEFAULT_DSH_URL)),
         'cmd': cmd or '',
         'auto_start': cfg.get('auto_start', False),
         'min_version': MIN_DSH_VERSION,
@@ -453,7 +481,7 @@ def start(timeout=30.0):
         return {'started': True, 'status': STATUS_STARTING, 'error': ''}
 
     cmd = _resolve_dsh_cmd()
-    global _managed_proc
+    global _managed_proc, _launch_url
     # 默认以 `dsh web` 启动（监听 3080）；DSH CLI 语法变化收敛于此。
     # 锁内双重检查，防止 auto_start 后台线程与前端点击并发重复拉起。
     with _proc_lock:
@@ -462,11 +490,17 @@ def start(timeout=30.0):
         if _managed_proc is not None and _managed_proc.poll() is None:
             return {'started': True, 'status': STATUS_STARTING, 'error': ''}
         try:
+            # stdout 捕获：DSH 0.1.5 起启动打印带 token 的认证 URL（--no-open 仍打印），
+            # 后台线程解析该 URL 供 iframe 加载；裸地址会 401 空白。
+            _launch_url = None
             new_proc = subprocess.Popen(
                 [cmd, 'web', '--no-open'],
                 cwd=os.path.dirname(cmd),
-                stdout=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
                 start_new_session=True,
                 env=_subprocess_env(),
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
@@ -475,9 +509,23 @@ def start(timeout=30.0):
             return {'started': False, 'status': STATUS_NOT_RUNNING, 'error': f'启动 DSH 失败: {e}'}
         _managed_proc = new_proc
 
+    def _read_stdout(proc):
+        # 逐行读取 DSH 启动输出，捕获带 token 的认证 URL（进程退出后自然结束）。
+        global _launch_url
+        try:
+            for line in proc.stdout:
+                url = _extract_authenticated_url(line)
+                if url:
+                    _launch_url = url
+        except Exception:
+            pass
+
+    threading.Thread(target=_read_stdout, args=(new_proc,), daemon=True).start()
+
     # 后台等待健康检查（不阻塞调用方；首次初始化可能耗时较长）。
     # 超时或进程退出：清理句柄，状态经 get_status 回落到 not_running。
     def _wait_ready(proc):
+        global _launch_url
         import time
         deadline = time.time() + START_TIMEOUT
         while time.time() < deadline:
@@ -489,6 +537,7 @@ def start(timeout=30.0):
         with _proc_lock:
             if _managed_proc is proc:
                 _managed_proc = None
+                _launch_url = None
 
     threading.Thread(target=_wait_ready, args=(new_proc,), daemon=True).start()
 
@@ -500,9 +549,10 @@ def stop():
 
     若 DSH 由用户自启（非本进程拉起），不强制 kill，仅做健康检查反馈。
     """
-    global _managed_proc
+    global _managed_proc, _launch_url
     with _proc_lock:
         proc, _managed_proc = _managed_proc, None
+        _launch_url = None
     if proc is not None and proc.poll() is None:
         try:
             if os.name == 'nt':

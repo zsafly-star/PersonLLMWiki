@@ -151,7 +151,8 @@
 
     var currentMode = localStorage.getItem(MODE_KEY) === 'dsh' ? 'dsh' : 'wiki';
     var dshStatus = null;
-    var dshLoaded = false;
+    // 已加载到 iframe 的 DSH URL（null 表示尚未加载）；url 变化（裸地址→带 token）时重载
+    var dshLoadedUrl = null;
     var statusLoaded = false;
     var pollCount = 0;
     var maximized = false;
@@ -277,9 +278,9 @@
         els.mask.classList.toggle('show', statusLoaded && dshOn && !canUseDsh());
         updateSeg();
 
-        if (dshOn && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
+        if (dshOn && canUseDsh() && safeHttpUrl(dshStatus.url) && dshStatus.url !== dshLoadedUrl) {
             els.iframeDsh.src = dshStatus.url;
-            dshLoaded = true;
+            dshLoadedUrl = dshStatus.url;
         }
         localStorage.setItem(MODE_KEY, currentMode);
     }
@@ -330,9 +331,9 @@
                 dshStatus = res.data || {};
                 renderStatus();
                 renderMask();
-                if (currentMode === 'dsh' && canUseDsh() && !dshLoaded && safeHttpUrl(dshStatus.url)) {
+                if (currentMode === 'dsh' && canUseDsh() && safeHttpUrl(dshStatus.url) && dshStatus.url !== dshLoadedUrl) {
                     els.iframeDsh.src = dshStatus.url;
-                    dshLoaded = true;
+                    dshLoadedUrl = dshStatus.url;
                 }
                 statusLoaded = true;
                 applyMode();
