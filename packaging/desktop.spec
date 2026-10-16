@@ -8,6 +8,7 @@
 
 import os
 from PyInstaller.building.datastruct import Tree
+from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
 # spec 位置：packaging/desktop.spec → 项目根 PersonLLMWiki/
@@ -73,6 +74,14 @@ a = Analysis(
         'common.port_utils',
         'common.tray_manager',
         'common.desktop_prefs',
+        # fastmcp 用 __getattr__ 懒加载 FastMCP（fastmcp.server.server），
+        # 且 pdf-mcp 子进程通过 runpy.run_path 动态导入，PyInstaller 静态分析看不到，
+        # 因此显式收集 fastmcp 全部子模块及其运行时依赖，避免打包后 ImportError。
+        *collect_submodules('fastmcp'),
+        'packaging',
+        'httpx',
+        'mcp',
+        'pydantic',
     ],
     hookspath=[],
     hooksconfig={},

@@ -48,6 +48,13 @@ Filename: "{app}\{#MyAppExeName}"; Description: "立即启动 PersonLLMWiki"; Fl
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
 
+[InstallDelete]
+; 覆盖安装时先清理旧版程序文件，避免新旧混用。
+; 历史教训：旧版用 base 环境(Python 3.13)打包，会残留 brotlicffi/各种 .cp313 .pyd 等文件，
+; 覆盖安装不清除会导致新版(flask 环境 Python 3.10)运行崩溃（如 brotlicffi 缺 error 属性）。
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\seed"
+
 [Code]
 const
   SHCNE_ASSOCCHANGED = $08000000;

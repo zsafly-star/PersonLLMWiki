@@ -11,6 +11,41 @@
 
 import os
 import sys
+import time
+
+
+def _setup_frozen_logging():
+    """打包版（console=False）无控制台，print/traceback 不可见。
+    将 stdout/stderr 重定向到可执行文件旁的 desktop.log，便于排查启动失败。
+    必须放在最前面：--mcp-launcher 子进程分支也在 windowed 模式下运行，
+    若 stderr 为 None，fastmcp/uvicorn/rich 写日志会失败甚至挂起。"""
+    if not getattr(sys, 'frozen', False):
+        return None
+    candidates = []
+    try:
+        candidates.append(os.path.dirname(sys.executable))
+    except Exception:
+        pass
+    candidates.append(os.environ.get('TEMP', ''))
+    candidates.append(os.environ.get('TMP', ''))
+    candidates.append(os.getcwd())
+    for base in candidates:
+        if not base:
+            continue
+        try:
+            log_path = os.path.join(base, 'desktop.log')
+            log_file = open(log_path, 'a', encoding='utf-8')
+            sys.stdout = log_file
+            sys.stderr = log_file
+            print(f"[Desktop] ==== 启动 {time.strftime('%Y-%m-%d %H:%M:%S')} (frozen={getattr(sys, 'frozen', False)}) ====")
+            print(f"[Desktop] executable={sys.executable} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
+            return log_file
+        except Exception:
+            continue
+    return None
+
+
+_setup_frozen_logging()
 
 # ── MCP 子进程入口 ──────────────────────────────────────────────
 # 打包模式下，builtin_mcp_manager 以 --mcp-launcher=<path> 参数启动 EXE，
@@ -36,7 +71,6 @@ if len(sys.argv) >= 2 and sys.argv[1].startswith('--mcp-launcher='):
     runpy.run_path(_mcp_launcher_path, run_name='__main__')  # 必须指定，否则 launcher 的 if __name__ == '__main__' 不触发
     sys.exit(0)
 
-import time
 import ctypes
 import threading
 import urllib.request
