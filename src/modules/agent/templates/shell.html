@@ -43,7 +43,9 @@
     .win-btn:hover { background: #f3f4f6; }
     .win-btn.win-close:hover { background: #e81123; color: #fff; }
 
-    /* 边缘缩放覆盖条（透明，z-index 高于 iframe；最大化时隐藏） */
+    /* 边缘缩放命中带（透明，z-index 高于 iframe）：命中拾取与光标提示，
+       mousedown 触发 Python 后台线程按方向拖边/角（R0 恢复 JS 驱动）；
+       最大化时隐藏 */
     .resize-strip { position: fixed; z-index: 90; background: transparent; }
     .resize-strip.n { top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
     .resize-strip.s { bottom: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
@@ -349,20 +351,28 @@
     }
 
     function reportDragExclusions() {
+        // KL-1.2.3-04：上报带语义的命中区（物理像素），供 Python 侧
+        // WM_NCHITTEST 命中表使用：button=窗口控制按钮，exclude=交互排除区
         var api = getApi();
         if (!api || typeof api.set_drag_exclusions !== 'function') return;
         var dpr = window.devicePixelRatio || 1;
-        var rects = [];
-        [els.segSwitch, els.statusBadge, els.winBarRight].forEach(function (el) {
+        var items = [];
+        function push(kind, name, el) {
             if (!el) return;
             var r = el.getBoundingClientRect();
             if (r.width <= 0 || r.height <= 0) return;
-            rects.push([
-                Math.round(r.left * dpr), Math.round(r.top * dpr),
-                Math.round(r.width * dpr), Math.round(r.height * dpr)
-            ]);
-        });
-        try { api.set_drag_exclusions(rects); } catch (e) {}
+            items.push({
+                kind: kind, name: name,
+                x: Math.round(r.left * dpr), y: Math.round(r.top * dpr),
+                w: Math.round(r.width * dpr), h: Math.round(r.height * dpr)
+            });
+        }
+        push('exclude', 'mode-switch', els.segSwitch);
+        push('exclude', 'status-badge', els.statusBadge);
+        push('button', 'min', els.winMin);
+        push('button', 'max', els.winMax);
+        push('button', 'close', els.winClose);
+        try { api.set_drag_exclusions(items); } catch (e) {}
     }
 
     function initWinState() {
@@ -383,7 +393,11 @@
     });
     els.winClose.addEventListener('click', function () { var api = getApi(); if (api) api.close(); });
 
-    // 拖动：栏上按下后移动超过阈值才真正拖动（避免与双击最大化冲突）
+    // 拖动：栏上按下后移动超过阈值才触发（避免与双击最大化冲突）。
+    // R0：原生模态循环（转发 WM_NCLBUTTONDOWN）在 WebView2 宿主里收不到
+    // 鼠标移动（Chromium 持有捕获），改回 JS 触发 → Python 后台线程
+    // SetWindowPos 跟随光标（clamp_drag_position 钳制边界、最大化态先还原
+    // 并抓点贴光标）。
     var dragState = { armed: false, startX: 0, startY: 0, active: false };
     els.shellBar.addEventListener('mousedown', function (e) {
         if (e.button !== 0) return;
@@ -398,10 +412,16 @@
         if (Math.abs(e.clientX - dragState.startX) > 3 || Math.abs(e.clientY - dragState.startY) > 3) {
             dragState.active = true;
             var api = getApi();
-            if (api) api.start_drag();
+            if (api && typeof api.start_drag === 'function') api.start_drag();
         }
     });
-    document.addEventListener('mouseup', function () {
+    document.addEventListener('mouseup', function (e) {
+        // T5 顶边吸附：拖动松手时光标在主屏物理顶边 → 原生最大化
+        // （不挡任务栏由 WM_GETMINMAXINFO/WM_NCCALCSIZE 保证）
+        if (dragState.active && e.screenY >= 0 && e.screenY <= 8) {
+            var api = getApi();
+            if (api && typeof api.snap_maximize === 'function') api.snap_maximize();
+        }
         dragState.armed = false;
         dragState.active = false;
     });
@@ -419,7 +439,9 @@
         el.addEventListener('dblclick', function (e) { e.stopPropagation(); });
     });
 
-    // 边缘缩放：固定覆盖条 mousedown → api.start_resize(dir)
+    // 边缘缩放（R0 恢复 JS 驱动）：命中带 mousedown → Python 后台线程按
+    // 方向拖动边/角（最小尺寸 1024×600 与 WM_GETMINMAXINFO 一致）。
+    // 命中带同时提供光标提示与拾取。
     document.querySelectorAll('.resize-strip').forEach(function (strip) {
         strip.addEventListener('mousedown', function (e) {
             var api = getApi();
