@@ -508,3 +508,56 @@ R3 实装后 GUI 实测：双击 ✅、托盘 ✅、DSH 切换 ✅、Web 模式 
    `window_state.bounds` 改为 `[1220, -168, 3502, 2018]`（UTF-8 无 BOM）→ 启动后窗口
    回退默认 1280×800 居中，不再复现「顶栏在屏幕外、鼠标点不到」。
 
+---
+
+## 14. 窗口原生能力回归（v1.2.3，2026-10-15）
+
+`frameless=True` 会让 pywebview 把 WinForms 窗口设为 `FormBorderStyle.None`，整套原生
+窗体样式集被摘掉 → 系统菜单、`Win+方向键` 贴靠、原生缩放、Win11 圆角全部缺失。本版本
+把「窗口控制交还系统」，外观不变（仍是 40px 自绘单栏），行为回归原生。
+
+### 14.1 改动
+
+- **路线①**：`frameless=False` 创建窗口（保留 `WS_CAPTION/WS_THICKFRAME/WS_SYSMENU/
+  WS_MINIMIZEBOX/WS_MAXIMIZEBOX`），`hidden=True` 创建、样式/几何就绪后再 `show()`，
+  避免原生标题栏闪现。
+- **`WM_NCCALCSIZE`**：抹掉可见边框（客户区 == 整窗，外观仍是单栏）；最大化时把
+  `rgrc[0]` 钉到工作区，避免压住任务栏。
+- **`WM_GETMINMAXINFO`**：原生最大化按窗口所在显示器工作区 + 拖拽尺寸约束 1024×600。
+- **`WM_NCHITTEST`（评估后不实施）**：自绘顶栏/边缘命中表作兜底通路的设想经实机
+  验证不成立——WebView2 子窗口铺满客户区，父 Form 收不到命中消息（见 14.2），
+  故拖动/缩放仍由 JS 驱动，不实现原生命中表。
+- **DWM 圆角**：`DwmSetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)`。
+- **最大化判定**：`IsZoomed()` + `SW_MAXIMIZE`/`SW_RESTORE`（不再自算 workarea）。
+
+### 14.2 关键结论（实机核验，2026-10-15）
+
+- **原生模态循环拖动/缩放不成立**：WebView2 子窗口铺满客户区且 Chromium 持有鼠标捕获，
+  顶层窗口收不到鼠标移动（`WM_NCLBUTTONDOWN(HTCAPTION)` 探针 Δ=0）→ **拖动/缩放仍由
+  JS 驱动**（`api.start_drag`/`start_resize` 后台线程 `SetWindowPos`），并复用 §13 的
+  `clamp_drag_position` 边界钳制。
+- **窗口几何幂等**：`_last_normal_bounds` 作「意图矩形」唯一真源（仅在初始化/拖动缩放
+  结束时更新），□ 还原走 `SetWindowPlacement` 后补一次 `SetWindowPos` 纠偏，消除
+  「最大化→还原每循环 +22/+56」的帧边距累加。
+- **钩子异常兜底**：`_install_hook` 整体 try/finally，任何一步失败都保证 `window.show()`，
+  应用「无窗口假死」不再发生。
+- **已知不达**：Win11 悬停最大化按钮的贴靠布局浮窗（需把顶栏从 WebView 客户区「挖」出，
+  PyWebView 架构下代价高，不排期）、标题栏右键菜单（依赖 `WM_NCHITTEST` 返回 `HTCAPTION`，
+  同上不成立）；`Win+←→↑↓` 贴靠、拖边/角贴靠预览、`Alt+Space` 系统菜单、任务栏右键菜单均可用。
+
+### 14.3 与既有条目关系
+
+- **§13 边界钳制**：`clamp_drag_position` 保留，是 JS 驱动拖动路径上唯一的边界钳制
+  （原生钳制不生效，见 14.2），不删除。
+- **T3/T4/T5**：最大化/还原、不挡任务栏、顶边吸附改由系统 + `WM_GETMINMAXINFO`/
+  `WM_NCCALCSIZE` 保证；顶边吸附改 JS 检测松手 → `SW_MAXIMIZE`。
+- **T6 窗口位置记忆**：恢复仍走 `validate_restore_bounds`，落盘前再过一次校验。
+
+### 14.4 验收
+
+- 顶栏拖动/双击最大化/四边四角 8px 缩放（最小 1024×600、最大化禁缩放）；
+- `Alt+Space` 系统菜单、任务栏右键「最小化/最大化/移动/大小」；
+- `Win+←/→/↑/↓` 贴靠；任何最大化入口不挡任务栏；
+- 连续 3 次「□ 最大化 → □ 还原」外框逐次精确一致（无 +22/+56）；
+- 150% DPI 下几何正确；钩子失败时窗口仍显示可用。
+

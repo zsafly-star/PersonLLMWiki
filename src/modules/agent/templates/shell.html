@@ -350,31 +350,6 @@
         setTimeout(refreshStatus, delay);
     }
 
-    function reportDragExclusions() {
-        // KL-1.2.3-04：上报带语义的命中区（物理像素），供 Python 侧
-        // WM_NCHITTEST 命中表使用：button=窗口控制按钮，exclude=交互排除区
-        var api = getApi();
-        if (!api || typeof api.set_drag_exclusions !== 'function') return;
-        var dpr = window.devicePixelRatio || 1;
-        var items = [];
-        function push(kind, name, el) {
-            if (!el) return;
-            var r = el.getBoundingClientRect();
-            if (r.width <= 0 || r.height <= 0) return;
-            items.push({
-                kind: kind, name: name,
-                x: Math.round(r.left * dpr), y: Math.round(r.top * dpr),
-                w: Math.round(r.width * dpr), h: Math.round(r.height * dpr)
-            });
-        }
-        push('exclude', 'mode-switch', els.segSwitch);
-        push('exclude', 'status-badge', els.statusBadge);
-        push('button', 'min', els.winMin);
-        push('button', 'max', els.winMax);
-        push('button', 'close', els.winClose);
-        try { api.set_drag_exclusions(items); } catch (e) {}
-    }
-
     function initWinState() {
         var api = getApi();
         if (api && typeof api.is_maximized === 'function') {
@@ -489,20 +464,13 @@
         }
     });
 
-    // 交互排除矩形上报 + 窗口状态初始化（等 pywebview 注入完成）
+    // 窗口状态初始化（等 pywebview 注入完成）
     function onApiReady() {
         updateWinControlsVisibility();
         initWinState();
-        reportDragExclusions();
     }
     window.addEventListener('pywebviewready', onApiReady);
     if (getApi()) onApiReady();
-
-    // 尺寸变化时重新上报排除矩形（窗口缩放/DPI 变化）
-    if (window.ResizeObserver && els.shellBar) {
-        var ro = new ResizeObserver(function () { reportDragExclusions(); });
-        ro.observe(els.shellBar);
-    }
 
     // 初始：应用记忆模式并拉取状态
     applyMode();
