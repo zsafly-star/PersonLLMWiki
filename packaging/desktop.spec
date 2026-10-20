@@ -8,7 +8,11 @@
 
 import os
 from PyInstaller.building.datastruct import Tree
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+)
 
 block_cipher = None
 # spec 位置：packaging/desktop.spec → 项目根 PersonLLMWiki/
@@ -28,10 +32,30 @@ if not os.path.isfile(_app_version_txt):
     with open(_app_version_txt, 'w', encoding='utf-8') as _f:
         _f.write(_v + '\n')
 
+# 包内数据（1.2.3.005 实测缺两处，安装版会直接崩）：
+#  1) jsonschema_specifications/schemas/*.json —— jsonschema（经 fastmcp/mcp）import 时会
+#     用 referencing 读这批 metaschema；缺目录 → mcp-launcher 子进程 FileNotFoundError，
+#     pdf-mcp / websearch 起不来。
+#  2) tzdata —— Windows 没有系统 tz 库，zoneinfo 依赖这个包；缺失时报
+#     "No time zone found with key Asia/Shanghai"，定时任务调度器起不来。
+_extra_datas = []
+for _pkg in ('jsonschema_specifications', 'tzdata'):
+    try:
+        _extra_datas += collect_data_files(_pkg)
+    except Exception as _e:      # 未安装时不要阻断打包
+        print(f'[desktop.spec] collect_data_files({_pkg}) 跳过: {_e}')
+
 a = Analysis(
     [os.path.join(src_dir, 'desktop.pyw')],
     pathex=[src_dir],
-    binaries=[],
+    binaries=[
+        # clr_loader 的 netfx 原生宿主 ClrLoader.dll（clr_loader.ffi.load_netfx 用
+        # ffi.dlopen 动态加载，静态分析看不到）。缺失时 PYTHONNET_RUNTIME=netfx 的
+        # import clr 会失败，pywebview 的 winforms/edgechromium 后端 except 分支会回退
+        # coreclr，而本机无 WindowsDesktop 共享框架 → System.Windows.Forms
+        # FileNotFoundException（1.2.3.008 实测）。
+        *collect_dynamic_libs('clr_loader'),
+    ],
     datas=[
         # 打包 static 和 templates（Flask 渲染需要）
         (os.path.join(src_dir, 'static'), 'static'),
@@ -42,6 +66,8 @@ a = Analysis(
         (os.path.join(src_dir, 'static', 'img', 'app.ico'), 'static/img'),
         # 安装版版本标识（完整构建号，打进 _internal/app_version.txt）
         (_app_version_txt, '.'),
+        # 运行时数据包（见上面 _extra_datas 注释）
+        *_extra_datas,
     ],
     hiddenimports=[
         'flask',
@@ -82,9 +108,21 @@ a = Analysis(
         'httpx',
         'mcp',
         'pydantic',
+        'jsonschema_specifications',
+        'referencing',
+        # anyio 的 asyncio 后端是"运行时按名字 import"的（anyio._backends._asyncio），
+        # 静态分析看不到；漏了会让 MCP 子进程报
+        # LookupError: Backend 'asyncio' is not available（1.2.3.005 实测）
+        *collect_submodules('anyio'),
+        # rich 的 unicode 数据模块是运行时按版本动态 import 的
+        # （rich._unicode_data.unicode17-0-0），静态分析看不到；漏了会让 rich
+        # 渲染时报 ModuleNotFoundError（1.2.3.008 实测）。
+        *collect_submodules('rich._unicode_data'),
     ],
     hookspath=[],
     hooksconfig={},
+    # pythonnet 的 .NET Framework 固定在 src/desktop.pyw 顶部设置（setdefault），
+    # 不放 runtime hook：实测 runtime hook 未生效（PYZ 缓存命中时不重新编译）。
     runtime_hooks=[],
     excludes=['torch', 'transformers', 'hf_xet'],
     cipher=block_cipher,
