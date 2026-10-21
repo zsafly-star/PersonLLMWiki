@@ -48,6 +48,7 @@ WM_SETICON = 0x0080
 WM_SIZE = 0x0005
 WM_GETMINMAXINFO = 0x0024
 WM_NCCALCSIZE = 0x0083
+WM_APP_RESTORE = 0x8001  # WM_APP+1：托盘恢复（pystray 线程 → PostMessage → UI 线程处理）
 GWL_WNDPROC = -4
 SW_HIDE = 0
 SW_SHOWNORMAL = 1
@@ -261,10 +262,16 @@ class WindowChrome:
             user32.ShowWindow(self.hwnd, SW_MAXIMIZE)
 
     def restore_window(self):
-        """托盘回调：恢复并聚焦窗口。"""
+        """托盘回调：恢复并聚焦窗口。
+
+        pystray 回调在自己线程，不能直接操作 WinForms 控件；PostMessage 到
+        UI 线程（WndProc）处理：SW_HIDE 期间 WebView2 controller 已被挂起，
+        SW_RESTORE 后 resume 是异步的且偶发不触发重绘 → 白屏（需等待甚至再
+        点一次）。恢复时显式翻转 WebView2 可见性，强制 controller resume +
+        重绘（等价于用户观察到的"第二次打开就好了"，自动完成）。
+        """
         if self.hwnd:
-            user32.ShowWindow(self.hwnd, SW_RESTORE)
-            user32.SetForegroundWindow(self.hwnd)
+            user32.PostMessageW(self.hwnd, WM_APP_RESTORE, 0, 0)
 
     def hide_to_tray(self):
         """关闭到托盘：隐藏窗口（window.events.closing 回调调用）。"""
@@ -287,8 +294,10 @@ class WindowChrome:
         if user32.IsZoomed(self.hwnd):
             # □ 还原：SetWindowPlacement 的 realize 会把窗口矩形放大一次帧边距，
             # 故先设 placement 再用 SetWindowPos（不经帧换算）纠偏钉回意图矩形；
-            # 无意图记录才回退 SW_RESTORE
-            bounds = self.last_normal_bounds
+            # 无意图记录才回退 SW_RESTORE。意图矩形先过虚拟屏幕校验——副屏拔除
+            # /DPI 变化后 last_normal_bounds 可能已落在屏外，直接还原会把窗口
+            # 摆到不可见位置（与最大化飞出同症状）。
+            bounds = self._validate_window_bounds(self.last_normal_bounds)
             if bounds:
                 if self._apply_normal_placement(bounds, SW_SHOWNORMAL):
                     user32.SetWindowPos(
@@ -545,6 +554,13 @@ class WindowChrome:
         minimized/restored 事件是后台线程异步回调，而 _set_webview_visible 需在
         UI 线程操作 WinForms 控件，故最小化白屏仍保留 WM_SIZE 子类化。
         """
+        if msg == WM_APP_RESTORE:
+            # UI 线程：恢复窗口 + 强制 WebView2 唤醒（见 restore_window 注释）
+            user32.ShowWindow(self.hwnd, SW_RESTORE)
+            user32.SetForegroundWindow(self.hwnd)
+            self._set_webview_visible(False)
+            self._set_webview_visible(True)
+            return 0
         if msg == WM_SIZE:
             if wparam == 1:  # SIZE_MINIMIZED
                 self.was_minimized = True
@@ -615,8 +631,11 @@ class WindowChrome:
 
         用 MONITOR_DEFAULTTONULL 语义：窗口矩形不与任何显示器相交（最小化在
         (-32000,-32000) 或恢复过渡态）时返回 NULL——此时不能据窗口定位显示器
-        （NEAREST 会就近误取邻屏），回退到 last_work_area 缓存；缓存也无才退回
-        主显示器 SPI_GETWORKAREA。返回 (left, top, right, bottom)，失败 None。
+        （NEAREST 会就近误取邻屏）。回退链：光标所在屏（最大化/恢复操作时光标
+        几乎必在目标屏——点最大化按钮、双击标题栏、Win+Up 都在窗口附近）→
+        last_work_area 缓存 → 主显示器 SPI_GETWORKAREA。注意缓存/主屏回退会把
+        副屏最大化钉到主屏坐标（窗口"飞出屏幕"，1.2.3.015 副屏实测），故光标
+        优先。返回 (left, top, right, bottom)，失败 None。
         """
         hwnd = self.hwnd
         if hwnd:
@@ -629,6 +648,15 @@ class WindowChrome:
                           mi.rcWork.right, mi.rcWork.bottom)
                     self.last_work_area = wa
                     return wa
+        pt = ctypes.wintypes.POINT()
+        if user32.GetCursorPos(ctypes.byref(pt)):
+            monitor = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+            if monitor:
+                mi = MONITORINFO()
+                mi.cbSize = ctypes.sizeof(MONITORINFO)
+                if user32.GetMonitorInfoW(monitor, ctypes.byref(mi)):
+                    return (mi.rcWork.left, mi.rcWork.top,
+                            mi.rcWork.right, mi.rcWork.bottom)
         if self.last_work_area:
             return self.last_work_area
         rect = ctypes.wintypes.RECT()
