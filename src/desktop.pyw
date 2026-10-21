@@ -319,11 +319,6 @@ def main():
         # 闪现，样式/几何就绪后再 install 里 show()
         frameless=False,
         hidden=True,
-        # 关闭 pywebview 默认的 private_mode：让 WebView2 持久化 cookie/local storage。
-        # DSH 0.1.5 起 web 需 token 认证，认证后靠持久签名 cookie 维持会话；private_mode
-        # 下 cookie 每次启动清空，跨 PLW 重启后（尤其 DSH 由其他进程拉起、本进程拿不到
-        # stdout token）iframe 只能 401。持久化后只要成功认证过一次即可跨重启复用。
-        private_mode=False,
         js_api=window_api,
     )
     if _win_x is not None and _win_y is not None:
@@ -363,7 +358,13 @@ def main():
     print("[Desktop] 托盘已启动")
 
     # 阻塞直到用户点击托盘"退出"
-    webview.start()
+    # private_mode=False：让 WebView2 持久化 cookie/local storage。DSH 0.1.5 起 web
+    # 需 token 认证，认证后靠持久签名 cookie 维持会话；private_mode 下 cookie 每次
+    # 启动清空，跨 PLW 重启后（尤其 DSH 由其他进程拉起、本进程拿不到 stdout token）
+    # iframe 只能 401。持久化后只要成功认证过一次即可跨重启复用。
+    # 注意：private_mode 是 start() 的参数（非 create_window()），传错位置会直接
+    # TypeError（1.2.3.012 实测）。
+    webview.start(private_mode=False)
     print("[Desktop] 已退出")
 
     # 兜底：覆盖其它退出路径，幂等停止 PLW 拉起的 DSH（用户自启的不杀）
