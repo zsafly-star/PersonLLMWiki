@@ -12,6 +12,7 @@ from PyInstaller.utils.hooks import (
     collect_data_files,
     collect_dynamic_libs,
     collect_submodules,
+    copy_metadata,
 )
 
 block_cipher = None
@@ -55,6 +56,15 @@ try:
     _extra_datas += collect_data_files('jieba', includes=['dict.txt'])
 except Exception as _e:
     print(f'[desktop.spec] collect_data_files(jieba/dict.txt) 跳过: {_e}')
+
+# markdown 的 dist-info 元数据（entry_points.txt）：extra 是元扩展，内部用短名
+# （fenced_code/abbr/...）注册子扩展，短名靠 importlib.metadata entry points 解析；
+# 冻结包无元数据时回退 import_module('fenced_code') → ModuleNotFoundError → 文章渲染
+# 500（1.2.3.014 实测，源码态有 dist-info 故正常。第三类不可见依赖：元数据）。
+try:
+    _extra_datas += copy_metadata('markdown')
+except Exception as _e:
+    print(f'[desktop.spec] copy_metadata(markdown) 跳过: {_e}')
 
 a = Analysis(
     [os.path.join(src_dir, 'desktop.pyw')],
