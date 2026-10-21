@@ -129,6 +129,11 @@ a = Analysis(
         # （rich._unicode_data.unicode17-0-0），静态分析看不到；漏了会让 rich
         # 渲染时报 ModuleNotFoundError（1.2.3.008 实测）。
         *collect_submodules('rich._unicode_data'),
+        # markdown 的扩展（extra/tables/fenced_code 等）是按字符串名动态
+        # importlib.import_module 的，静态分析看不到；漏了会让文章后端渲染
+        # ModuleNotFoundError: markdown.extensions.extra → /api/article/content
+        # 全部 500，文章页全部"加载失败"（1.2.3.013 实测，源码态正常）。
+        *collect_submodules('markdown'),
     ],
     hookspath=[],
     hooksconfig={},
