@@ -371,6 +371,57 @@ def _extract_authenticated_url(text):
     return m.group(0) if m else None
 
 
+# ─── token URL 持久化 ─────────────────────────────────────
+# DSH 0.1.5 起 web 需 token 认证，而 token 只在 `dsh web` 启动时打印到 stdout。
+# 若 DSH 由「前一个 PLW 进程」或「用户手动」启动，本进程拿不到 stdout token，iframe
+# 只能加载裸地址 → 401。故把捕获到的 token URL 落盘，跨 PLW 重启仍可复用（只要 DSH
+# 进程未重启、token 未失效）。
+
+def _launch_url_path():
+    """token URL 持久化路径：~/.personllmwiki/instance/dsh_launch_url.txt"""
+    from config import Config
+    return os.path.join(Config.INSTANCE_PATH, 'dsh_launch_url.txt')
+
+
+def _read_launch_url():
+    """读取上次持久化的带 token 的 DSH URL；不存在/非法返回 None。"""
+    path = _launch_url_path()
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            url = f.read().strip()
+    except (OSError, IOError):
+        return None
+    return url if (_valid_http_url(url) and _is_loopback_url(url)) else None
+
+
+def _write_launch_url(url):
+    """原子写入带 token 的 DSH URL。"""
+    import tempfile
+    path = _launch_url_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix='.dsh_launch_url-', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(url)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
+def _clear_launch_url():
+    """清除持久化的 token URL。"""
+    path = _launch_url_path()
+    if os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 # ─── 健康检查 ──────────────────────────────────────────────
 
 def check_health(url=None, timeout=HEALTH_TIMEOUT):
@@ -442,15 +493,17 @@ def get_status():
         else:
             status = STATUS_NOT_RUNNING
 
+    # DSH 0.1.5 起 web 需 token 认证。优先本进程捕获到的 token URL；其次持久化的
+    # token URL（DSH 由前一个进程/用户自启时，本进程拿不到 stdout token）；最后回退裸地址。
+    effective_url = _launch_url or _read_launch_url()
+
     return {
         'status': status,
         'installed': installed,
         'version': version,
         'version_ok': ok,
         'running': running,
-        # DSH 0.1.5 起 web 需 token 认证；优先返回本进程捕获到的带 token URL，
-        # 否则回退裸地址（用户自启 DSH 时拿不到 token，仅作退化）。
-        'url': (_launch_url if (running and _launch_url) else (cfg.get('dsh_url') or DEFAULT_DSH_URL)),
+        'url': (effective_url if (running and effective_url) else (cfg.get('dsh_url') or DEFAULT_DSH_URL)),
         'cmd': cmd or '',
         'auto_start': cfg.get('auto_start', False),
         'min_version': MIN_DSH_VERSION,
@@ -517,6 +570,7 @@ def start(timeout=30.0):
                 url = _extract_authenticated_url(line)
                 if url:
                     _launch_url = url
+                    _write_launch_url(url)
         except Exception:
             pass
 
@@ -538,6 +592,7 @@ def start(timeout=30.0):
             if _managed_proc is proc:
                 _managed_proc = None
                 _launch_url = None
+                _clear_launch_url()
 
     threading.Thread(target=_wait_ready, args=(new_proc,), daemon=True).start()
 
@@ -553,6 +608,7 @@ def stop():
     with _proc_lock:
         proc, _managed_proc = _managed_proc, None
         _launch_url = None
+        _clear_launch_url()
     if proc is not None and proc.poll() is None:
         try:
             if os.name == 'nt':

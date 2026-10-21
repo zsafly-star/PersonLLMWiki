@@ -59,6 +59,11 @@ _setup_frozen_logging()
 # setdefault：不覆盖用户/环境显式设置。必须早于任何 clr/webview 导入。
 os.environ.setdefault('PYTHONNET_RUNTIME', 'netfx')
 
+# 禁用 fastmcp 的启动版本检查（check_for_updates）。打包版 MCP 子进程启动时若联网
+# 检查 PyPI，会走 httpx → ssl.create_default_context()，缺 certifi CA 证书会直接崩，
+# 离线环境还会拖慢启动 2 秒。桌面应用无需检查 fastmcp 新版本。
+os.environ.setdefault('FASTMCP_CHECK_FOR_UPDATES', 'off')
+
 # ── MCP 子进程入口 ──────────────────────────────────────────────
 # 打包模式下，builtin_mcp_manager 以 --mcp-launcher=<path> 参数启动 EXE，
 # 此时只运行指定 MCP 服务器脚本，不启动完整桌面应用。
@@ -314,6 +319,11 @@ def main():
         # 闪现，样式/几何就绪后再 install 里 show()
         frameless=False,
         hidden=True,
+        # 关闭 pywebview 默认的 private_mode：让 WebView2 持久化 cookie/local storage。
+        # DSH 0.1.5 起 web 需 token 认证，认证后靠持久签名 cookie 维持会话；private_mode
+        # 下 cookie 每次启动清空，跨 PLW 重启后（尤其 DSH 由其他进程拉起、本进程拿不到
+        # stdout token）iframe 只能 401。持久化后只要成功认证过一次即可跨重启复用。
+        private_mode=False,
         js_api=window_api,
     )
     if _win_x is not None and _win_y is not None:

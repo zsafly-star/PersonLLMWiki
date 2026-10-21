@@ -32,18 +32,29 @@ if not os.path.isfile(_app_version_txt):
     with open(_app_version_txt, 'w', encoding='utf-8') as _f:
         _f.write(_v + '\n')
 
-# 包内数据（1.2.3.005 实测缺两处，安装版会直接崩）：
+# 包内数据（1.2.3.005 起实测缺三处，安装版会直接崩）：
 #  1) jsonschema_specifications/schemas/*.json —— jsonschema（经 fastmcp/mcp）import 时会
 #     用 referencing 读这批 metaschema；缺目录 → mcp-launcher 子进程 FileNotFoundError，
 #     pdf-mcp / websearch 起不来。
 #  2) tzdata —— Windows 没有系统 tz 库，zoneinfo 依赖这个包；缺失时报
 #     "No time zone found with key Asia/Shanghai"，定时任务调度器起不来。
+#  3) certifi —— httpx/openai 走 HTTPS 时 ssl.create_default_context() 需要 CA 证书
+#     cacert.pem；缺失时 mcp-launcher 子进程报 FileNotFoundError（1.2.3.009 实测）。
+#  4) jieba/dict.txt —— jieba 中文分词主词典是数据文件，静态分析看不到；缺失时
+#     wiki BM25 检索的 jieba.cut_for_search 分词退化为空，关键词检索失效（1.2.3.010 排查）。
 _extra_datas = []
-for _pkg in ('jsonschema_specifications', 'tzdata'):
+for _pkg in ('jsonschema_specifications', 'tzdata', 'certifi'):
     try:
         _extra_datas += collect_data_files(_pkg)
     except Exception as _e:      # 未安装时不要阻断打包
         print(f'[desktop.spec] collect_data_files({_pkg}) 跳过: {_e}')
+
+# jieba 只收集主词典 dict.txt（项目仅用 cut_for_search）；不收集 analyse/idf.txt、
+# posseg/*.p、lac_small 模型等未用到的数据，避免无谓增大安装包。
+try:
+    _extra_datas += collect_data_files('jieba', includes=['dict.txt'])
+except Exception as _e:
+    print(f'[desktop.spec] collect_data_files(jieba/dict.txt) 跳过: {_e}')
 
 a = Analysis(
     [os.path.join(src_dir, 'desktop.pyw')],
